@@ -1281,3 +1281,4 @@ if __name__ == "__main__":
     try:
         loop.run_until_complete(main_async())
     except KeyboardInterrupt:
+        logger.info("Bot Stopped Manually.")
