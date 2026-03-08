@@ -1,9 +1,11 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 7.2 PRO) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 7.3 PRO MAX) ✨
 FEATURES: Direct STEXSMS API, Global OTP Poller, SQLite WAL Mode, Memory Mgmt.
 UI UPDATE: Fully Edit-Based Navigation, Premium Emojis, Clean OTP Success Msg.
-BUG FIX: Implemented Auto-Retry mechanism for 401/403 Session Expiry.
+BUG FIX 1: Implemented Auto-Retry & Async Lock for 1-hour Session Expiry (No Server Busy).
+BUG FIX 2: Fixed Render OSError [Errno 98] for Dummy Web Server.
+UI TWEAK: Replaced 'Main Menu' with 'Back to Category' after Number Generation.
 ==============================================================================
 """
 
@@ -54,8 +56,11 @@ API_GET_NUM = "https://stexsms.com/mapi/v1/mdashboard/getnum/number"
 API_INBOX = "https://stexsms.com/mapi/v1/mdashboard/getnum/info"
 API_2FA = "https://2fa.cn/codes/{}"
 
+# 🛑 SERVER BUSY & CRASH PREVENTION LOCK
 MAUTH_TOKEN = None
 GLOBAL_SESSION = None 
+AUTH_LOCK = asyncio.Lock() 
+LAST_AUTH_TIME = 0
 
 REWARD_PER_OTP = 0.00125  
 MIN_WITHDRAW_BDT = 50     
@@ -83,48 +88,53 @@ OTP_TIMEOUT_SECONDS = 1200 # 20 minutes timeout
 
 
 # ==============================================================================
-# 🔐 API AUTHENTICATION SYSTEM (STEXSMS)
+# 🔐 API AUTHENTICATION SYSTEM (LIFETIME FIX FOR SERVER BUSY)
 # ==============================================================================
 
 async def get_session():
-    """Returns a single persistent global session to prevent memory leaks."""
+    """Returns a highly optimized, resilient global session."""
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(limit=50, keepalive_timeout=60)
+        connector = aiohttp.TCPConnector(limit=100, keepalive_timeout=30, enable_cleanup_closed=True)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector)
     return GLOBAL_SESSION
 
 async def authenticate_stex():
-    """Authenticates with the STEX API and sets the global token."""
-    global MAUTH_TOKEN
+    """Authenticates with STEX API using an Async Lock to prevent API overload."""
+    global MAUTH_TOKEN, LAST_AUTH_TIME
     
-    payload = {
-        "email": STEX_EMAIL, 
-        "password": STEX_PASSWORD
-    }
-    
-    headers = {
-        "User-Agent": BASE_USER_AGENT,
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/json",
-        "Origin": "https://stexsms.com",
-        "Referer": "https://stexsms.com/mauth/login"
-    }
-    
-    try:
-        session = await get_session()
-        async with session.post(API_LOGIN, json=payload, headers=headers, timeout=10) as response:
-            if response.status == 200:
-                data = await response.json()
-                if data.get('meta', {}).get('code') == 200:
-                    MAUTH_TOKEN = data['data']['token']
-                    logger.info("✅ STEXSMS API Authenticated Successfully!")
-                    return True
-            logger.error(f"❌ STEXSMS Auth Failed: HTTP {response.status}")
+    async with AUTH_LOCK:
+        if time.time() - LAST_AUTH_TIME < 15 and MAUTH_TOKEN:
+            return True
+            
+        payload = {
+            "email": STEX_EMAIL, 
+            "password": STEX_PASSWORD
+        }
+        
+        headers = {
+            "User-Agent": BASE_USER_AGENT,
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "Origin": "https://stexsms.com",
+            "Referer": "https://stexsms.com/mauth/login"
+        }
+        
+        try:
+            session = await get_session()
+            async with session.post(API_LOGIN, json=payload, headers=headers, timeout=15, ssl=False) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get('meta', {}).get('code') == 200:
+                        MAUTH_TOKEN = data['data']['token']
+                        LAST_AUTH_TIME = time.time()
+                        logger.info("✅ STEXSMS API Authenticated Successfully!")
+                        return True
+                logger.error(f"❌ STEXSMS Auth Failed: HTTP {response.status}")
+                return False
+        except Exception as e:
+            logger.error(f"❌ STEXSMS Auth Exception: {e}")
             return False
-    except Exception as e:
-        logger.error(f"❌ STEXSMS Auth Exception: {e}")
-        return False
 
 def get_stex_headers():
     return {
@@ -500,10 +510,9 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                         )
                     except Exception as e:
                         logger.error(f"Failed to edit OTP success msg: {e}")
-                        # Fallback if edit fails
                         asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=final_msg, parse_mode=ParseMode.HTML))
                     
-                    # ✅ NEW FEATURE: PROMPT USER TO SELECT CATEGORY AGAIN AFTER OTP SUCCESS
+                    # ✅ PROMPT USER TO SELECT CATEGORY AGAIN AFTER OTP SUCCESS
                     cat_kb = [
                         [
                             InlineKeyboardButton("📘 Facebook", callback_data="cat_facebook"), 
@@ -519,7 +528,6 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                         "<i>Select a service category below to fetch active numbers from the console instantly:</i>"
                     )
                     
-                    # Sending the category prompt as a new message so the OTP code remains visible
                     asyncio.create_task(context.bot.send_message(
                         chat_id=chat_id, 
                         text=cat_txt, 
@@ -574,7 +582,7 @@ async def get_number_api(update: Update, context: ContextTypes.DEFAULT_TYPE, ran
             if not MAUTH_TOKEN: 
                 await authenticate_stex()
                 
-            async with session.post(API_GET_NUM, json=payload, headers=get_stex_headers(), timeout=12, ssl=False) as response:
+            async with session.post(API_GET_NUM, json=payload, headers=get_stex_headers(), timeout=15, ssl=False) as response:
                 if response.status == 401 or response.status == 403:
                     MAUTH_TOKEN = None # Force token refresh
                     continue # Retry loop
@@ -608,6 +616,7 @@ async def get_number_api(update: Update, context: ContextTypes.DEFAULT_TYPE, ran
                 f"<i>🚀 Please enter this number in the app and wait. We are auto-checking...</i>"
             )
             
+            # ✅ MAIN MENU BUTTON REPLACED WITH CATEGORY MENU
             kb = [
                 [InlineKeyboardButton("📥 Refresh Status", callback_data="refresh_inbox")],
                 [
@@ -765,7 +774,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
             if not MAUTH_TOKEN: 
                 await authenticate_stex()
                 
-            async with session.get(API_CONSOLE, headers=get_stex_headers(), timeout=10) as resp:
+            async with session.get(API_CONSOLE, headers=get_stex_headers(), timeout=15) as resp:
                 if resp.status == 401 or resp.status == 403:
                     MAUTH_TOKEN = None # Force reset
                     continue # Retry loop
@@ -1254,7 +1263,7 @@ async def main_async():
     # Run API polling every 5 seconds
     app.job_queue.run_repeating(global_otp_checker_job, interval=5, first=3)
     
-    logger.info("✨ VERSION 7.2 PRO (AUTO-RETRY SYSTEM ENABLED) STARTED... ✨")
+    logger.info("✨ VERSION 7.3 PRO MAX STARTED... ✨")
     
     await app.initialize()
     await app.start()
@@ -1272,4 +1281,3 @@ if __name__ == "__main__":
     try:
         loop.run_until_complete(main_async())
     except KeyboardInterrupt:
-        logger.info("Bot Stopped Manually.")
