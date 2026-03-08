@@ -1207,14 +1207,19 @@ async def web_server_handler(request):
     return web.Response(text="Bot is running perfectly on Render Server!")
 
 async def start_dummy_server():
-    app = web.Application()
-    app.router.add_get('/', web_server_handler)
-    port = int(os.environ.get('PORT', 8080))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    logger.info(f"🌐 Dummy Web Server started on port {port}.")
+    try:
+        app = web.Application()
+        app.router.add_get('/', web_server_handler)
+        port = int(os.environ.get('PORT', 8080))
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+        logger.info(f"🌐 Dummy Web Server started on port {port}.")
+    except OSError as e:
+        logger.warning(f"⚠️ Port {port} is already in use. Skipping web server startup. Bot will continue running. Error: {e}")
+    except Exception as e:
+        logger.error(f"⚠️ Dummy server failed to start: {e}")
 
 
 # ==============================================================================
