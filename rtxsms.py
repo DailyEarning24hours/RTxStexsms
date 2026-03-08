@@ -612,7 +612,7 @@ async def get_number_api(update: Update, context: ContextTypes.DEFAULT_TYPE, ran
                 [InlineKeyboardButton("📥 Refresh Status", callback_data="refresh_inbox")],
                 [
                     InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), 
-                    InlineKeyboardButton("🔙 Main Menu", callback_data="go_main")
+                    InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")
                 ]
             ]
             
