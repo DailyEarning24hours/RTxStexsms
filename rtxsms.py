@@ -1,12 +1,12 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 17.0 ENTERPRISE) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 18.0 ENTERPRISE) ✨
 CAPACITY: 10,000+ Users on Render Free Plan (O(1) Hash-Map Algorithm Added).
 RESTORED: Auto OTP & Range Forwarding Fixed.
 FILTERED RANGE: Only Facebook, WhatsApp, and Telegram ranges are forwarded.
-DYNAMIC UI: Numbers automatically remove upon receiving OTP. Message deletes when all done.
-FEATURES: Premium UI, Anti-Error System, Auto-Retry, Custom Range.
-ADMIN PANEL: Fully working Broadcast, Ban, Unban, Reply features added.
+DYNAMIC UI: Generates exactly 2 numbers. Received numbers disappear automatically.
+CLEAN UI: Timeout messages completely removed. Expired messages auto-delete silently.
+ADMIN PANEL: Added /users, /search, and /backup database features.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability.
 ==============================================================================
 """
@@ -28,7 +28,8 @@ from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
     ReplyKeyboardMarkup, 
-    ReplyKeyboardRemove
+    ReplyKeyboardRemove,
+    InputFile
 )
 from telegram.ext import (
     Application, 
@@ -46,21 +47,20 @@ from aiohttp import web
 # ⚙️ CONFIGURATION & CREDENTIALS
 # ==============================================================================
 
-# 🔥 NEW BOT TOKEN ADDED
 TOKEN = "8784714590:AAGW1bthOSIh2HUl2vPCYS_zv13zEz7BOsg"
 
 # 🔥 2 ADMIN IDs
-ADMIN_IDS = 6031032502
+ADMIN_IDS = [6031032502, 6941366213] 
 
-# 🔥 4 SUBSCRIPTION CHATS (Converted from your links to Usernames for API check)
+# 🔥 4 SUBSCRIPTION CHATS
 CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 
-# 🔥 NEW TARGET GROUPS
+# 🔥 TARGET GROUPS
 RANGE_GROUP_ID = -1003627708272
 OTP_GROUP_ID = -1003830374258
 
-STEX_EMAIL = "mdrajaislam469@gmail.com"
-STEX_PASSWORD = "Raja1234@#"
+STEX_EMAIL = "mujahidhasan619@gmail.com"
+STEX_PASSWORD = "hasan2008"
 
 API_LOGIN = "https://stexsms.com/mapi/v1/mauth/login"
 API_CONSOLE = "https://stexsms.com/mapi/v1/mdashboard/console/info"
@@ -100,7 +100,7 @@ logger = logging.getLogger(__name__)
 
 WAITING_OTPS = {}
 BATCH_MSGS = {} # Track batched messages to dynamically edit/delete them
-OTP_TIMEOUT_SECONDS = 1200 
+OTP_TIMEOUT_SECONDS = 1200 # 20 minutes
 
 def get_hash_key(number_str):
     """Generates an O(1) lookup key for extreme performance on Render Free Plan."""
@@ -118,7 +118,7 @@ async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
         connector = aiohttp.TCPConnector(
-            limit=200,                  # Boosted for heavy load
+            limit=200,                  
             keepalive_timeout=60,      
             ttl_dns_cache=300,         
             enable_cleanup_closed=True 
@@ -177,7 +177,7 @@ def get_stex_headers():
 
 async def stex_api_request(method, url, json_payload=None):
     global MAUTH_TOKEN
-    max_retries = 5 # Increased for zero-error tolerance
+    max_retries = 5 
     
     for attempt in range(max_retries):
         try:
@@ -299,14 +299,18 @@ def is_user_banned(user_id):
     return False
 
 def get_all_users():
-    """Returns a list of all registered user IDs for broadcasting."""
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         c.execute("SELECT user_id FROM users")
         return [row[0] for row in c.fetchall()]
 
+def get_total_users_count():
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users")
+        return c.fetchone()[0]
+
 def set_ban_status(user_id, status):
-    """Sets the ban status of a user. 1 = Banned, 0 = Unbanned."""
     ensure_user(user_id)
     with db_pool.get_connection() as conn:
         c = conn.cursor()
@@ -399,7 +403,6 @@ async def check_subscription(user_id, bot):
 async def send_join_prompt(update, context):
     keyboard = []
     for c in CHANNELS:
-        # Proper URL formatting even if username is used
         channel_url = f"https://t.me/{c.replace('@', '')}"
         keyboard.append([InlineKeyboardButton(f"📢 Join {c}", url=channel_url)])
         
@@ -428,7 +431,7 @@ async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYP
     return False
 
 async def delete_message_later(bot, chat_id, msg_id, delay_seconds):
-    """Deletes 2FA code automatically after 5 minutes."""
+    """Deletes messages automatically after X seconds."""
     await asyncio.sleep(delay_seconds)
     try:
         await bot.delete_message(chat_id=chat_id, message_id=msg_id)
@@ -443,16 +446,14 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
     batch = BATCH_MSGS[batch_key]
     
     if len(batch['numbers']) == 0:
-        # All 3 numbers done, delete the entire message to keep UI extremely clean!
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
         except Exception:
             pass
         del BATCH_MSGS[batch_key]
     else:
-        # Update message to show only remaining numbers
         num_str = ""
-        symbols = ["❶", "❷", "❸"] 
+        symbols = ["❶", "❷"] 
         for i, n in enumerate(batch['numbers']):
             idx = i % len(symbols)
             num_str += f"{symbols[idx]} <code>{n}</code>\n"
@@ -504,7 +505,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
         new_ranges_count = 0
         bot_username = context.bot.username
         
-        # 🎯 Apps that are allowed to be forwarded to the range group
         allowed_apps = ['facebook', 'whatsapp', 'telegram']
         
         for log in logs:
@@ -514,7 +514,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                 app_name = str(log.get('app_name', 'Unknown')).lower()
                 c_name = log.get('country', 'Unknown')
                 
-                # Check if the app name contains any of the allowed apps
                 is_target_app = any(app in app_name for app in allowed_apps)
                 
                 if r_val and r_val not in SENT_RANGES and is_target_app:
@@ -524,7 +523,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                     if len(SENT_RANGES) > 5000:
                         SENT_RANGES.clear()
                         
-                    # Format the actual App Name nicely for display
                     display_app_name = log.get('app_name', 'Unknown').title()
                     
                     range_msg = (
@@ -550,14 +548,10 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ==============================================================================
-# 🚀 GLOBAL OTP POLLER (10k OPTIMIZED + DYNAMIC MESSAGE + FORWARD)
+# 🚀 GLOBAL OTP POLLER (NO TIMEOUT TEXT + SILENT AUTO DELETE + FORWARD)
 # ==============================================================================
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
-    """
-    🔥 ENTERPRISE POLLER 🔥
-    Handles O(1) hash map lookups, Dynamic UI Updates, and precise formatting forwards.
-    """
     global WAITING_OTPS, BATCH_MSGS
     if not WAITING_OTPS: 
         return 
@@ -568,7 +562,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     current_time = time.time()
     expired_keys = []
     
-    # 1. Cleanup Timeouts & Remove from Dynamic Batches
+    # 1. Cleanup Timeouts (SILENT MODE: Deletes original message, sends NO text)
     for hash_key, data in list(WAITING_OTPS.items()):
         if current_time - data['time'] > OTP_TIMEOUT_SECONDS:
             expired_keys.append(hash_key)
@@ -583,6 +577,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                     BATCH_MSGS[b_key]['numbers'].remove(f_num)
                 if len(BATCH_MSGS[b_key]['numbers']) == 0:
                     try:
+                        # 🔥 SILENT DELETE: Cleans up chat if numbers expire
                         await context.bot.delete_message(chat_id=user_data['chat_id'], message_id=user_data['msg_id'])
                     except: pass
                     del BATCH_MSGS[b_key]
@@ -664,13 +659,13 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ==============================================================================
-# 🎯 CLEAN 3-NUMBER GENERATION SYSTEM & DYNAMIC BATCH REGISTRATION
+# 🎯 EXACTLY 2-NUMBER GENERATION SYSTEM & DYNAMIC BATCH REGISTRATION
 # ==============================================================================
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS
     
-    wait_txt = "⏳ <i>Connecting to secure server... Generating 3 Numbers...</i> 🚀"
+    wait_txt = "⏳ <i>Connecting to secure server... Generating 2 Numbers...</i> 🚀"
     if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
@@ -687,7 +682,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     fetched_numbers = []
     country_name = "Unknown"
     
-    # Loop 3 times to fetch 3 numbers
+    # 🔥 Loop EXACTLY 2 times to fetch 2 numbers
     for _ in range(2):
         await asyncio.sleep(0.5) 
         status, resp_json = await stex_api_request('POST', API_GET_NUM, json_payload=payload)
@@ -713,7 +708,6 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             f"⏳ <i>Waiting for SMS... (Received numbers will disappear)</i>"
         )
         
-        # 🔥 CHANGED BACK BUTTON TO 'BACK TO CATEGORY'
         kb = [
             [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
             [
@@ -724,7 +718,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
         await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
-        # 🔥 Register Batch for Dynamic Removal
+        # Register Batch for Dynamic Removal
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {
             'numbers': fetched_numbers.copy(),
@@ -795,10 +789,6 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
         [
             InlineKeyboardButton("📘 Facebook", callback_data="cat_facebook"), 
             InlineKeyboardButton("💬 WhatsApp", callback_data="cat_whatsapp")
-        ],
-        [
-            InlineKeyboardButton("✈️ Telegram", callback_data="cat_telegram"),
-            InlineKeyboardButton("📸 Instagram", callback_data="cat_instagram")
         ],
         [
             InlineKeyboardButton("🎯 Custom Range", callback_data="cat_custom")
@@ -881,7 +871,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     ensure_user(user_id)
     
-    # 👑 ADMIN QUICK REPLY HANDLER
     if user_id in ADMIN_IDS and text.startswith("/reply"):
         try:
             parts = text.split(" ", 2)
@@ -891,7 +880,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Usage: `/reply UserID Message`")
         return
 
-    # 📱 MENU HANDLERS
     if text == "📱 Get Number":
         if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
         else: await start_category_selection(update, context)
@@ -972,7 +960,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ==============================================================================
-# 👑 FULLY FUNCTIONAL ADMIN COMMANDS (BAN, UNBAN, BROADCAST)
+# 👑 FULLY FUNCTIONAL ADMIN COMMANDS (NEW FEATURES ADDED)
 # ==============================================================================
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -984,7 +972,10 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📢 <code>/broadcast &lt;msg&gt;</code> - Message all users\n"
         "🚫 <code>/ban &lt;id&gt;</code> - Ban a user\n"
         "✅ <code>/unban &lt;id&gt;</code> - Unban a user\n"
-        "💬 <code>/reply &lt;id&gt; &lt;msg&gt;</code> - Reply to support"
+        "💬 <code>/reply &lt;id&gt; &lt;msg&gt;</code> - Reply to support\n"
+        "👥 <code>/users</code> - Total User Count\n"
+        "🔍 <code>/search &lt;id&gt;</code> - Check User Details\n"
+        "💾 <code>/backup</code> - Download Database"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -1009,6 +1000,49 @@ async def admin_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
+async def admin_users_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    count = get_total_users_count()
+    await update.message.reply_text(f"👥 <b>Total Registered Users:</b> {count}", parse_mode=ParseMode.HTML)
+
+async def admin_search_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    try:
+        target_id = int(context.args[0])
+        user = get_user(target_id)
+        if user:
+            status = "🔴 BANNED" if user[2] == 1 else "🟢 ACTIVE"
+            txt = (
+                f"🔍 <b>USER INFO FOUND</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>User ID:</b> <code>{user[0]}</code>\n"
+                f"📅 <b>Join Date:</b> {user[1]}\n"
+                f"🛡️ <b>Status:</b> {status}"
+            )
+        else:
+            txt = "❌ <b>User not found in database.</b>"
+        await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+    except Exception:
+        await update.message.reply_text("⚠️ Usage: `/search UserID`", parse_mode=ParseMode.Markdown)
+
+async def admin_backup_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    if os.path.exists(DB_FILE):
+        msg = await update.message.reply_text("⏳ <i>Preparing Database Backup...</i>", parse_mode=ParseMode.HTML)
+        try:
+            with open(DB_FILE, 'rb') as f:
+                await context.bot.send_document(
+                    chat_id=update.effective_chat.id, 
+                    document=InputFile(f, filename=f"BotBackup_{datetime.datetime.now().strftime('%Y%m%d')}.db"),
+                    caption="💾 <b>Here is your Bot Database Backup.</b>",
+                    parse_mode=ParseMode.HTML
+                )
+            await msg.delete()
+        except Exception as e:
+            await msg.edit_text(f"❌ <b>Backup Failed:</b> {e}", parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text("❌ <b>Database file not found!</b>", parse_mode=ParseMode.HTML)
+
 async def ban_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
     try:
@@ -1029,32 +1063,21 @@ async def unban_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
-    
     if not context.args:
         await update.message.reply_text("⚠️ Usage: `/broadcast Your message here`", parse_mode=ParseMode.Markdown)
         return
-        
     message = " ".join(context.args)
     users = get_all_users()
-    
     msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users... Please wait.</i>", parse_mode=ParseMode.HTML)
-    
     success = 0
     failed = 0
-    
     for u_id in users:
         try:
-            # We use HTML parsing for premium look if admin uses tags
-            await context.bot.send_message(
-                chat_id=u_id, 
-                text=f"📢 <b>ADMIN BROADCAST</b>\n━━━━━━━━━━━━━━━━━━━━\n{message}", 
-                parse_mode=ParseMode.HTML
-            )
+            await context.bot.send_message(chat_id=u_id, text=f"📢 <b>ADMIN BROADCAST</b>\n━━━━━━━━━━━━━━━━━━━━\n{message}", parse_mode=ParseMode.HTML)
             success += 1
         except Exception:
             failed += 1
-        await asyncio.sleep(0.05) # Prevent flood wait
-        
+        await asyncio.sleep(0.05) 
     await msg.edit_text(f"✅ <b>Broadcast Completed!</b>\n━━━━━━━━━━━━━━━━━━━━\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
 
 
@@ -1063,7 +1086,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="Bot is running perfectly! V17 Enterprise Edition with Fixed Admin Panel & Filtered Range.")
+    return web.Response(text="Bot is running perfectly! V18 Enterprise Edition with Clean UI & Advanced Admin Panel.")
 
 async def start_dummy_server():
     try:
@@ -1087,10 +1110,13 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("status", admin_status))
     
-    # NEW WORKING ADMIN COMMANDS
+    # NEW ADMIN COMMANDS ADDED
     app.add_handler(CommandHandler("ban", ban_user_cmd))
     app.add_handler(CommandHandler("unban", unban_user_cmd))
     app.add_handler(CommandHandler("broadcast", broadcast_cmd))
+    app.add_handler(CommandHandler("users", admin_users_cmd))
+    app.add_handler(CommandHandler("search", admin_search_cmd))
+    app.add_handler(CommandHandler("backup", admin_backup_cmd))
     
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -1098,5 +1124,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(global_otp_checker_job, interval=8, first=3)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=60, first=10)
     
-    logger.info("✨ VERSION 17.0 ENTERPRISE STARTED... ✨")
+    logger.info("✨ VERSION 18.0 ENTERPRISE STARTED... ✨")
     app.run_polling(drop_pending_updates=True)
