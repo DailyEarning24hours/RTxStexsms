@@ -1,14 +1,13 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 20.0 ENTERPRISE) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 21.0 ENTERPRISE) ✨
 CAPACITY: 10,000+ Users on Render Free Plan (O(1) Hash-Map Algorithm).
-NEW FEATURE: Dual Server System (Server 1: Stex, Server 2: MK Network).
+FIXED: All Menu Buttons (Support, Activity) now work instantly (State Auto-Clear).
+FIXED: Admin Panel & Inline Reply fully operational.
+CLEANED UI: Removed extra server names. Removed Telegram & Instagram.
 NEW FEATURE: Smart PC Clone Detection (Changes Facebook to PC Clone if 6+ stars).
-NEW FEATURE: Admin Reply via Inline Button (Fully automated support system).
-RESTORED: Filtered Auto Range Forwarding (FB, WA, TG only).
-DYNAMIC UI: Generates exactly 2 numbers. Silent auto-delete on timeout.
-ERROR HANDLING: 100% hidden HTTP errors. Premium fallback messages used.
-FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability.
+ERROR HANDLING: 100% hidden HTTP 401/500 errors. Premium fallback messages used.
+FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
 
@@ -50,13 +49,15 @@ from aiohttp import web
 
 TOKEN = "8784714590:AAGW1bthOSIh2HUl2vPCYS_zv13zEz7BOsg"
 
-ADMIN_IDS = 6031032502 
+# 🔥 SINGLE ADMIN ID AS REQUESTED
+ADMIN_IDS = [6031032502] 
+
 CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 
 RANGE_GROUP_ID = -1003627708272
 OTP_GROUP_ID = -1003830374258
 
-# 🌐 SERVER 1 CREDENTIALS (STEX SMS)
+# 🌐 SERVER 1 CREDENTIALS
 STEX_EMAIL = "mdrajaislam469@gmail.com"
 STEX_PASSWORD = "Raja1234@#"
 API_STEX_LOGIN = "https://stexsms.com/mapi/v1/mauth/login"
@@ -64,7 +65,7 @@ API_STEX_CONSOLE = "https://stexsms.com/mapi/v1/mdashboard/console/info"
 API_STEX_GET_NUM = "https://stexsms.com/mapi/v1/mdashboard/getnum/number"
 API_STEX_INBOX = "https://stexsms.com/mapi/v1/mdashboard/getnum/info"
 
-# 🚀 SERVER 2 CREDENTIALS (MK NETWORK)
+# 🚀 SERVER 2 CREDENTIALS
 MK_EMAIL = "mdrajaislam469@gmail.com"
 MK_PASSWORD = "Raja1234@#"
 API_MK_LOGIN = "http://mknetworkbd.com/process_login.php"
@@ -119,7 +120,6 @@ async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
         connector = aiohttp.TCPConnector(limit=300, keepalive_timeout=60, ttl_dns_cache=300, enable_cleanup_closed=True)
-        # CookieJar handles standard PHP Session IDs for MK Network implicitly
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
@@ -133,7 +133,7 @@ async def parse_response_safely(response):
         except Exception:
             return None
 
-# ----- SERVER 1 (STEX) AUTH -----
+# ----- SERVER 1 AUTH -----
 async def authenticate_stex(force=False):
     global MAUTH_TOKEN, LAST_AUTH_TIME_STEX
     async with AUTH_LOCK_STEX:
@@ -169,7 +169,7 @@ def get_stex_headers():
 
 async def stex_api_request(method, url, json_payload=None):
     global MAUTH_TOKEN
-    for attempt in range(4):
+    for attempt in range(3):
         try:
             if not MAUTH_TOKEN:
                 if not await authenticate_stex():
@@ -183,7 +183,8 @@ async def stex_api_request(method, url, json_payload=None):
                 response = await session.post(url, json=json_payload, headers=headers, timeout=15, ssl=False)
             
             status = response.status
-            if status in [401, 403, 500, 502, 503]: 
+            # 🔥 SUPPRESSING 401, 501, 500 ERRORS INTERNALLY
+            if status in [401, 403, 500, 501, 502, 503]: 
                 MAUTH_TOKEN = None
                 await asyncio.sleep(2)
                 continue
@@ -199,10 +200,9 @@ async def stex_api_request(method, url, json_payload=None):
                 return status, None
         except Exception: 
             await asyncio.sleep(2)
-    # If fails completely, return 500 but we will handle it gracefully in UI
     return 500, None 
 
-# ----- SERVER 2 (MK NETWORK) AUTH -----
+# ----- SERVER 2 AUTH -----
 async def authenticate_mk(force=False):
     global LAST_AUTH_TIME_MK
     async with AUTH_LOCK_MK:
@@ -229,7 +229,7 @@ async def authenticate_mk(force=False):
             return False
 
 async def mk_api_request(method, url, form_data=None):
-    for attempt in range(4):
+    for attempt in range(3):
         try:
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "X-Requested-With": "mark.via.gp"}
@@ -241,7 +241,8 @@ async def mk_api_request(method, url, form_data=None):
             status = response.status
             content_type = response.headers.get('Content-Type', '')
             
-            if status in [401, 403, 500, 502, 503] or 'text/html' in content_type:
+            # 🔥 SUPPRESSING 401, 501, 500 ERRORS INTERNALLY
+            if status in [401, 403, 500, 501, 502, 503] or 'text/html' in content_type:
                 await authenticate_mk(force=True)
                 await asyncio.sleep(2)
                 continue
@@ -254,7 +255,7 @@ async def mk_api_request(method, url, form_data=None):
 
 
 # ==============================================================================
-# 🗄️ DATABASE MANAGEMENT (FULLY EXPANDED)
+# 🗄️ DATABASE MANAGEMENT
 # ==============================================================================
 
 DB_FILE = "bot.db"
@@ -292,8 +293,6 @@ def init_db():
             full_message TEXT,
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_otp_history_user ON otp_history(user_id, date DESC)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_otp_history_number ON otp_history(number)')
         conn.commit()
 
 def get_user(user_id):
@@ -354,7 +353,7 @@ def save_otp_history(user_id, number, code, service, msg):
 
 
 # ==============================================================================
-# 🌍 MASSIVE COUNTRY FLAGS DICTIONARY (FULLY RESTORED)
+# 🌍 MASSIVE COUNTRY FLAGS DICTIONARY
 # ==============================================================================
 
 COUNTRY_FLAGS = {
@@ -507,10 +506,11 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     global SENT_RANGES
-    allowed_apps = ['facebook', 'whatsapp', 'telegram']
+    # 🔥 Only forwarding Facebook & Whatsapp to Range Group
+    allowed_apps = ['facebook', 'whatsapp']
     bot_username = context.bot.username
 
-    # 1. PROCESS SERVER 1 (STEX)
+    # 1. PROCESS SERVER 1 
     stex_status, stex_data = await stex_api_request('GET', API_STEX_CONSOLE)
     if stex_status == 200 and isinstance(stex_data, dict):
         logs = stex_data.get('data', {}).get('logs', [])
@@ -525,7 +525,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                     SENT_RANGES.add(r_val)
                     if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
                     
-                    # 🔥 PC CLONE LOGIC
                     display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('app_name', 'Unknown').title()
                     
                     range_msg = (
@@ -543,7 +542,7 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                     except Exception: 
                         pass
 
-    # 2. PROCESS SERVER 2 (MK NETWORK)
+    # 2. PROCESS SERVER 2 
     mk_status, mk_data = await mk_api_request('GET', API_MK_CONSOLE)
     if mk_status == 200 and isinstance(mk_data, dict):
         feeds = mk_data.get('feed', [])
@@ -558,7 +557,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                     SENT_RANGES.add(r_val)
                     if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
                     
-                    # 🔥 PC CLONE LOGIC
                     display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('service_name', 'Unknown').title()
                     
                     range_msg = (
@@ -654,7 +652,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     found_keys = []
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    # 1. CHECK STEX INBOX
+    # 1. CHECK SERVER 1 INBOX
     stex_status, stex_res = await stex_api_request('GET', f"{API_STEX_INBOX}?date={date_str}&page=1&search=&status=")
     if stex_status == 200 and stex_res:
         for item in stex_res.get('data', {}).get('numbers', []):
@@ -665,7 +663,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                     await process_found_otp(context, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
                     found_keys.append(hash_key)
 
-    # 2. CHECK MK NETWORK INBOX
+    # 2. CHECK SERVER 2 INBOX
     mk_status, mk_res = await mk_api_request('GET', API_MK_INBOX.format(date_str))
     if mk_status == 200 and mk_res:
         for item in mk_res.get('data', []):
@@ -711,14 +709,14 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     for _ in range(2):
         await asyncio.sleep(0.5) 
         
-        if server_id == 1: # STEX
+        if server_id == 1: 
             payload = {"range": range_val, "is_national": False, "remove_plus": False}
             status, resp = await stex_api_request('POST', API_STEX_GET_NUM, json_payload=payload)
             if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
                 fetched_numbers.append(resp['data']['number'])
                 country_name = resp['data'].get('country', country_name)
                 
-        elif server_id == 2: # MK NETWORK
+        elif server_id == 2: 
             form_data = aiohttp.FormData()
             form_data.add_field('action', 'get_number')
             form_data.add_field('range', range_val)
@@ -775,7 +773,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         context.user_data['server'] = server_id
         
     else:
-        # 🔥 ERROR SUPPRESSED: Uses beautiful fallback message instead of showing 401/500
+        # 🔥 BEAUTIFUL NO-ERROR FALLBACK MESSAGE
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
         await msg.edit_text(
             text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", 
@@ -792,7 +790,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): 
         return
     ensure_user(update.effective_user.id)
+    # 🔥 CLEAR ALL STATES ON START
     context.user_data.clear()
+    
     if not await check_subscription(update.effective_user.id, context.bot): 
         await send_join_prompt(update, context)
     else: 
@@ -820,8 +820,8 @@ async def show_main_menu(update_obj, context):
 
 async def show_server_selection(update_obj, context):
     kb = [
-        [InlineKeyboardButton("✨ Server 1 (Stex)", callback_data="srv_1")],
-        [InlineKeyboardButton("🚀 Server 2 (MK Network)", callback_data="srv_2")]
+        [InlineKeyboardButton("✨ Server 1", callback_data="srv_1")],
+        [InlineKeyboardButton("🚀 Server 2", callback_data="srv_2")]
     ]
     txt = (
         "🌐 <b>SELECT SERVER</b> 🌐\n"
@@ -836,6 +836,8 @@ async def show_server_selection(update_obj, context):
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, server_id):
     context.user_data['server'] = server_id
     server_name = "✨ Server 1" if server_id == 1 else "🚀 Server 2"
+    
+    # 🔥 CATEGORIES CLEANED (Only FB, WA, Custom)
     kb = [
         [InlineKeyboardButton("📘 Facebook", callback_data="cat_facebook"), InlineKeyboardButton("💬 WhatsApp", callback_data="cat_whatsapp")],
         [InlineKeyboardButton("🎯 Custom Range", callback_data="cat_custom")],
@@ -897,7 +899,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         
     kb = []
     for c_name, r_val in countries.items():
-        # Shortened callback to avoid telegram byte limit (64 max) while passing all needed data
         kb.append([InlineKeyboardButton(f"{get_flag(c_name)} {c_name}", callback_data=f"r_{server_id}_{r_val}_{c_name[:15]}")])
         
     kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data=f"srv_{server_id}")])
@@ -921,9 +922,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     ensure_user(user_id)
     
-    # 🔥 INLINE ADMIN REPLY SYSTEM - PROCESSING THE ADMIN'S MESSAGE
+    # 🔥 STATE AUTO-CLEAR: If a user clicks a menu button, immediately clear pending states
+    if text in ["📱 Get Number", "🔐 Get 2FA", "🎧 Support", "📊 See Activity"]:
+        user_data['state'] = None
+        user_data['admin_reply_target'] = None
+    
+    # 🔥 INLINE ADMIN REPLY SYSTEM 
     target_reply_user = user_data.get('admin_reply_target')
-    if target_reply_user:
+    if target_reply_user and text not in ["📱 Get Number", "🔐 Get 2FA", "🎧 Support", "📊 See Activity"]:
         try:
             await context.bot.send_message(
                 chat_id=int(target_reply_user), 
@@ -934,7 +940,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await update.message.reply_text("❌ <b>Failed to send reply. The user might have blocked the bot.</b>", parse_mode=ParseMode.HTML)
         
-        # Clear the state so admin can use the bot normally again
         user_data['admin_reply_target'] = None
         return
 
@@ -1049,14 +1054,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_category_click(update, context)
         
     elif data.startswith("r_"):
-        # Format: r_{server_id}_{range}_{country_name_partial}
         parts = data.split("_")
         server_id = int(parts[1])
         range_val = parts[2]
-        
         if len(parts) > 3:
             context.user_data['country_name'] = parts[3]
-            
         await process_number_generation(update, context, range_val, server_id, is_callback=True)
         
     elif data == "change_num":
@@ -1092,6 +1094,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
+    
+    # 🔥 ADMIN STATE CLEAR (If Admin types a command, clear any pending reply)
+    context.user_data['admin_reply_target'] = None
+    context.user_data['state'] = None
+    
     txt = (
         "🔐 <b>ADVANCED ADMIN PANEL</b> 🔐\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
@@ -1212,7 +1219,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="Bot is running perfectly! V20 Enterprise Edition with Dual Servers & Smart PC Clone Detection.")
+    return web.Response(text="Bot is running perfectly! V21 Enterprise Edition with Inline Admin Reply & Smart UI.")
 
 async def start_dummy_server():
     try:
@@ -1233,10 +1240,10 @@ if __name__ == "__main__":
     init_db()
     app = Application.builder().token(TOKEN).post_init(post_init).build()
     
+    # Registering Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("status", admin_status))
-    
     app.add_handler(CommandHandler("ban", ban_user_cmd))
     app.add_handler(CommandHandler("unban", unban_user_cmd))
     app.add_handler(CommandHandler("broadcast", broadcast_cmd))
@@ -1244,6 +1251,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("search", admin_search_cmd))
     app.add_handler(CommandHandler("backup", admin_backup_cmd))
     
+    # Registering Handlers
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
@@ -1251,5 +1259,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(global_otp_checker_job, interval=8, first=3)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=60, first=10)
     
-    logger.info("✨ VERSION 20.0 ENTERPRISE STARTED SUCCESSFULLY... ✨")
+    logger.info("✨ VERSION 21.0 ENTERPRISE STARTED SUCCESSFULLY... ✨")
     app.run_polling(drop_pending_updates=True)
