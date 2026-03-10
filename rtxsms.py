@@ -1,12 +1,13 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 18.0 ENTERPRISE) ✨
-CAPACITY: 10,000+ Users on Render Free Plan (O(1) Hash-Map Algorithm Added).
-RESTORED: Auto OTP & Range Forwarding Fixed.
-FILTERED RANGE: Only Facebook, WhatsApp, and Telegram ranges are forwarded.
-DYNAMIC UI: Generates exactly 2 numbers. Received numbers disappear automatically.
-CLEAN UI: Timeout messages completely removed. Expired messages auto-delete silently.
-ADMIN PANEL: Added /users, /search, and /backup database features.
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 20.0 ENTERPRISE) ✨
+CAPACITY: 10,000+ Users on Render Free Plan (O(1) Hash-Map Algorithm).
+NEW FEATURE: Dual Server System (Server 1: Stex, Server 2: MK Network).
+NEW FEATURE: Smart PC Clone Detection (Changes Facebook to PC Clone if 6+ stars).
+NEW FEATURE: Admin Reply via Inline Button (Fully automated support system).
+RESTORED: Filtered Auto Range Forwarding (FB, WA, TG only).
+DYNAMIC UI: Generates exactly 2 numbers. Silent auto-delete on timeout.
+ERROR HANDLING: 100% hidden HTTP errors. Premium fallback messages used.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability.
 ==============================================================================
 """
@@ -49,23 +50,28 @@ from aiohttp import web
 
 TOKEN = "8784714590:AAGW1bthOSIh2HUl2vPCYS_zv13zEz7BOsg"
 
-# 🔥 2 ADMIN IDs
 ADMIN_IDS = [6031032502, 6941366213] 
-
-# 🔥 4 SUBSCRIPTION CHATS
 CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 
-# 🔥 TARGET GROUPS
 RANGE_GROUP_ID = -1003627708272
 OTP_GROUP_ID = -1003830374258
 
+# 🌐 SERVER 1 CREDENTIALS (STEX SMS)
 STEX_EMAIL = "mdrajaislam469@gmail.com"
 STEX_PASSWORD = "Raja1234@#"
+API_STEX_LOGIN = "https://stexsms.com/mapi/v1/mauth/login"
+API_STEX_CONSOLE = "https://stexsms.com/mapi/v1/mdashboard/console/info"
+API_STEX_GET_NUM = "https://stexsms.com/mapi/v1/mdashboard/getnum/number"
+API_STEX_INBOX = "https://stexsms.com/mapi/v1/mdashboard/getnum/info"
 
-API_LOGIN = "https://stexsms.com/mapi/v1/mauth/login"
-API_CONSOLE = "https://stexsms.com/mapi/v1/mdashboard/console/info"
-API_GET_NUM = "https://stexsms.com/mapi/v1/mdashboard/getnum/number"
-API_INBOX = "https://stexsms.com/mapi/v1/mdashboard/getnum/info"
+# 🚀 SERVER 2 CREDENTIALS (MK NETWORK)
+MK_EMAIL = "mdrajaislam469@gmail.com"
+MK_PASSWORD = "Raja1234@#"
+API_MK_LOGIN = "http://mknetworkbd.com/process_login.php"
+API_MK_CONSOLE = "http://mknetworkbd.com/console.php?ajax=1"
+API_MK_GET_NUM = "http://mknetworkbd.com/API/api_handler.php"
+API_MK_INBOX = "http://mknetworkbd.com/API/api_handler.php?action=get_history&filter=all&page=1&limit=50&date={}"
+
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
@@ -74,60 +80,51 @@ API_2FA = "https://2fa.cn/codes/{}"
 
 MAUTH_TOKEN = None
 GLOBAL_SESSION = None 
-AUTH_LOCK = asyncio.Lock() 
-LAST_AUTH_TIME = 0
 
-CONSOLE_CACHE = None
-LAST_CONSOLE_FETCH = 0
-CONSOLE_CACHE_TTL = 15  
+AUTH_LOCK_STEX = asyncio.Lock() 
+LAST_AUTH_TIME_STEX = 0
+
+AUTH_LOCK_MK = asyncio.Lock()
+LAST_AUTH_TIME_MK = 0
 
 SENT_RANGES = set()
-
 START_TIME = datetime.datetime.now()
-BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F) AppleWebKit/537.36 Chrome/145.0 Mobile Safari/537.36"
+BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.120 Mobile Safari/537.36"
 
 DB_POOL_SIZE = 15 
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
-    level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
-# 🧠 ENTERPRISE MEMORY SYSTEM (FOR 10,000+ USERS & DYNAMIC MESSAGES)
+# 🧠 ENTERPRISE MEMORY SYSTEM (FOR 10,000+ USERS)
 # ==============================================================================
 
 WAITING_OTPS = {}
-BATCH_MSGS = {} # Track batched messages to dynamically edit/delete them
-OTP_TIMEOUT_SECONDS = 1200 # 20 minutes
+BATCH_MSGS = {} 
+OTP_TIMEOUT_SECONDS = 1200 # 20 minutes before silent delete
 
 def get_hash_key(number_str):
     """Generates an O(1) lookup key for extreme performance on Render Free Plan."""
     clean_str = re.sub(r'\D', '', str(number_str))
-    if not clean_str:
-        return "UNKNOWN"
+    if not clean_str: return "UNKNOWN"
     return clean_str[-8:]
 
 
 # ==============================================================================
-# 🔐 ULTIMATE API AUTHENTICATION & REQUEST WRAPPER
+# 🔐 ULTIMATE DUAL-API AUTHENTICATION & REQUEST WRAPPER
 # ==============================================================================
 
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(
-            limit=200,                  
-            keepalive_timeout=60,      
-            ttl_dns_cache=300,         
-            enable_cleanup_closed=True 
-        )
-        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector)
+        connector = aiohttp.TCPConnector(limit=300, keepalive_timeout=60, ttl_dns_cache=300, enable_cleanup_closed=True)
+        # CookieJar handles standard PHP Session IDs for MK Network implicitly
+        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
 async def parse_response_safely(response):
-    try:
+    try: 
         return await response.json(content_type=None)
     except Exception:
         try:
@@ -136,96 +133,128 @@ async def parse_response_safely(response):
         except Exception:
             return None
 
+# ----- SERVER 1 (STEX) AUTH -----
 async def authenticate_stex(force=False):
-    global MAUTH_TOKEN, LAST_AUTH_TIME
-    
-    async with AUTH_LOCK:
-        if not force:
-            if time.time() - LAST_AUTH_TIME < 15 and MAUTH_TOKEN:
-                return True
-                
+    global MAUTH_TOKEN, LAST_AUTH_TIME_STEX
+    async with AUTH_LOCK_STEX:
+        if not force and time.time() - LAST_AUTH_TIME_STEX < 15 and MAUTH_TOKEN: return True
         payload = {"email": STEX_EMAIL, "password": STEX_PASSWORD}
         headers = {
-            "User-Agent": BASE_USER_AGENT,
+            "User-Agent": BASE_USER_AGENT, 
             "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Origin": "https://stexsms.com",
+            "Content-Type": "application/json", 
+            "Origin": "https://stexsms.com", 
             "Referer": "https://stexsms.com/mauth/login"
         }
-        
         try:
             session = await get_session()
-            async with session.post(API_LOGIN, json=payload, headers=headers, timeout=15, ssl=False) as response:
+            async with session.post(API_STEX_LOGIN, json=payload, headers=headers, timeout=15, ssl=False) as response:
                 if response.status == 200:
                     data = await parse_response_safely(response)
                     if data and str(data.get('meta', {}).get('code')) == '200':
                         MAUTH_TOKEN = data['data']['token']
-                        LAST_AUTH_TIME = time.time()
+                        LAST_AUTH_TIME_STEX = time.time()
                         return True
                 return False
-        except Exception:
+        except Exception: 
             return False
 
 def get_stex_headers():
     return {
-        "User-Agent": BASE_USER_AGENT,
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/json",
-        "mauthtoken": str(MAUTH_TOKEN),
+        "User-Agent": BASE_USER_AGENT, 
+        "Accept": "application/json", 
+        "mauthtoken": str(MAUTH_TOKEN), 
         "Cookie": f"mauthtoken={MAUTH_TOKEN}"
     }
 
 async def stex_api_request(method, url, json_payload=None):
     global MAUTH_TOKEN
-    max_retries = 5 
-    
-    for attempt in range(max_retries):
+    for attempt in range(4):
         try:
             if not MAUTH_TOKEN:
-                success = await authenticate_stex()
-                if not success:
+                if not await authenticate_stex():
                     await asyncio.sleep(2)
                     continue
-                    
             session = await get_session()
             headers = get_stex_headers()
-            
-            if method.upper() == 'GET':
+            if method.upper() == 'GET': 
                 response = await session.get(url, headers=headers, timeout=15, ssl=False)
-            else:
+            else: 
                 response = await session.post(url, json=json_payload, headers=headers, timeout=15, ssl=False)
-                
-            status = response.status
             
-            if status == 401 or status == 403:
+            status = response.status
+            if status in [401, 403, 500, 502, 503]: 
                 MAUTH_TOKEN = None
+                await asyncio.sleep(2)
                 continue
                 
             if status == 200:
                 data = await parse_response_safely(response)
                 if isinstance(data, dict):
-                    meta_code = str(data.get('meta', {}).get('code', '200'))
-                    if meta_code == '401' or meta_code == '403':
+                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']: 
                         MAUTH_TOKEN = None
                         continue
                 return 200, data
-            
-            elif status >= 500:
-                await asyncio.sleep(3)
-                continue
-            else:
+            else: 
                 return status, None
-                
-        except asyncio.TimeoutError:
+        except Exception: 
             await asyncio.sleep(2)
-        except Exception:
-            await asyncio.sleep(2)
-            
+    # If fails completely, return 500 but we will handle it gracefully in UI
     return 500, None 
+
+# ----- SERVER 2 (MK NETWORK) AUTH -----
+async def authenticate_mk(force=False):
+    global LAST_AUTH_TIME_MK
+    async with AUTH_LOCK_MK:
+        if not force and time.time() - LAST_AUTH_TIME_MK < 300: return True
+        payload = aiohttp.FormData()
+        payload.add_field('userid', MK_EMAIL)
+        payload.add_field('password', MK_PASSWORD)
+        headers = {
+            "User-Agent": BASE_USER_AGENT, 
+            "Origin": "http://mknetworkbd.com", 
+            "Referer": "http://mknetworkbd.com/auth.php"
+        }
+        try:
+            session = await get_session()
+            async with session.post(API_MK_LOGIN, data=payload, headers=headers, timeout=15, ssl=False) as response:
+                content_type = response.headers.get('Content-Type', '')
+                if 'application/json' in content_type:
+                    data = await parse_response_safely(response)
+                    if data and data.get('status') == 'success':
+                        LAST_AUTH_TIME_MK = time.time()
+                        return True
+                return False
+        except Exception: 
+            return False
+
+async def mk_api_request(method, url, form_data=None):
+    for attempt in range(4):
+        try:
+            session = await get_session()
+            headers = {"User-Agent": BASE_USER_AGENT, "X-Requested-With": "mark.via.gp"}
+            if method.upper() == 'GET': 
+                response = await session.get(url, headers=headers, timeout=15, ssl=False)
+            else: 
+                response = await session.post(url, data=form_data, headers=headers, timeout=15, ssl=False)
+            
+            status = response.status
+            content_type = response.headers.get('Content-Type', '')
+            
+            if status in [401, 403, 500, 502, 503] or 'text/html' in content_type:
+                await authenticate_mk(force=True)
+                await asyncio.sleep(2)
+                continue
+                
+            data = await parse_response_safely(response)
+            return 200, data
+        except Exception: 
+            await asyncio.sleep(2)
+    return 500, None
 
 
 # ==============================================================================
-# 🗄️ DATABASE MANAGEMENT (WAL MODE ENABLED)
+# 🗄️ DATABASE MANAGEMENT (FULLY EXPANDED)
 # ==============================================================================
 
 DB_FILE = "bot.db"
@@ -234,17 +263,14 @@ class DatabasePool:
     def __init__(self, db_file, pool_size=15):
         self.db_file = db_file
         self.pool_size = pool_size
-        
     @contextmanager
     def get_connection(self):
         conn = sqlite3.connect(self.db_file, timeout=30.0, check_same_thread=False)
         conn.execute('PRAGMA journal_mode=WAL;')
         conn.execute('PRAGMA synchronous=NORMAL;')
-        conn.execute('PRAGMA cache_size=-64000;') 
-        conn.row_factory = sqlite3.Row
-        try:
+        try: 
             yield conn
-        finally:
+        finally: 
             conn.close()
 
 db_pool = DatabasePool(DB_FILE, DB_POOL_SIZE)
@@ -287,14 +313,14 @@ def register_user(user_id):
 
 def ensure_user(user_id):
     user = get_user(user_id)
-    if user is None:
+    if user is None: 
         register_user(user_id)
         user = get_user(user_id)
     return user
 
 def is_user_banned(user_id):
     user = ensure_user(user_id)
-    if user and len(user) > 2 and user[2] == 1: 
+    if user and len(user) > 2 and user[2] == 1:
         return True
     return False
 
@@ -323,12 +349,12 @@ def save_otp_history(user_id, number, code, service, msg):
         try:
             c.execute("INSERT INTO otp_history (user_id, number, code, service, full_message) VALUES (?, ?, ?, ?, ?)", (user_id, number, code, service, msg))
             conn.commit()
-        except Exception:
+        except Exception: 
             pass
 
 
 # ==============================================================================
-# 🌍 MASSIVE COUNTRY FLAGS DICTIONARY
+# 🌍 MASSIVE COUNTRY FLAGS DICTIONARY (FULLY RESTORED)
 # ==============================================================================
 
 COUNTRY_FLAGS = {
@@ -375,9 +401,10 @@ COUNTRY_FLAGS = {
 }
 
 def get_flag(country_name):
-    if country_name in COUNTRY_FLAGS: return COUNTRY_FLAGS[country_name]
+    if country_name in COUNTRY_FLAGS: 
+        return COUNTRY_FLAGS[country_name]
     for name, flag in COUNTRY_FLAGS.items():
-        if name.lower() in country_name.lower() or country_name.lower() in name.lower():
+        if name.lower() in country_name.lower() or country_name.lower() in name.lower(): 
             return flag
     return "🚩"
 
@@ -387,7 +414,7 @@ def extract_code(message):
 
 
 # ==============================================================================
-# 🔒 MIDDLEWARES & AUTO DELETE
+# 🔒 MIDDLEWARES & DYNAMIC UI
 # ==============================================================================
 
 async def check_subscription(user_id, bot):
@@ -403,9 +430,7 @@ async def check_subscription(user_id, bot):
 async def send_join_prompt(update, context):
     keyboard = []
     for c in CHANNELS:
-        channel_url = f"https://t.me/{c.replace('@', '')}"
-        keyboard.append([InlineKeyboardButton(f"📢 Join {c}", url=channel_url)])
-        
+        keyboard.append([InlineKeyboardButton(f"📢 Join {c}", url=f"https://t.me/{c.replace('@', '')}")])
     keyboard.append([InlineKeyboardButton("✅ Joined / Verify", callback_data="check_join")])
     
     msg = (
@@ -414,10 +439,9 @@ async def send_join_prompt(update, context):
         "<i>You must be a member of our official channels and groups to use this bot.</i>\n\n"
         "👇 <b>Please join below:</b>"
     )
-    
-    if update.callback_query:
+    if update.callback_query: 
         await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    else:
+    else: 
         await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -426,37 +450,34 @@ async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYP
         if update.callback_query: 
             await update.callback_query.answer("🚫 You are banned.", show_alert=True)
         else: 
-            await update.message.reply_text("🚫 <b>You have been banned by the Admins.</b>", parse_mode=ParseMode.HTML)
+            await update.message.reply_text("🚫 <b>You have been banned.</b>", parse_mode=ParseMode.HTML)
         return True
     return False
 
 async def delete_message_later(bot, chat_id, msg_id, delay_seconds):
-    """Deletes messages automatically after X seconds."""
     await asyncio.sleep(delay_seconds)
-    try:
+    try: 
         await bot.delete_message(chat_id=chat_id, message_id=msg_id)
-    except Exception:
+    except Exception: 
         pass
 
 async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
-    """Dynamically removes received numbers or deletes message if all numbers are processed."""
-    if batch_key not in BATCH_MSGS:
+    if batch_key not in BATCH_MSGS: 
         return
         
     batch = BATCH_MSGS[batch_key]
     
     if len(batch['numbers']) == 0:
-        try:
+        try: 
             await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
-        except Exception:
+        except Exception: 
             pass
         del BATCH_MSGS[batch_key]
     else:
         num_str = ""
         symbols = ["❶", "❷"] 
         for i, n in enumerate(batch['numbers']):
-            idx = i % len(symbols)
-            num_str += f"{symbols[idx]} <code>{n}</code>\n"
+            num_str += f"{symbols[i % len(symbols)]} <code>{n}</code>\n"
             
         txt = (
             f"✅ <b>NUMBERS GENERATED</b>\n"
@@ -470,199 +491,203 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
             [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
             [
                 InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), 
-                InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")
+                InlineKeyboardButton("🔙 Back to Server", callback_data="go_main")
             ]
         ]
         
-        try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text=txt,
-                reply_markup=InlineKeyboardMarkup(kb),
-                parse_mode=ParseMode.HTML
-            )
-        except Exception:
+        try: 
+            await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        except Exception: 
             pass
 
 
 # ==============================================================================
-# 🤖 AUTO RANGE FORWARDER JOB (-1003627708272) WITH SPECIFIC APP FILTERS
+# 🤖 AUTO RANGE FORWARDER JOB (DUAL SERVER & PC CLONE DETECTOR)
 # ==============================================================================
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
-    """
-    Fetches API and forwards NEW active ranges to the specific Range Group.
-    🔥 FILTER: ONLY FORWARDS FACEBOOK, WHATSAPP, AND TELEGRAM RANGES.
-    """
     global SENT_RANGES
-    status, data = await stex_api_request('GET', API_CONSOLE)
-    
-    if status == 200 and isinstance(data, dict):
-        logs = data.get('data', {}).get('logs', [])
-        if not isinstance(logs, list): return
-        
-        new_ranges_count = 0
-        bot_username = context.bot.username
-        
-        allowed_apps = ['facebook', 'whatsapp', 'telegram']
-        
-        for log in logs:
-            if new_ranges_count >= 5: break
+    allowed_apps = ['facebook', 'whatsapp', 'telegram']
+    bot_username = context.bot.username
+
+    # 1. PROCESS SERVER 1 (STEX)
+    stex_status, stex_data = await stex_api_request('GET', API_STEX_CONSOLE)
+    if stex_status == 200 and isinstance(stex_data, dict):
+        logs = stex_data.get('data', {}).get('logs', [])
+        for log in logs[:5]:
             if isinstance(log, dict):
                 r_val = log.get('range')
-                app_name = str(log.get('app_name', 'Unknown')).lower()
+                raw_app = str(log.get('app_name', 'Unknown')).lower()
                 c_name = log.get('country', 'Unknown')
+                msg_text = str(log.get('message', ''))
                 
-                is_target_app = any(app in app_name for app in allowed_apps)
-                
-                if r_val and r_val not in SENT_RANGES and is_target_app:
+                if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
                     SENT_RANGES.add(r_val)
-                    new_ranges_count += 1
+                    if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
                     
-                    if len(SENT_RANGES) > 5000:
-                        SENT_RANGES.clear()
-                        
-                    display_app_name = log.get('app_name', 'Unknown').title()
+                    # 🔥 PC CLONE LOGIC
+                    display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('app_name', 'Unknown').title()
                     
                     range_msg = (
                         f"🔥 <b>New Range find</b>\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🖥️ Server - <b>Server 1 ✨</b>\n"
                         f"🎯 Range - <code>{r_val}</code>\n"
-                        f"🛒 Service - <i>{html.escape(display_app_name)}</i>\n"
+                        f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
                         f"🌍 Country - {get_flag(c_name)} {c_name}"
                     )
-                    
                     kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                    
-                    try:
-                        await context.bot.send_message(
-                            chat_id=RANGE_GROUP_ID, 
-                            text=range_msg, 
-                            reply_markup=InlineKeyboardMarkup(kb), 
-                            parse_mode=ParseMode.HTML
-                        )
+                    try: 
+                        await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
                         await asyncio.sleep(1)
-                    except Exception as e:
-                        logger.error(f"Range Forward Error: {e}")
+                    except Exception: 
+                        pass
+
+    # 2. PROCESS SERVER 2 (MK NETWORK)
+    mk_status, mk_data = await mk_api_request('GET', API_MK_CONSOLE)
+    if mk_status == 200 and isinstance(mk_data, dict):
+        feeds = mk_data.get('feed', [])
+        for log in feeds[:5]:
+            if isinstance(log, dict):
+                r_val = log.get('range')
+                raw_app = str(log.get('service_name', 'Unknown')).lower()
+                c_name = log.get('country', 'Unknown')
+                msg_text = str(log.get('msg', ''))
+                
+                if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
+                    SENT_RANGES.add(r_val)
+                    if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
+                    
+                    # 🔥 PC CLONE LOGIC
+                    display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('service_name', 'Unknown').title()
+                    
+                    range_msg = (
+                        f"🔥 <b>New Range find</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🚀 Server - <b>Server 2 🚀</b>\n"
+                        f"🎯 Range - <code>{r_val}</code>\n"
+                        f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
+                        f"🌍 Country - {get_flag(c_name)} {c_name}"
+                    )
+                    kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
+                    try: 
+                        await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                        await asyncio.sleep(1)
+                    except Exception: 
+                        pass
 
 
 # ==============================================================================
-# 🚀 GLOBAL OTP POLLER (NO TIMEOUT TEXT + SILENT AUTO DELETE + FORWARD)
+# 🚀 GLOBAL OTP POLLER (DUAL SERVER INBOX CHECKER)
 # ==============================================================================
+
+async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg):
+    global WAITING_OTPS, BATCH_MSGS
+    user_data = WAITING_OTPS[hash_key]
+    user_id, chat_id, msg_id = user_data['user_id'], user_data['chat_id'], user_data['msg_id']
+    full_num, batch_key = user_data['full_num'], user_data['batch_key']
+    
+    save_otp_history(user_id, full_num, code_only, svc_name, raw_msg)
+    
+    # DYNAMIC MESSAGE UPDATE
+    if batch_key in BATCH_MSGS:
+        if full_num in BATCH_MSGS[batch_key]['numbers']:
+            BATCH_MSGS[batch_key]['numbers'].remove(full_num)
+        await update_dynamic_batch_message(context, chat_id, msg_id, batch_key)
+
+    # SEND OTP TO USER
+    user_msg = (
+        f"🎉 <b>OTP RECEIVED SUCCESSFULLY!</b> ✨\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📱 <b>Service :</b> <i>{html.escape(str(svc_name))}</i>\n"
+        f"📞 <b>Number  :</b> <code>{full_num}</code>\n"
+        f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━"
+    )
+    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
+    
+    # FORWARD TO GROUP
+    group_msg = (
+        f"🔔 <b>Otp Received</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📱 Number - <code>{full_num}</code>\n"
+        f"🛒 Service - <pre>{html.escape(str(svc_name))}</pre>\n"
+        f"🔑 Code - <code>{code_only}</code>\n"
+        f"✉️ Full sms - <pre>{html.escape(str(raw_msg))}</pre>"
+    )
+    group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
+    try: 
+        asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
+    except Exception: 
+        pass
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     global WAITING_OTPS, BATCH_MSGS
     if not WAITING_OTPS: 
         return 
     
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-    url = f"{API_INBOX}?date={date_str}&page=1&search=&status="
-    
     current_time = time.time()
     expired_keys = []
     
-    # 1. Cleanup Timeouts (SILENT MODE: Deletes original message, sends NO text)
+    # CLEANUP SILENTLY
     for hash_key, data in list(WAITING_OTPS.items()):
-        if current_time - data['time'] > OTP_TIMEOUT_SECONDS:
+        if current_time - data['time'] > OTP_TIMEOUT_SECONDS: 
             expired_keys.append(hash_key)
             
     for h_key in expired_keys:
-        user_data = WAITING_OTPS.pop(h_key, None)
-        if user_data:
-            b_key = user_data.get('batch_key')
+        u_data = WAITING_OTPS.pop(h_key, None)
+        if u_data:
+            b_key = u_data.get('batch_key')
             if b_key and b_key in BATCH_MSGS:
-                f_num = user_data.get('full_num')
-                if f_num in BATCH_MSGS[b_key]['numbers']:
-                    BATCH_MSGS[b_key]['numbers'].remove(f_num)
+                if u_data['full_num'] in BATCH_MSGS[b_key]['numbers']:
+                    BATCH_MSGS[b_key]['numbers'].remove(u_data['full_num'])
                 if len(BATCH_MSGS[b_key]['numbers']) == 0:
-                    try:
-                        # 🔥 SILENT DELETE: Cleans up chat if numbers expire
-                        await context.bot.delete_message(chat_id=user_data['chat_id'], message_id=user_data['msg_id'])
-                    except: pass
+                    try: 
+                        await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
+                    except: 
+                        pass
                     del BATCH_MSGS[b_key]
 
     if not WAITING_OTPS: 
         return 
-    
-    # 2. Fetch Inbox ONCE
-    status, result = await stex_api_request('GET', url)
-    if status != 200 or not result: return
-
-    otp_list = result.get('data', {}).get('numbers', [])
-    if not isinstance(otp_list, list) or not otp_list: return
-    
+        
     found_keys = []
-    
-    for item in otp_list:
-        if isinstance(item, dict) and item.get('status') == 'success':
-            api_num = item.get('number', '')
-            hash_key = get_hash_key(api_num)
-            
-            if hash_key in WAITING_OTPS:
-                found_keys.append(hash_key)
-                
-                user_data = WAITING_OTPS[hash_key]
-                user_id = user_data['user_id']
-                chat_id = user_data['chat_id']
-                msg_id = user_data['msg_id']
-                full_num = user_data['full_num']
-                batch_key = user_data['batch_key']
-                
-                raw_msg = item.get('otp', item.get('message', 'No Message'))
-                code_only = extract_code(raw_msg)
-                svc_name = item.get('full_number', 'Service')
-                
-                save_otp_history(user_id, full_num, code_only, svc_name, raw_msg)
-                
-                # --- STEP A: DYNAMICALLY REMOVE NUMBER FROM MENU ---
-                if batch_key in BATCH_MSGS:
-                    if full_num in BATCH_MSGS[batch_key]['numbers']:
-                        BATCH_MSGS[batch_key]['numbers'].remove(full_num)
-                    await update_dynamic_batch_message(context, chat_id, msg_id, batch_key)
+    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-                # --- STEP B: SEND OTP TO USER ---
-                user_msg = (
-                    f"🎉 <b>OTP RECEIVED SUCCESSFULLY!</b> ✨\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📱 <b>Service :</b> <i>{html.escape(str(svc_name))}</i>\n"
-                    f"📞 <b>Number  :</b> <code>{full_num}</code>\n"
-                    f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━"
-                )
-                asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
-                
-                # --- STEP C: FORWARD TO OTP GROUP (-1003830374258) ---
-                group_msg = (
-                    f"🔔 <b>Otp Received</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📱 Number - <code>{full_num}</code>\n"
-                    f"🛒 Service - <pre>{html.escape(str(svc_name))}</pre>\n"
-                    f"🔑 Code - <code>{code_only}</code>\n"
-                    f"✉️ Full sms - <pre>{html.escape(str(raw_msg))}</pre>"
-                )
-                group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
-                try:
-                    asyncio.create_task(
-                        context.bot.send_message(
-                            chat_id=OTP_GROUP_ID, 
-                            text=group_msg, 
-                            reply_markup=InlineKeyboardMarkup(group_kb), 
-                            parse_mode=ParseMode.HTML
-                        )
-                    )
-                except Exception as e:
-                    logger.error(f"OTP Forward Error: {e}")
+    # 1. CHECK STEX INBOX
+    stex_status, stex_res = await stex_api_request('GET', f"{API_STEX_INBOX}?date={date_str}&page=1&search=&status=")
+    if stex_status == 200 and stex_res:
+        for item in stex_res.get('data', {}).get('numbers', []):
+            if isinstance(item, dict) and item.get('status') == 'success':
+                hash_key = get_hash_key(item.get('number', ''))
+                if hash_key in WAITING_OTPS and hash_key not in found_keys:
+                    raw_msg = item.get('otp', item.get('message', 'No Message'))
+                    await process_found_otp(context, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
+                    found_keys.append(hash_key)
 
-    # Remove processed numbers
-    for k in found_keys: WAITING_OTPS.pop(k, None)
+    # 2. CHECK MK NETWORK INBOX
+    mk_status, mk_res = await mk_api_request('GET', API_MK_INBOX.format(date_str))
+    if mk_status == 200 and mk_res:
+        for item in mk_res.get('data', []):
+            if isinstance(item, dict) and item.get('status') == 'success':
+                hash_key = get_hash_key(item.get('phone_number', ''))
+                if hash_key in WAITING_OTPS and hash_key not in found_keys:
+                    raw_msg = item.get('full_sms_list', 'No Message')
+                    code_val = item.get('otps', extract_code(raw_msg))
+                    if not code_val: 
+                        code_val = extract_code(raw_msg)
+                    await process_found_otp(context, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), raw_msg)
+                    found_keys.append(hash_key)
+
+    for k in found_keys: 
+        WAITING_OTPS.pop(k, None)
 
 
 # ==============================================================================
-# 🎯 EXACTLY 2-NUMBER GENERATION SYSTEM & DYNAMIC BATCH REGISTRATION
+# 🎯 EXACTLY 2-NUMBER GENERATION SYSTEM (DUAL SERVER)
 # ==============================================================================
 
-async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, is_callback=True):
+async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS
     
     wait_txt = "⏳ <i>Connecting to secure server... Generating 2 Numbers...</i> 🚀"
@@ -676,27 +701,37 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
     range_val = str(range_val).strip()
-    if not range_val.upper().endswith("XXX"): range_val += "XXX"
+    if not range_val.upper().endswith("XXX"): 
+        range_val += "XXX"
         
-    payload = {"range": range_val, "is_national": False, "remove_plus": False}
     fetched_numbers = []
     country_name = "Unknown"
     
-    # 🔥 Loop EXACTLY 2 times to fetch 2 numbers
+    # 🔥 LOOP EXACTLY 2 TIMES
     for _ in range(2):
         await asyncio.sleep(0.5) 
-        status, resp_json = await stex_api_request('POST', API_GET_NUM, json_payload=payload)
-        if status == 200 and isinstance(resp_json, dict) and 'data' in resp_json and resp_json['data'].get('number'):
-            data = resp_json['data']
-            num = data.get('number', 'N/A')
-            country_name = data.get('country', country_name) 
-            fetched_numbers.append(num)
+        
+        if server_id == 1: # STEX
+            payload = {"range": range_val, "is_national": False, "remove_plus": False}
+            status, resp = await stex_api_request('POST', API_STEX_GET_NUM, json_payload=payload)
+            if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
+                fetched_numbers.append(resp['data']['number'])
+                country_name = resp['data'].get('country', country_name)
+                
+        elif server_id == 2: # MK NETWORK
+            form_data = aiohttp.FormData()
+            form_data.add_field('action', 'get_number')
+            form_data.add_field('range', range_val)
+            status, resp = await mk_api_request('POST', API_MK_GET_NUM, form_data=form_data)
+            if status == 200 and isinstance(resp, dict) and resp.get('status') == 'success' and resp.get('number'):
+                clean_num = str(resp['number']).replace('+', '')
+                fetched_numbers.append(clean_num)
+                country_name = context.user_data.get('country_name', 'Global')
             
     if fetched_numbers:
         flag = get_flag(country_name)
         symbols = ["❶", "❷"]
         num_str = ""
-        
         for i, n in enumerate(fetched_numbers):
             num_str += f"{symbols[i]} <code>{n}</code>\n"
             
@@ -712,54 +747,53 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
             [
                 InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), 
-                InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")
+                InlineKeyboardButton("🔙 Back to Server", callback_data="go_main")
             ]
         ]
         
         await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
-        # Register Batch for Dynamic Removal
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {
-            'numbers': fetched_numbers.copy(),
-            'country_name': country_name,
+            'numbers': fetched_numbers.copy(), 
+            'country_name': country_name, 
             'flag': flag
         }
         
-        # Add to Hash Map
         for n in fetched_numbers:
             hash_key = get_hash_key(n)
             WAITING_OTPS[hash_key] = {
-                'full_num': n,
+                'full_num': n, 
                 'user_id': user_id, 
                 'chat_id': chat_id, 
                 'msg_id': msg.message_id, 
-                'batch_key': batch_key,
+                'batch_key': batch_key, 
                 'time': time.time()
             }
             
         context.user_data['range'] = range_val 
+        context.user_data['server'] = server_id
         
     else:
+        # 🔥 ERROR SUPPRESSED: Uses beautiful fallback message instead of showing 401/500
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
         await msg.edit_text(
             text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")]]), 
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Servers", callback_data="go_main")]]), 
             parse_mode=ParseMode.HTML
         )
 
 
 # ==============================================================================
-# 📋 MAIN MENUS & VERTICAL CATEGORY SELECTION
+# 📋 MENUS & DUAL SERVER SELECTION UI
 # ==============================================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if await check_ban_middleware(update, context): return
-    user_id = update.effective_user.id
-    ensure_user(user_id)
+    if await check_ban_middleware(update, context): 
+        return
+    ensure_user(update.effective_user.id)
     context.user_data.clear()
-    
-    if not await check_subscription(user_id, context.bot): 
+    if not await check_subscription(update.effective_user.id, context.bot): 
         await send_join_prompt(update, context)
     else: 
         await show_main_menu(update, context)
@@ -773,29 +807,42 @@ async def show_main_menu(update_obj, context):
         "✨ <b>P R E M I U M   O T P   B O T</b> ✨\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "👋 <i>Welcome to the most advanced & stable OTP system!</i>\n\n"
-        "🛡️ <b>Choose an option from the menu below.</b>"
+        "🛡️ <b>Choose an option below.</b>"
     )
-    reply_markup = ReplyKeyboardMarkup(kb, resize_keyboard=True)
-    
     if hasattr(update_obj, 'message') and update_obj.message: 
-        await update_obj.message.reply_text(msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
     elif hasattr(update_obj, 'callback_query') and update_obj.callback_query:
-        try: await update_obj.callback_query.message.delete()
-        except: pass
-        await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        try: 
+            await update_obj.callback_query.message.delete()
+        except: 
+            pass
+        await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
 
-async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_server_selection(update_obj, context):
     kb = [
-        [
-            InlineKeyboardButton("📘 Facebook", callback_data="cat_facebook"), 
-            InlineKeyboardButton("💬 WhatsApp", callback_data="cat_whatsapp")
-        ],
-        [
-            InlineKeyboardButton("🎯 Custom Range", callback_data="cat_custom")
-        ]
+        [InlineKeyboardButton("✨ Server 1 (Stex)", callback_data="srv_1")],
+        [InlineKeyboardButton("🚀 Server 2 (MK Network)", callback_data="srv_2")]
     ]
     txt = (
-        "📱 <b>SELECT SERVICE CATEGORY</b> 📱\n"
+        "🌐 <b>SELECT SERVER</b> 🌐\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "<i>Choose a server to generate numbers from:</i>"
+    )
+    if hasattr(update_obj, 'callback_query') and update_obj.callback_query: 
+        await update_obj.callback_query.edit_message_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    else: 
+        await update_obj.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
+async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, server_id):
+    context.user_data['server'] = server_id
+    server_name = "✨ Server 1" if server_id == 1 else "🚀 Server 2"
+    kb = [
+        [InlineKeyboardButton("📘 Facebook", callback_data="cat_facebook"), InlineKeyboardButton("💬 WhatsApp", callback_data="cat_whatsapp")],
+        [InlineKeyboardButton("🎯 Custom Range", callback_data="cat_custom")],
+        [InlineKeyboardButton("🔙 Back to Servers", callback_data="go_main")]
+    ]
+    txt = (
+        f"📱 <b>{server_name} CATEGORIES</b> 📱\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "<i>Which application do you need numbers for?</i>"
     )
@@ -807,86 +854,103 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     category = query.data.split('_')[1].lower()
+    server_id = context.user_data.get('server', 1)
     
     if category == 'custom':
-        txt = (
-            "🎯 <b>CUSTOM RANGE GENERATOR</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "✏️ <i>Type your custom range below.</i>\n"
-            "💡 <b>Ex:</b> <code>88017XXX</code>"
+        await query.edit_message_text(
+            text="🎯 <b>CUSTOM RANGE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n✏️ <i>Type your custom range below.</i>\n💡 <b>Ex:</b> <code>88017XXX</code>", 
+            parse_mode=ParseMode.HTML
         )
-        await query.edit_message_text(text=txt, parse_mode=ParseMode.HTML)
         context.user_data['state'] = 'WAITING_FOR_RANGE'
         return
     
     await query.edit_message_text(text="📡 <i>Connecting to Server... Please wait.</i> ⏳", parse_mode=ParseMode.HTML)
-    await authenticate_stex(force=True)
-    status, data = await stex_api_request('GET', API_CONSOLE)
-    
-    if status == 200 and isinstance(data, dict):
-        logs = data.get('data', {}).get('logs', []) if isinstance(data.get('data'), dict) else []
-        countries = {}
+    countries = {}
+
+    if server_id == 1:
+        await authenticate_stex(force=True)
+        status, data = await stex_api_request('GET', API_STEX_CONSOLE)
+        if status == 200 and isinstance(data, dict):
+            for log in data.get('data', {}).get('logs', []):
+                if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
+                    c, r = log.get('country'), log.get('range')
+                    if c and r and c not in countries: 
+                        countries[c] = r
+                        
+    elif server_id == 2:
+        await authenticate_mk(force=True)
+        status, data = await mk_api_request('GET', API_MK_CONSOLE)
+        if status == 200 and isinstance(data, dict):
+            for log in data.get('feed', []):
+                if isinstance(log, dict) and category in str(log.get('service_name', '')).lower():
+                    c, r = log.get('country'), log.get('range')
+                    if c and r and c not in countries: 
+                        countries[c] = r
         
-        for log in logs:
-            if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
-                c_name = log.get('country')
-                r_val = log.get('range')
-                if c_name and r_val and c_name not in countries:
-                    countries[c_name] = r_val
-        
-        if not countries:
-            await query.edit_message_text(
-                text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found for {category.title()}. Please try again in a moment.</i>", 
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")]]), 
-                parse_mode=ParseMode.HTML
-            )
-            return
-            
-        kb = []
-        for c_name, r_val in countries.items():
-            kb.append([InlineKeyboardButton(f"{get_flag(c_name)} {c_name}", callback_data=f"rng_{r_val}")])
-        kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")])
-        
-        txt = (
-            f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━"
-        )
-        await query.edit_message_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-    else:
+    if not countries:
         await query.edit_message_text(
-            text=f"🔄 <b>Network Optimization in progress...</b>\nPlease try clicking again.", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")]]), 
+            text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found for {category.title()}. Please try again in a moment.</i>", 
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"srv_{server_id}")]]), 
             parse_mode=ParseMode.HTML
         )
+        return
+        
+    kb = []
+    for c_name, r_val in countries.items():
+        # Shortened callback to avoid telegram byte limit (64 max) while passing all needed data
+        kb.append([InlineKeyboardButton(f"{get_flag(c_name)} {c_name}", callback_data=f"r_{server_id}_{r_val}_{c_name[:15]}")])
+        
+    kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data=f"srv_{server_id}")])
+    
+    await query.edit_message_text(
+        text=f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", 
+        reply_markup=InlineKeyboardMarkup(kb), 
+        parse_mode=ParseMode.HTML
+    )
 
 
 # ==============================================================================
-# 🎮 TEXT HANDLER
+# 🎮 TEXT HANDLER & INLINE ADMIN REPLY LOGIC
 # ==============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if await check_ban_middleware(update, context): return
+    if await check_ban_middleware(update, context): 
+        return
     user_id = update.effective_user.id
     text = update.message.text
     user_data = context.user_data
     ensure_user(user_id)
     
-    if user_id in ADMIN_IDS and text.startswith("/reply"):
+    # 🔥 INLINE ADMIN REPLY SYSTEM - PROCESSING THE ADMIN'S MESSAGE
+    target_reply_user = user_data.get('admin_reply_target')
+    if target_reply_user:
         try:
-            parts = text.split(" ", 2)
-            await context.bot.send_message(chat_id=int(parts[1]), text=f"👨‍💻 <b>Admin Reply:</b>\n━━━━━━━━━━━━━━━━━━━━\n{parts[2]}", parse_mode=ParseMode.HTML)
-            await update.message.reply_text("✅ Reply sent successfully.")
-        except Exception: 
-            await update.message.reply_text("⚠️ Usage: `/reply UserID Message`")
+            await context.bot.send_message(
+                chat_id=int(target_reply_user), 
+                text=f"👨‍💻 <b>Admin Reply:</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", 
+                parse_mode=ParseMode.HTML
+            )
+            await update.message.reply_text("✅ <b>Reply sent successfully to the user.</b>", parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await update.message.reply_text("❌ <b>Failed to send reply. The user might have blocked the bot.</b>", parse_mode=ParseMode.HTML)
+        
+        # Clear the state so admin can use the bot normally again
+        user_data['admin_reply_target'] = None
         return
 
+    # 📱 MENU HANDLERS
     if text == "📱 Get Number":
-        if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
-        else: await start_category_selection(update, context)
+        if not await check_subscription(user_id, context.bot): 
+            await send_join_prompt(update, context)
+        else: 
+            await show_server_selection(update, context)
             
     elif text == "🔐 Get 2FA":
         user_data['state'] = 'WAITING_FOR_2FA'
-        await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(
+            "🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", 
+            parse_mode=ParseMode.HTML
+        )
         
     elif user_data.get('state') == 'WAITING_FOR_2FA':
         key = text.replace(" ", "").strip()
@@ -901,19 +965,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         out = f"✅ <b>2FA CODE GENERATED!</b>\n━━━━━━━━━━━━━━━━━━━━\n🔢 <b>Code:</b> <code>{code}</code>\n\n<i>⚠️ Auto-delete in 5 mins.</i>"
                         await msg.edit_text(out, parse_mode=ParseMode.HTML)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300))
-                    else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
-                else: await msg.edit_text("❌ <b>API Error!</b>", parse_mode=ParseMode.HTML)
-        except Exception: await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
+                    else: 
+                        await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
+                else: 
+                    await msg.edit_text("❌ <b>API Error!</b>", parse_mode=ParseMode.HTML)
+        except Exception: 
+            await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
         user_data['state'] = None
         
     elif text == "🎧 Support":
         user_data['state'] = 'WAITING_FOR_SUPPORT'
-        await update.message.reply_text("🎧 <b>SUPPORT SYSTEM</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Type your problem below.</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(
+            "🎧 <b>SUPPORT SYSTEM</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Type your problem below.</i>", 
+            parse_mode=ParseMode.HTML
+        )
         
     elif user_data.get('state') == 'WAITING_FOR_SUPPORT':
         for a_id in ADMIN_IDS:
-            try: await context.bot.send_message(chat_id=a_id, text=f"📩 <b>Support</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}\n\n<i>Reply with:</i>\n<code>/reply {user_id} message</code>", parse_mode=ParseMode.HTML)
-            except: pass
+            try: 
+                # 🔥 ADMIN GETS THIS MESSAGE WITH INLINE BUTTON TO REPLY
+                admin_kb = [[InlineKeyboardButton("💬 Reply to User", callback_data=f"admrep_{user_id}")]]
+                
+                await context.bot.send_message(
+                    chat_id=a_id, 
+                    text=f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", 
+                    reply_markup=InlineKeyboardMarkup(admin_kb),
+                    parse_mode=ParseMode.HTML
+                )
+            except: 
+                pass
+                
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
         user_data['state'] = None
         
@@ -922,11 +1003,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🔥 Range Channel", url="https://t.me/ConsoleXRT")],
             [InlineKeyboardButton("💬 OTP Channel", url="https://t.me/RTxOtpX")]
         ]
-        await update.message.reply_text("📊 <b>BOT ACTIVITY LINKS</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Join to see live Bot activity:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        await update.message.reply_text(
+            "📊 <b>BOT ACTIVITY LINKS</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Join to see live Bot activity:</i>", 
+            reply_markup=InlineKeyboardMarkup(kb), 
+            parse_mode=ParseMode.HTML
+        )
         
     elif user_data.get('state') == 'WAITING_FOR_RANGE':
         user_data['state'] = None
-        await process_number_generation(update, context, text, is_callback=False)
+        server_id = user_data.get('server', 1)
+        await process_number_generation(update, context, text, server_id, is_callback=False)
         
     else:
         await show_main_menu(update, context)
@@ -937,7 +1023,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if await check_ban_middleware(update, context): return
+    if await check_ban_middleware(update, context): 
+        return
+        
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
@@ -945,22 +1033,61 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "check_join":
         if await check_subscription(user_id, context.bot): 
-            try: await query.message.delete()
-            except: pass
+            try: 
+                await query.message.delete()
+            except: 
+                pass
             await show_main_menu(query, context)
-        else: await query.answer("⚠️ Please join all channels/groups first.", show_alert=True)
+        else: 
+            await query.answer("⚠️ Please join all channels/groups first.", show_alert=True)
             
-    elif data.startswith("cat_"): await handle_category_click(update, context)
-    elif data == "go_cat": await start_category_selection(update, context)
-    elif data.startswith("rng_"): await process_number_generation(update, context, data.split("_")[1], is_callback=True)
+    elif data.startswith("srv_"): 
+        server_id = int(data.split('_')[1])
+        await start_category_selection(update, context, server_id)
+        
+    elif data.startswith("cat_"): 
+        await handle_category_click(update, context)
+        
+    elif data.startswith("r_"):
+        # Format: r_{server_id}_{range}_{country_name_partial}
+        parts = data.split("_")
+        server_id = int(parts[1])
+        range_val = parts[2]
+        
+        if len(parts) > 3:
+            context.user_data['country_name'] = parts[3]
+            
+        await process_number_generation(update, context, range_val, server_id, is_callback=True)
+        
     elif data == "change_num":
-        if context.user_data.get('range'): await process_number_generation(update, context, context.user_data['range'], is_callback=True)
-        else: await query.edit_message_text("⚠️ <b>Session Expired.</b>\n<i>Please start again.</i>", parse_mode=ParseMode.HTML)
-    elif data == "go_main": await show_main_menu(query, context)
+        if context.user_data.get('range'): 
+            server_id = context.user_data.get('server', 1)
+            await process_number_generation(update, context, context.user_data['range'], server_id, is_callback=True)
+        else: 
+            await query.edit_message_text("⚠️ <b>Session Expired.</b>\n<i>Please start again.</i>", parse_mode=ParseMode.HTML)
+            
+    elif data == "go_main": 
+        await show_server_selection(update, context)
+        
+    # 🔥 INLINE ADMIN REPLY BUTTON HANDLER
+    elif data.startswith("admrep_"):
+        if user_id not in ADMIN_IDS:
+            await query.answer("⚠️ You are not an admin.", show_alert=True)
+            return
+            
+        target_user_id = data.split("_")[1]
+        context.user_data['admin_reply_target'] = target_user_id
+        
+        reply_txt = (
+            f"✍️ <b>Type your reply for User ID:</b> <code>{target_user_id}</code>\n\n"
+            f"<i>(Just type the message normally in the chat and send it. I will forward it to the user.)</i>"
+        )
+        await query.message.reply_text(reply_txt, parse_mode=ParseMode.HTML)
+        await query.answer()
 
 
 # ==============================================================================
-# 👑 FULLY FUNCTIONAL ADMIN COMMANDS (NEW FEATURES ADDED)
+# 👑 FULLY FUNCTIONAL ADMIN COMMANDS
 # ==============================================================================
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -972,7 +1099,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📢 <code>/broadcast &lt;msg&gt;</code> - Message all users\n"
         "🚫 <code>/ban &lt;id&gt;</code> - Ban a user\n"
         "✅ <code>/unban &lt;id&gt;</code> - Unban a user\n"
-        "💬 <code>/reply &lt;id&gt; &lt;msg&gt;</code> - Reply to support\n"
         "👥 <code>/users</code> - Total User Count\n"
         "🔍 <code>/search &lt;id&gt;</code> - Check User Details\n"
         "💾 <code>/backup</code> - Download Database"
@@ -996,7 +1122,7 @@ async def admin_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📩 <b>Total OTPs:</b> {t_otps}\n"
         f"📡 <b>Active Waiters:</b> {len(WAITING_OTPS)} Numbers\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ <i>System Running Smoothly</i>"
+        f"✅ <i>Dual Servers Running Smoothly</i>"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -1086,7 +1212,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="Bot is running perfectly! V18 Enterprise Edition with Clean UI & Advanced Admin Panel.")
+    return web.Response(text="Bot is running perfectly! V20 Enterprise Edition with Dual Servers & Smart PC Clone Detection.")
 
 async def start_dummy_server():
     try:
@@ -1097,7 +1223,8 @@ async def start_dummy_server():
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', port)
         await site.start()
-    except Exception: pass
+    except Exception: 
+        pass
 
 async def post_init(app: Application):
     asyncio.create_task(start_dummy_server())
@@ -1110,7 +1237,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("status", admin_status))
     
-    # NEW ADMIN COMMANDS ADDED
     app.add_handler(CommandHandler("ban", ban_user_cmd))
     app.add_handler(CommandHandler("unban", unban_user_cmd))
     app.add_handler(CommandHandler("broadcast", broadcast_cmd))
@@ -1121,8 +1247,9 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
+    # 🔥 Highly Optimized Polling System
     app.job_queue.run_repeating(global_otp_checker_job, interval=8, first=3)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=60, first=10)
     
-    logger.info("✨ VERSION 18.0 ENTERPRISE STARTED... ✨")
+    logger.info("✨ VERSION 20.0 ENTERPRISE STARTED SUCCESSFULLY... ✨")
     app.run_polling(drop_pending_updates=True)
