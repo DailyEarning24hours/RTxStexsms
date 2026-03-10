@@ -59,8 +59,8 @@ CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 RANGE_GROUP_ID = -1003627708272
 OTP_GROUP_ID = -1003830374258
 
-STEX_EMAIL = "mujahidhasan619@gmail.com"
-STEX_PASSWORD = "hasan2008"
+STEX_EMAIL = "mdrajaislam469@gmail.com"
+STEX_PASSWORD = "Raja1234@#"
 
 API_LOGIN = "https://stexsms.com/mapi/v1/mauth/login"
 API_CONSOLE = "https://stexsms.com/mapi/v1/mdashboard/console/info"
