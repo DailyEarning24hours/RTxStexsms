@@ -50,7 +50,7 @@ from aiohttp import web
 
 TOKEN = "8784714590:AAGW1bthOSIh2HUl2vPCYS_zv13zEz7BOsg"
 
-ADMIN_IDS = [6031032502, 6941366213] 
+ADMIN_IDS = 6031032502 
 CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 
 RANGE_GROUP_ID = -1003627708272
