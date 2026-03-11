@@ -1,8 +1,9 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 22.0 ENTERPRISE) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 23.0 ENTERPRISE) ✨
 CAPACITY: 10,000+ Users on Render Free Plan (O(1) Hash-Map Algorithm).
-SPEED OPTIMIZED: OTP History logging removed for maximum speed & lightweight DB.
+EXTREME SPEED UPDATE: Polling interval reduced to 4 seconds.
+PARALLEL PROCESSING: Server 1 & Server 2 inboxes are now fetched SIMULTANEOUSLY!
 NEW FEATURE: "Get Number Again" button appears after both codes are received.
 FIXED: Dual Server System (Server 1: Stex, Server 2: MK Network) fully stable.
 ERROR HANDLING: 100% hidden HTTP 401/500 errors. Premium fallback messages used.
@@ -118,7 +119,7 @@ def get_hash_key(number_str):
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        # 🔥 Boosted Limits for 10k users
+        # 🔥 Boosted Limits for 10k users & Parallel Processing
         connector = aiohttp.TCPConnector(limit=500, keepalive_timeout=120, ttl_dns_cache=600, enable_cleanup_closed=True)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
@@ -503,73 +504,79 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     allowed_apps = ['facebook', 'whatsapp']
     bot_username = context.bot.username
 
-    # 1. PROCESS SERVER 1 
-    stex_status, stex_data = await stex_api_request('GET', API_STEX_CONSOLE)
-    if stex_status == 200 and isinstance(stex_data, dict):
-        logs = stex_data.get('data', {}).get('logs', [])
-        for log in logs[:5]:
-            if isinstance(log, dict):
-                r_val = log.get('range')
-                raw_app = str(log.get('app_name', 'Unknown')).lower()
-                c_name = log.get('country', 'Unknown')
-                msg_text = str(log.get('message', ''))
-                
-                if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
-                    SENT_RANGES.add(r_val)
-                    if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
+    # Fetch both consoles simultaneously for speed
+    stex_task = stex_api_request('GET', API_STEX_CONSOLE)
+    mk_task = mk_api_request('GET', API_MK_CONSOLE)
+    
+    results = await asyncio.gather(stex_task, mk_task, return_exceptions=True)
+    
+    # 1. PROCESS SERVER 1 (STEX)
+    if isinstance(results[0], tuple):
+        stex_status, stex_data = results[0]
+        if stex_status == 200 and isinstance(stex_data, dict):
+            logs = stex_data.get('data', {}).get('logs', [])
+            for log in logs[:5]:
+                if isinstance(log, dict):
+                    r_val = log.get('range')
+                    raw_app = str(log.get('app_name', 'Unknown')).lower()
+                    c_name = log.get('country', 'Unknown')
+                    msg_text = str(log.get('message', ''))
                     
-                    display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('app_name', 'Unknown').title()
-                    
-                    range_msg = (
-                        f"🔥 <b>New Range find</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🖥️ Server - <b>Server 1 ✨</b>\n"
-                        f"🎯 Range - <code>{r_val}</code>\n"
-                        f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
-                        f"🌍 Country - {get_flag(c_name)} {c_name}"
-                    )
-                    kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                    try: 
-                        await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-                        await asyncio.sleep(1)
-                    except Exception: 
-                        pass
+                    if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
+                        SENT_RANGES.add(r_val)
+                        if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
+                        
+                        display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('app_name', 'Unknown').title()
+                        
+                        range_msg = (
+                            f"🔥 <b>New Range find</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🖥️ Server - <b>Server 1 ✨</b>\n"
+                            f"🎯 Range - <code>{r_val}</code>\n"
+                            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
+                            f"🌍 Country - {get_flag(c_name)} {c_name}"
+                        )
+                        kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
+                        try: 
+                            await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                        except Exception: 
+                            pass
 
-    # 2. PROCESS SERVER 2 
-    mk_status, mk_data = await mk_api_request('GET', API_MK_CONSOLE)
-    if mk_status == 200 and isinstance(mk_data, dict):
-        feeds = mk_data.get('feed', [])
-        for log in feeds[:5]:
-            if isinstance(log, dict):
-                r_val = log.get('range')
-                raw_app = str(log.get('service_name', 'Unknown')).lower()
-                c_name = log.get('country', 'Unknown')
-                msg_text = str(log.get('msg', ''))
-                
-                if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
-                    SENT_RANGES.add(r_val)
-                    if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
+    # 2. PROCESS SERVER 2 (MK NETWORK)
+    if isinstance(results[1], tuple):
+        mk_status, mk_data = results[1]
+        if mk_status == 200 and isinstance(mk_data, dict):
+            feeds = mk_data.get('feed', [])
+            for log in feeds[:5]:
+                if isinstance(log, dict):
+                    r_val = log.get('range')
+                    raw_app = str(log.get('service_name', 'Unknown')).lower()
+                    c_name = log.get('country', 'Unknown')
+                    msg_text = str(log.get('msg', ''))
                     
-                    display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('service_name', 'Unknown').title()
-                    
-                    range_msg = (
-                        f"🔥 <b>New Range find</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🚀 Server - <b>Server 2 🚀</b>\n"
-                        f"🎯 Range - <code>{r_val}</code>\n"
-                        f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
-                        f"🌍 Country - {get_flag(c_name)} {c_name}"
-                    )
-                    kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                    try: 
-                        await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-                        await asyncio.sleep(1)
-                    except Exception: 
-                        pass
+                    if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
+                        SENT_RANGES.add(r_val)
+                        if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
+                        
+                        display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('service_name', 'Unknown').title()
+                        
+                        range_msg = (
+                            f"🔥 <b>New Range find</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🚀 Server - <b>Server 2 🚀</b>\n"
+                            f"🎯 Range - <code>{r_val}</code>\n"
+                            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
+                            f"🌍 Country - {get_flag(c_name)} {c_name}"
+                        )
+                        kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
+                        try: 
+                            await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                        except Exception: 
+                            pass
 
 
 # ==============================================================================
-# 🚀 GLOBAL OTP POLLER (DUAL SERVER INBOX CHECKER)
+# 🚀 GLOBAL OTP POLLER (PARALLEL FETCHING FOR MAXIMUM SPEED)
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg):
@@ -593,9 +600,6 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
-    
-    # 🔥 The 'Get Number Again' logic will trigger automatically inside update_dynamic_batch_message 
-    # when the list of numbers hits 0.
     
     asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
     
@@ -647,30 +651,41 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     found_keys = []
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    # 1. CHECK SERVER 1 INBOX
-    stex_status, stex_res = await stex_api_request('GET', f"{API_STEX_INBOX}?date={date_str}&page=1&search=&status=")
-    if stex_status == 200 and stex_res:
-        for item in stex_res.get('data', {}).get('numbers', []):
-            if isinstance(item, dict) and item.get('status') == 'success':
-                hash_key = get_hash_key(item.get('number', ''))
-                if hash_key in WAITING_OTPS and hash_key not in found_keys:
-                    raw_msg = item.get('otp', item.get('message', 'No Message'))
-                    await process_found_otp(context, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
-                    found_keys.append(hash_key)
+    # 🔥 PARALLEL FETCHING: FETCHING BOTH INBOXES AT THE EXACT SAME TIME
+    stex_url = f"{API_STEX_INBOX}?date={date_str}&page=1&search=&status="
+    mk_url = API_MK_INBOX.format(date_str)
+    
+    stex_task = stex_api_request('GET', stex_url)
+    mk_task = mk_api_request('GET', mk_url)
+    
+    results = await asyncio.gather(stex_task, mk_task, return_exceptions=True)
 
-    # 2. CHECK SERVER 2 INBOX
-    mk_status, mk_res = await mk_api_request('GET', API_MK_INBOX.format(date_str))
-    if mk_status == 200 and mk_res:
-        for item in mk_res.get('data', []):
-            if isinstance(item, dict) and item.get('status') == 'success':
-                hash_key = get_hash_key(item.get('phone_number', ''))
-                if hash_key in WAITING_OTPS and hash_key not in found_keys:
-                    raw_msg = item.get('full_sms_list', 'No Message')
-                    code_val = item.get('otps', extract_code(raw_msg))
-                    if not code_val: 
-                        code_val = extract_code(raw_msg)
-                    await process_found_otp(context, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), raw_msg)
-                    found_keys.append(hash_key)
+    # 1. PROCESS SERVER 1 (STEX) RESULTS
+    if isinstance(results[0], tuple):
+        stex_status, stex_res = results[0]
+        if stex_status == 200 and stex_res:
+            for item in stex_res.get('data', {}).get('numbers', []):
+                if isinstance(item, dict) and item.get('status') == 'success':
+                    hash_key = get_hash_key(item.get('number', ''))
+                    if hash_key in WAITING_OTPS and hash_key not in found_keys:
+                        raw_msg = item.get('otp', item.get('message', 'No Message'))
+                        await process_found_otp(context, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
+                        found_keys.append(hash_key)
+
+    # 2. PROCESS SERVER 2 (MK NETWORK) RESULTS
+    if isinstance(results[1], tuple):
+        mk_status, mk_res = results[1]
+        if mk_status == 200 and mk_res:
+            for item in mk_res.get('data', []):
+                if isinstance(item, dict) and item.get('status') == 'success':
+                    hash_key = get_hash_key(item.get('phone_number', ''))
+                    if hash_key in WAITING_OTPS and hash_key not in found_keys:
+                        raw_msg = item.get('full_sms_list', 'No Message')
+                        code_val = item.get('otps', extract_code(raw_msg))
+                        if not code_val: 
+                            code_val = extract_code(raw_msg)
+                        await process_found_otp(context, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), raw_msg)
+                        found_keys.append(hash_key)
 
     for k in found_keys: 
         WAITING_OTPS.pop(k, None)
@@ -1211,7 +1226,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="Bot is running perfectly! V22 Enterprise Edition with 10k Speed Optimization.")
+    return web.Response(text="Bot is running perfectly! V23 Enterprise Edition with Parallel High-Speed Processing.")
 
 async def start_dummy_server():
     try:
@@ -1247,9 +1262,11 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # 🔥 Highly Optimized Polling System
-    app.job_queue.run_repeating(global_otp_checker_job, interval=8, first=3)
+    # 🔥 EXTREME SPEED POLLING SYSTEM (Runs every 4 seconds now)
+    app.job_queue.run_repeating(global_otp_checker_job, interval=4, first=2)
+    
+    # Forwarder runs normally
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=60, first=10)
     
-    logger.info("✨ VERSION 22.0 ENTERPRISE STARTED SUCCESSFULLY... ✨")
+    logger.info("✨ VERSION 23.0 ENTERPRISE (PARALLEL PROCESSING) STARTED SUCCESSFULLY... ✨")
     app.run_polling(drop_pending_updates=True)
