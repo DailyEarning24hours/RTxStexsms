@@ -1,11 +1,11 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 25.0 AUTO-HEALING) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 26.0 ULTRA BUG FIX) ✨
 CAPACITY: 20,000+ Users on Render Free Plan (RAM Caching O(1) Algorithm).
-EXTREME SPEED UPDATE: SQLite disk I/O removed. RAM Cache added for hyper-speed.
-FIXED 1: MK Network (Server 2) range stop bug fixed via Auto-Healing Sessions.
-FIXED 2: Multiple OTPs fully working! Advanced Segmented Parsing added.
-PARALLEL PROCESSING: Server 1 & Server 2 inboxes are fetched SIMULTANEOUSLY!
+EXTREME SPEED UPDATE: Polling interval reduced to 3 SECONDS for instant OTPs.
+FIXED 1: "See Msg" / Double OTP spam fully fixed! Perfect single OTP delivery.
+FIXED 2: MK Network 10-Minute Range Drop fixed (Auto-Healing runs every 5 mins).
+FIXED 3: Dynamic Star Masking added (****** perfectly converts to ••••••).
 ERROR HANDLING: 100% hidden HTTP 401/500 errors. Premium fallback messages used.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
@@ -88,12 +88,13 @@ LAST_AUTH_TIME_STEX = 0
 
 AUTH_LOCK_MK = asyncio.Lock()
 LAST_AUTH_TIME_MK = 0
+MK_EMPTY_COUNTER = 0 # To detect if MK quietly drops the session
 
 SENT_RANGES = set()
 START_TIME = datetime.datetime.now()
 BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.120 Mobile Safari/537.36"
 
-DB_POOL_SIZE = 25 # Increased for 20k capacity
+DB_POOL_SIZE = 30 # Ultra capacity
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ OTP_TIMEOUT_SECONDS = 1200 # 20 minutes before silent delete
 # 🔥 RAM CACHE SYSTEM (Ultra Fast Response on Render Free Plan)
 USER_CACHE = set()
 BANNED_CACHE = set()
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
 def get_hash_key(number_str):
     """Generates an O(1) lookup key for extreme performance on Render Free Plan."""
@@ -120,28 +121,26 @@ def get_hash_key(number_str):
 def clean_message_text(raw_text):
     """
     🔥 SUPER HTML CLEANER FOR FACEBOOK & WHATSAPP!
-    Fixes: "&lt;#&gt; <span class='masked-stars'>*****</span>"
+    Fixed: Dynamic Asterisk to Dot converter (****** -> ••••••)
     """
     if not raw_text or str(raw_text).strip() == "":
         return "No Message Provided"
     
     text = str(raw_text)
     
-    # Double unescape for heavily encoded JSON payloads
+    # 1. Double unescape for heavily encoded JSON payloads
     text = html.unescape(html.unescape(text))
     
-    # Target Facebook masked stars and replace with dots
-    text = re.sub(r'<span class=[\'"]masked-stars[\'"]>.*?</span>', '•••••', text, flags=re.IGNORECASE)
-    text = re.sub(r'<span class=[\'"]masked[\'"]>.*?</span>', '•••••', text, flags=re.IGNORECASE)
-    
-    # Aggressively remove all remaining HTML tags
+    # 2. Aggressively remove all HTML tags (<span class="...">, etc.)
     text = re.sub(r'<[^>]+>', '', text)
     
-    # Clean up remaining entities just in case
+    # 3. Clean up remaining entities just in case
     text = text.replace('&lt;', '<').replace('&gt;', '>')
-    text = text.replace('*****', '•••••')
     
-    # Remove extra whitespace
+    # 4. 🔥 DYNAMIC STAR TO DOT REPLACEMENT (Replaces exact number of *)
+    text = re.sub(r'\*+', lambda m: '•' * len(m.group()), text)
+    
+    # 5. Remove extra whitespace
     text = " ".join(text.split())
     
     return text.strip() if text.strip() else "No Message Provided"
@@ -167,7 +166,7 @@ def mask_phone_number(num_str):
 DB_FILE = "bot.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=25):
+    def __init__(self, db_file, pool_size=30):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
@@ -175,7 +174,7 @@ class DatabasePool:
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
         conn.execute('PRAGMA journal_mode=WAL;')
         conn.execute('PRAGMA synchronous=NORMAL;')
-        conn.execute('PRAGMA cache_size=-10000;') # Use 10MB of RAM for SQLite cache
+        conn.execute('PRAGMA cache_size=-20000;') # Use 20MB of RAM for SQLite cache
         try: 
             yield conn
         finally: 
@@ -204,14 +203,12 @@ def init_db():
         logger.info(f"✅ LOADED {len(USER_CACHE)} USERS INTO RAM CACHE!")
 
 def sync_register_user_db(user_id):
-    """Writes new user to DB in the background."""
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         c.execute("INSERT OR IGNORE INTO users (user_id, join_date) VALUES (?, CURRENT_TIMESTAMP)", (user_id,))
         conn.commit()
 
 async def ensure_user_fast(user_id):
-    """🔥 O(1) SPEED: Checks user in RAM. If new, adds to DB without freezing the bot."""
     if user_id not in USER_CACHE:
         USER_CACHE.add(user_id)
         loop = asyncio.get_event_loop()
@@ -250,8 +247,8 @@ async def set_ban_status(user_id, status):
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        # 🔥 Boosted Limits for 20k users & Parallel Processing
-        connector = aiohttp.TCPConnector(limit=1000, keepalive_timeout=300, ttl_dns_cache=600, enable_cleanup_closed=True)
+        # 🔥 Boosted Limits for Extreme Speed
+        connector = aiohttp.TCPConnector(limit=1500, keepalive_timeout=300, ttl_dns_cache=600, enable_cleanup_closed=True)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
@@ -280,7 +277,7 @@ async def authenticate_stex(force=False):
         }
         try:
             session = await get_session()
-            async with session.post(API_STEX_LOGIN, json=payload, headers=headers, timeout=15, ssl=False) as response:
+            async with session.post(API_STEX_LOGIN, json=payload, headers=headers, timeout=10, ssl=False) as response:
                 if response.status == 200:
                     data = await parse_response_safely(response)
                     if data and str(data.get('meta', {}).get('code')) == '200':
@@ -301,24 +298,23 @@ def get_stex_headers():
 
 async def stex_api_request(method, url, json_payload=None):
     global MAUTH_TOKEN
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             if not MAUTH_TOKEN:
                 if not await authenticate_stex():
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1)
                     continue
             session = await get_session()
             headers = get_stex_headers()
             if method.upper() == 'GET': 
-                response = await session.get(url, headers=headers, timeout=15, ssl=False)
+                response = await session.get(url, headers=headers, timeout=10, ssl=False)
             else: 
-                response = await session.post(url, json=json_payload, headers=headers, timeout=15, ssl=False)
+                response = await session.post(url, json=json_payload, headers=headers, timeout=10, ssl=False)
             
             status = response.status
-            # 🔥 SUPPRESSING ERRORS
             if status in [401, 403, 500, 501, 502, 503]: 
                 MAUTH_TOKEN = None
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
                 continue
                 
             if status == 200:
@@ -331,12 +327,12 @@ async def stex_api_request(method, url, json_payload=None):
             else: 
                 return status, None
         except Exception: 
-            await asyncio.sleep(2)
+            pass
     return 500, None 
 
 # ----- SERVER 2 AUTH -----
 async def authenticate_mk(force=False):
-    global LAST_AUTH_TIME_MK
+    global LAST_AUTH_TIME_MK, MK_EMPTY_COUNTER
     async with AUTH_LOCK_MK:
         if not force and time.time() - LAST_AUTH_TIME_MK < 300: return True
         payload = aiohttp.FormData()
@@ -349,60 +345,67 @@ async def authenticate_mk(force=False):
         }
         try:
             session = await get_session()
-            async with session.post(API_MK_LOGIN, data=payload, headers=headers, timeout=15, ssl=False) as response:
+            async with session.post(API_MK_LOGIN, data=payload, headers=headers, timeout=10, ssl=False) as response:
                 content_type = response.headers.get('Content-Type', '')
                 if 'application/json' in content_type:
                     data = await parse_response_safely(response)
                     if data and data.get('status') == 'success':
                         LAST_AUTH_TIME_MK = time.time()
+                        MK_EMPTY_COUNTER = 0 # Reset empty counter on fresh login
                         return True
                 return False
         except Exception: 
             return False
 
 async def mk_api_request(method, url, form_data=None):
-    for attempt in range(3):
+    global MK_EMPTY_COUNTER
+    for attempt in range(2):
         try:
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "X-Requested-With": "mark.via.gp"}
             if method.upper() == 'GET': 
-                response = await session.get(url, headers=headers, timeout=15, ssl=False)
+                response = await session.get(url, headers=headers, timeout=10, ssl=False)
             else: 
-                response = await session.post(url, data=form_data, headers=headers, timeout=15, ssl=False)
+                response = await session.post(url, data=form_data, headers=headers, timeout=10, ssl=False)
             
             status = response.status
             content_type = response.headers.get('Content-Type', '')
             
-            # 🔥 SUPPRESSING ERRORS & AUTO-HEALING REDIRECTS
+            # Auto-Heal Trigger
             if status in [401, 403, 500, 501, 502, 503] or 'text/html' in content_type:
                 await authenticate_mk(force=True)
-                await asyncio.sleep(2)
                 continue
                 
             data = await parse_response_safely(response)
             
-            # MK specific error handling (Session Dropped but status 200)
-            if data and isinstance(data, dict) and data.get('status') == 'error':
-                await authenticate_mk(force=True)
-                await asyncio.sleep(1)
-                continue
-                
+            # MK Dead Session Detection
+            if data and isinstance(data, dict):
+                if data.get('status') == 'error':
+                    await authenticate_mk(force=True)
+                    continue
+                # If API returns success but data is suspiciously empty multiple times
+                if 'get_history' in url and not data.get('data'):
+                    MK_EMPTY_COUNTER += 1
+                    if MK_EMPTY_COUNTER > 10: # If empty 10 times in a row, force reconnect
+                        await authenticate_mk(force=True)
+                else:
+                    MK_EMPTY_COUNTER = 0
+                    
             return 200, data
         except Exception: 
-            await asyncio.sleep(2)
+            pass
     return 500, None
 
 # ==============================================================================
-# 🩺 AUTO-HEALING SESSION MANAGER (FIXES MK NETWORK 1-2 HR BUG)
+# 🩺 AUTO-HEALING SESSION MANAGER (FIXES MK NETWORK 10 MIN BUG)
 # ==============================================================================
 async def session_regenerator_job(context: ContextTypes.DEFAULT_TYPE):
     """
-    🔥 Runs every 45 minutes to completely destroy and recreate HTTP sessions.
-    This permanently fixes the MK Network / PHP Session timeout issue where
-    ranges stop coming after 1-2 hours.
+    🔥 AGGRESSIVE 5-MINUTE AUTO-HEALING.
+    Runs every 5 minutes to completely destroy and recreate HTTP sessions.
+    Prevents MK Network from dropping the connection silently.
     """
     global GLOBAL_SESSION, MAUTH_TOKEN, LAST_AUTH_TIME_MK, LAST_AUTH_TIME_STEX
-    logger.info("🔄 [AUTO-HEALING] Regenerating connection pools and sessions...")
     
     if GLOBAL_SESSION and not GLOBAL_SESSION.closed:
         await GLOBAL_SESSION.close()
@@ -412,13 +415,9 @@ async def session_regenerator_job(context: ContextTypes.DEFAULT_TYPE):
     LAST_AUTH_TIME_STEX = 0
     LAST_AUTH_TIME_MK = 0
     
-    # Rebuild connection pool
     await get_session()
-    
-    # Force fresh login to both panels
     await authenticate_stex(force=True)
     await authenticate_mk(force=True)
-    logger.info("✅ [AUTO-HEALING] Sessions regenerated successfully!")
 
 
 # ==============================================================================
@@ -535,9 +534,6 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
         
     batch = BATCH_MSGS[batch_key]
     
-    # Check if there are still waiting numbers, else show completion
-    # NOTE: In Multiple OTP system, we don't necessarily delete the batch message immediately,
-    # but we can update its appearance.
     if len(batch['numbers']) == 0:
         try: 
             txt = (
@@ -552,7 +548,6 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
             await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         except Exception: 
             pass
-        # We don't delete the batch key immediately so multiple OTPs can still come through silently
     else:
         num_str = ""
         symbols = ["❶", "❷"] 
@@ -614,7 +609,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                         if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
                         
                         display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('app_name', 'Unknown').title()
-                        
                         full_msg_text = clean_message_text(raw_msg)
                         
                         range_msg = (
@@ -651,7 +645,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                         if len(SENT_RANGES) > 5000: SENT_RANGES.clear()
                         
                         display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('service_name', 'Unknown').title()
-                        
                         full_msg_text = clean_message_text(raw_msg)
                         
                         range_msg = (
@@ -671,13 +664,12 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ==============================================================================
-# 🚀 GLOBAL OTP POLLER (ADVANCED MULTIPLE OTP PARSING SYSTEM)
+# 🚀 GLOBAL OTP POLLER (NO DOUBLE MESSAGES / NO SEE MSG SPAM)
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg):
     global WAITING_OTPS, BATCH_MSGS
     
-    # Safety check, just in case
     if hash_key not in WAITING_OTPS:
         return
         
@@ -685,7 +677,6 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     user_id, chat_id, msg_id = user_data['user_id'], user_data['chat_id'], user_data['msg_id']
     full_num, batch_key = user_data['full_num'], user_data['batch_key']
     
-    # DYNAMIC MESSAGE UPDATE (Only remove the number on FIRST OTP to trigger UI update)
     if batch_key in BATCH_MSGS:
         if full_num in BATCH_MSGS[batch_key]['numbers']:
             BATCH_MSGS[batch_key]['numbers'].remove(full_num)
@@ -727,7 +718,6 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     current_time = time.time()
     expired_keys = []
     
-    # Timeout numbers after 20 minutes (1200 seconds)
     for hash_key, data in list(WAITING_OTPS.items()):
         if current_time - data['time'] > OTP_TIMEOUT_SECONDS: 
             expired_keys.append(hash_key)
@@ -760,7 +750,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     results = await asyncio.gather(stex_task, mk_task, return_exceptions=True)
 
     # ==========================================
-    # 1. PROCESS SERVER 1 (STEX) - MULTIPLE OTP
+    # 1. PROCESS SERVER 1 (STEX) - PERFECT PARSER
     # ==========================================
     if isinstance(results[0], tuple):
         stex_status, stex_res = results[0]
@@ -771,22 +761,20 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                     if hash_key in WAITING_OTPS:
                         raw_msg = item.get('sms') or item.get('sms_text') or item.get('full_message') or item.get('otp') or item.get('message') or ""
                         
-                        # ✨ ADVANCED MULTIPLE OTP PARSER: Split messages by newline or pipe
-                        segments = re.split(r'\||\n', str(raw_msg))
-                        for segment in segments:
-                            if not segment.strip(): continue
-                            code_val = extract_code(segment)
-                            
-                            # Unique signature strictly based on the code/text content
-                            msg_sig = f"{code_val}_{segment.strip()[:15]}"
-                            rcv = WAITING_OTPS[hash_key].setdefault('received_codes', set())
-                            
-                            if msg_sig not in rcv:
-                                rcv.add(msg_sig)
-                                await process_found_otp(context, hash_key, item.get('number', ''), code_val, item.get('full_number', 'Service'), segment)
+                        # Fix for Duplicate / See Msg: Evaluate the entire text block at once.
+                        code_val = extract_code(raw_msg)
+                        clean_text = clean_message_text(raw_msg)
+                        
+                        # Strict Unique Signature using the Clean Text to prevent any duplicates
+                        msg_sig = f"{code_val}_{clean_text[:25]}"
+                        rcv = WAITING_OTPS[hash_key].setdefault('received_codes', set())
+                        
+                        if msg_sig not in rcv:
+                            rcv.add(msg_sig)
+                            await process_found_otp(context, hash_key, item.get('number', ''), code_val, item.get('full_number', 'Service'), raw_msg)
 
     # ==========================================
-    # 2. PROCESS SERVER 2 (MK NETWORK) - MULTIPLE OTP
+    # 2. PROCESS SERVER 2 (MK NETWORK) - PERFECT PARSER
     # ==========================================
     if isinstance(results[1], tuple):
         mk_status, mk_res = results[1]
@@ -797,19 +785,19 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                     if hash_key in WAITING_OTPS:
                         raw_msg = item.get('full_sms_list') or item.get('sms') or item.get('message') or ""
                         
-                        # ✨ ADVANCED MULTIPLE OTP PARSER: Split messages by newline or pipe
-                        segments = re.split(r'\||\n', str(raw_msg))
-                        for segment in segments:
-                            if not segment.strip(): continue
-                            code_val = extract_code(segment)
-                            
-                            # Unique signature strictly based on the code/text content
-                            msg_sig = f"{code_val}_{segment.strip()[:15]}"
-                            rcv = WAITING_OTPS[hash_key].setdefault('received_codes', set())
-                            
-                            if msg_sig not in rcv:
-                                rcv.add(msg_sig)
-                                await process_found_otp(context, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), segment)
+                        # Fix for Duplicate / See Msg: Evaluate the entire text block at once.
+                        code_val = item.get('otps', extract_code(raw_msg))
+                        if not code_val: code_val = extract_code(raw_msg)
+                        
+                        clean_text = clean_message_text(raw_msg)
+                        
+                        # Strict Unique Signature using the Clean Text to prevent any duplicates
+                        msg_sig = f"{code_val}_{clean_text[:25]}"
+                        rcv = WAITING_OTPS[hash_key].setdefault('received_codes', set())
+                        
+                        if msg_sig not in rcv:
+                            rcv.add(msg_sig)
+                            await process_found_otp(context, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), raw_msg)
 
 
 # ==============================================================================
@@ -837,7 +825,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     country_name = "Unknown"
     
     for _ in range(2):
-        await asyncio.sleep(0.5) 
+        await asyncio.sleep(0.3) 
         
         if server_id == 1: 
             payload = {"range": range_val, "is_national": False, "remove_plus": False}
@@ -897,7 +885,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 'msg_id': msg.message_id, 
                 'batch_key': batch_key, 
                 'time': time.time(),
-                'received_codes': set() # Reset the received codes set for safety
+                'received_codes': set() 
             }
             
         context.user_data['range'] = range_val 
@@ -1241,7 +1229,7 @@ async def admin_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👥 <b>Total Users (RAM):</b> {t_users}\n"
         f"📡 <b>Active Waiters:</b> {len(WAITING_OTPS)} Numbers\n"
         f"⚡ <b>RAM Cache:</b> ACTIVE (O(1) Speed)\n"
-        f"🔄 <b>Auto-Healing:</b> ACTIVE\n"
+        f"🔄 <b>Auto-Healing:</b> 5 MINUTE ACTIVE\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"✅ <i>Dual Servers Running Smoothly</i>"
     )
@@ -1313,7 +1301,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="Bot is running perfectly! V25 ULTRA ENTERPRISE Edition with Auto-Healing & RAM Caching.")
+    return web.Response(text="Bot is running perfectly! V26 ULTRA Edition with Auto-Healing (5M) & Speed Poller (3S).")
 
 async def start_dummy_server():
     try:
@@ -1334,7 +1322,6 @@ if __name__ == "__main__":
     init_db()
     app = Application.builder().token(TOKEN).post_init(post_init).build()
     
-    # Registering Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("status", admin_status))
@@ -1344,16 +1331,15 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("users", admin_users_cmd))
     app.add_handler(CommandHandler("backup", admin_backup_cmd))
     
-    # Registering Handlers
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # 🔥 EXTREME SPEED POLLING & AUTO-HEALING SYSTEM
-    app.job_queue.run_repeating(global_otp_checker_job, interval=4, first=2)
+    # 🔥 EXTREME SPEED POLLING (3 SECONDS NOW!)
+    app.job_queue.run_repeating(global_otp_checker_job, interval=3, first=1)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=60, first=10)
     
-    # 🔥 AUTO-HEALING SESSION MANAGER (Runs every 45 mins to prevent MK session drop)
-    app.job_queue.run_repeating(session_regenerator_job, interval=2700, first=2700)
+    # 🔥 5 MINUTE AGGRESSIVE AUTO-HEALING FOR MK NETWORK BUG!
+    app.job_queue.run_repeating(session_regenerator_job, interval=300, first=300)
     
-    logger.info("✨ VERSION 25.0 ULTRA ENTERPRISE (AUTO-HEALING & MULTIPLE OTP) STARTED SUCCESSFULLY... ✨")
+    logger.info("✨ VERSION 26.0 ULTRA ENTERPRISE (NO SPAM BUG + 3S SPEED) STARTED SUCCESSFULLY... ✨")
     app.run_polling(drop_pending_updates=True)
