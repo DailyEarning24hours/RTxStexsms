@@ -222,7 +222,7 @@ async def stex_api_request(method, url, json_payload=None):
             if method.upper() == 'GET': 
                 response = await session.get(url, headers=headers, timeout=10, ssl=False)
             else: 
-                response = await session.post(url, json=payload, headers=headers, timeout=10, ssl=False)
+                response = await session.post(url, json=json_payload, headers=headers, timeout=10, ssl=False)
             
             status = response.status
             if status in [401, 403, 500, 501, 502, 503]: 
@@ -580,7 +580,7 @@ async def process_found_otp(app: Application, hash_key, api_num, code_only, svc_
         f"{E_TICK_SQ} <b>OTP:</b> <code>{code_only}</code>"
     )
     
-    asyncio.create_task(app.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
+    app.create_task(app.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
     
     group_msg = (
         f"{E_HEART_PURP} <b>Otp Received</b>\n"
@@ -591,7 +591,7 @@ async def process_found_otp(app: Application, hash_key, api_num, code_only, svc_
         f"{E_ROBOT} Full sms - \n<pre>{html.escape(cleaned_sms)}</pre>"
     )
     group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
-    asyncio.create_task(app.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
+    app.create_task(app.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
 
 async def global_otp_checker_job(app: Application):
     global WAITING_OTPS, BATCH_MSGS
@@ -610,7 +610,7 @@ async def global_otp_checker_job(app: Application):
                     BATCH_MSGS[b_key]['numbers'].remove(u_data['full_num'])
                 if len(BATCH_MSGS[b_key]['numbers']) == 0:
                     try: 
-                        asyncio.create_task(app.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id']))
+                        app.create_task(app.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id']))
                     except: 
                         pass
                     del BATCH_MSGS[b_key]
@@ -636,7 +636,7 @@ async def global_otp_checker_job(app: Application):
                     hash_key = get_hash_key(item.get('number', ''))
                     if hash_key in WAITING_OTPS:
                         raw_msg = item.get('otp', item.get('message', ''))
-                        await process_found_otp(app, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
+                        await process_found_otp(app, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('app_name', item.get('service_name', 'Service')), raw_msg)
 
     if isinstance(results[1], tuple):
         mk_status, mk_res = results[1]
@@ -797,14 +797,25 @@ async def show_main_menu(update_obj, context):
         f"{E_GHOST} <i>Welcome to the most advanced & stable OTP system!</i>\n\n"
         f"{E_TICK_CR} <b>Choose an option below.</b>"
     )
-    if hasattr(update_obj, 'message') and update_obj.message: 
-        await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
-    elif hasattr(update_obj, 'callback_query') and update_obj.callback_query:
-        try: 
+    reply_markup = ReplyKeyboardMarkup(kb, resize_keyboard=True)
+    
+    # Case 1: update_obj is a full Update object with a direct message
+    if isinstance(update_obj, Update) and update_obj.message:
+        await update_obj.message.reply_text(msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    # Case 2: update_obj is a full Update object triggered by a callback_query
+    elif isinstance(update_obj, Update) and update_obj.callback_query:
+        try:
             await update_obj.callback_query.message.delete()
-        except: 
+        except Exception:
             pass
-        await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    # Case 3: update_obj is a raw CallbackQuery object (passed directly as query)
+    elif hasattr(update_obj, 'message') and update_obj.message and hasattr(update_obj, 'from_user'):
+        try:
+            await update_obj.message.delete()
+        except Exception:
+            pass
+        await context.bot.send_message(chat_id=update_obj.message.chat_id, text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 async def show_server_selection(update_obj, context):
     kb = [
@@ -952,7 +963,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if code: 
                         out = f"{E_TICK_CR} <b>2FA CODE GENERATED!</b>\n━━━━━━━━━━━━━━━━━━━━\n🔢 <b>Code:</b> <code>{code}</code>\n\n<i>⚠️ Auto-delete in 5 mins.</i>"
                         await msg.edit_text(out, parse_mode=ParseMode.HTML)
-                        asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300))
+                        context.application.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300))
                     else: 
                         await msg.edit_text(f"{E_FB} <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
                 else: 
