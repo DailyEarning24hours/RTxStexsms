@@ -1,13 +1,16 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 25.0 ENTERPRISE) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 27.0 ENTERPRISE) ✨
 CAPACITY: 100,000+ Users on Render Free Plan (O(1) Hash-Map & 100% Async DB).
+CRASH FIX: Removed PTB JobQueue entirely. Implemented Pure Asyncio Native Loops.
+RANGE GROUP UPDATE: Full SMS added in <pre> tags with Spam Auto-Removal.
+PREMIUM EMOJIS: Applied Premium Emojis across all Range Group alerts.
 EXTREME SPEED UPDATE: Non-blocking Asyncio Event Loop, 0.1s UI Response Time.
 PARALLEL PROCESSING: Server 1 & Server 2 inboxes are fetched SIMULTANEOUSLY!
 DATABASE: Upgraded to 'aiosqlite' with WAL mode to prevent freezing on 10k+ requests.
 MULTIPLE OTP: Supports unlimited OTPs for the same number within 20 mins.
 MEMORY MANAGEMENT: Auto Garbage Collection for 512MB RAM. Clears after 20 mins.
-CLEAN UI: No extra text. Full message only in Groups, NOT in user inbox.
+CLEAN UI: No extra text in inbox. Perfect 1st and 2nd OTP titles.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
@@ -45,7 +48,7 @@ from telegram.constants import ParseMode
 from aiohttp import web
 
 # ==============================================================================
-# 💎 PREMIUM CUSTOM EMOJIS (XML TAGS)
+# 💎 PREMIUM CUSTOM EMOJIS (XML TAGS FOR MESSAGES)
 # ==============================================================================
 E_ROBOT = '<tg-emoji emoji-id="5314391089514291948">🤖</tg-emoji>'
 E_TICK_SQ = '<tg-emoji emoji-id="5318760565902947324">✅</tg-emoji>'
@@ -135,11 +138,12 @@ def mask_number(num_str):
 
 def clean_sms_text(text):
     """Cleans spam words from SMS and formats for PRE tag"""
-    if not text or str(text).strip().lower() in ["no message", "null", "none", ""]:
+    if not text or str(text).strip().lower() in ["no message", "null", "none", "", "no msg"]:
         return "Message hidden or not provided by Server/Operator."
     
     t = str(text)
-    spam_words = ["spam", "betting", "casino", "ads", "promo", "oferta", "bonus", "win"]
+    # 🔥 Spam keywords auto removal to keep logs and messages extremely clean
+    spam_words = ["spam", "betting", "casino", "ads", "promo", "oferta", "bonus", "win", "free", "urgent"]
     for w in spam_words:
         t = re.compile(re.escape(w), re.IGNORECASE).sub("", t)
     
@@ -435,7 +439,8 @@ async def check_subscription(user_id, bot):
 async def send_join_prompt(update, context):
     keyboard = []
     for c in CHANNELS:
-        keyboard.append([InlineKeyboardButton(f"📢 Join {c}", url=f"https://t.me/{c.replace('@', '')}")])
+        # Standard unicode emojis in buttons for maximum stability
+        keyboard.append([InlineKeyboardButton(f"💖 Join {c}", url=f"https://t.me/{c.replace('@', '')}")])
     keyboard.append([InlineKeyboardButton("✅ Joined / Verify", callback_data="check_join")])
     
     msg = (
@@ -467,13 +472,15 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds):
         pass
 
 # ==============================================================================
-# 🤖 AUTO RANGE FORWARDER JOB (DUAL SERVER & PC CLONE DETECTOR)
+# 🤖 NATIVE ASYNC WORKERS (CRASH-FREE ON RENDER) & RANGE GROUP UPDATER
 # ==============================================================================
 
-async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
+async def auto_range_forwarder_job(app: Application):
     global SENT_RANGES
     allowed_apps = ['facebook', 'whatsapp']
-    bot_username = context.bot.username
+    
+    bot_info = await app.bot.get_me()
+    bot_username = bot_info.username if bot_info else "Bot"
 
     stex_task = stex_api_request('GET', API_STEX_CONSOLE)
     mk_task = mk_api_request('GET', API_MK_CONSOLE)
@@ -497,17 +504,21 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                         
                         display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('app_name', 'Unknown').title()
                         
+                        # 🔥 Clean spam from Server 1 message
+                        cleaned_msg = clean_sms_text(msg_text)
+                        
                         range_msg = (
                             f"{E_THUNDER} <b>New Range find</b>\n"
                             f"━━━━━━━━━━━━━━━━━━━━\n"
-                            f"🖥️ Server - <b>Server 1 ✨</b>\n"
+                            f"{E_TICK_CR} Server - <b>Server 1 ✨</b>\n"
                             f"🎯 Range - <code>{r_val}</code>\n"
-                            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
-                            f"🌍 Country - {get_flag(c_name)} {c_name}"
+                            f"{E_FB} Service - <i>{html.escape(display_app)}</i>\n"
+                            f"🌍 Country - {get_flag(c_name)} {c_name}\n\n"
+                            f"{E_ROBOT} <b>Full SMS:</b>\n<pre>{html.escape(cleaned_msg)}</pre>"
                         )
                         kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
                         try: 
-                            await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                            await app.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
                         except Exception: 
                             pass
 
@@ -529,17 +540,21 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
                         
                         display_app = "PC Clone" if ('facebook' in raw_app and '******' in msg_text) else log.get('service_name', 'Unknown').title()
                         
+                        # 🔥 Clean spam from Server 2 message
+                        cleaned_msg = clean_sms_text(msg_text)
+                        
                         range_msg = (
                             f"{E_THUNDER} <b>New Range find</b>\n"
                             f"━━━━━━━━━━━━━━━━━━━━\n"
-                            f"🚀 Server - <b>Server 2 🚀</b>\n"
+                            f"{E_TICK_CR} Server - <b>Server 2 🚀</b>\n"
                             f"🎯 Range - <code>{r_val}</code>\n"
-                            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
-                            f"🌍 Country - {get_flag(c_name)} {c_name}"
+                            f"{E_FB} Service - <i>{html.escape(display_app)}</i>\n"
+                            f"🌍 Country - {get_flag(c_name)} {c_name}\n\n"
+                            f"{E_ROBOT} <b>Full SMS:</b>\n<pre>{html.escape(cleaned_msg)}</pre>"
                         )
                         kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
                         try: 
-                            await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                            await app.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
                         except Exception: 
                             pass
 
@@ -547,7 +562,7 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 # 🚀 GLOBAL OTP POLLER (MULTIPLE OTP SYSTEM ENABLED)
 # ==============================================================================
 
-async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg):
+async def process_found_otp(app: Application, hash_key, api_num, code_only, svc_name, raw_msg):
     global WAITING_OTPS, BATCH_MSGS
     user_data = WAITING_OTPS[hash_key]
     
@@ -563,13 +578,13 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
 
     cleaned_sms = clean_sms_text(raw_msg)
 
-    # 🔥 DYNAMIC TITLE BASED ON 1ST OR 2ND OTP
+    # 🔥 EXACT 1ST OR 2ND OTP LOGIC (AS REQUESTED)
     if is_first_code:
         title = f"{E_TICK_CR} <b>Code Received Successfully</b>"
     else:
         title = f"{E_THUNDER} <b>Another Code Received</b>"
 
-    # SEND OTP TO USER INSTANTLY (NO FULL MESSAGE HERE AS REQUESTED)
+    # SEND OTP TO USER INSTANTLY (NO EXTRA TEXT IN INBOX)
     user_msg = (
         f"{title}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -578,7 +593,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"{E_TICK_SQ} <b>OTP:</b> <code>{code_only}</code>"
     )
     
-    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
+    asyncio.create_task(app.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
     
     # FORWARD FULL MESSAGE TO GROUP WITH MASKED NUMBER
     group_msg = (
@@ -590,9 +605,9 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"{E_ROBOT} Full sms - \n<pre>{html.escape(cleaned_sms)}</pre>"
     )
     group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
-    asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
+    asyncio.create_task(app.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
 
-async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
+async def global_otp_checker_job(app: Application):
     global WAITING_OTPS, BATCH_MSGS
     if not WAITING_OTPS: 
         return 
@@ -611,7 +626,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                     BATCH_MSGS[b_key]['numbers'].remove(u_data['full_num'])
                 if len(BATCH_MSGS[b_key]['numbers']) == 0:
                     try: 
-                        asyncio.create_task(context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id']))
+                        asyncio.create_task(app.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id']))
                     except: 
                         pass
                     del BATCH_MSGS[b_key]
@@ -638,7 +653,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                     hash_key = get_hash_key(item.get('number', ''))
                     if hash_key in WAITING_OTPS:
                         raw_msg = item.get('otp', item.get('message', ''))
-                        await process_found_otp(context, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
+                        await process_found_otp(app, hash_key, item.get('number', ''), extract_code(raw_msg), item.get('full_number', 'Service'), raw_msg)
 
     # 2. PROCESS SERVER 2 (MK NETWORK) RESULTS
     if isinstance(results[1], tuple):
@@ -652,7 +667,29 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
                         code_val = item.get('otps', extract_code(raw_msg))
                         if not code_val: 
                             code_val = extract_code(raw_msg)
-                        await process_found_otp(context, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), raw_msg)
+                        await process_found_otp(app, hash_key, item.get('phone_number', ''), code_val, item.get('operator', 'Service'), raw_msg)
+
+# ==============================================================================
+# NATIVE EVENT LOOPS (Replaces Crashing JobQueue & Runs Extremely Fast)
+# ==============================================================================
+
+async def global_otp_checker_loop(app: Application):
+    await asyncio.sleep(2)
+    while True:
+        try:
+            await global_otp_checker_job(app)
+        except Exception as e:
+            logger.error(f"OTP Checker Loop Error: {e}")
+        await asyncio.sleep(4)
+
+async def auto_range_forwarder_loop(app: Application):
+    await asyncio.sleep(10)
+    while True:
+        try:
+            await auto_range_forwarder_job(app)
+        except Exception as e:
+            logger.error(f"Range Forwarder Loop Error: {e}")
+        await asyncio.sleep(60)
 
 # ==============================================================================
 # 🎯 EXACTLY 2-NUMBER GENERATION SYSTEM (DUAL SERVER) INSTANT RESPONSE
@@ -679,7 +716,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     country_name = "Unknown"
     
     for _ in range(2):
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05) # Reduced for even faster response
         
         if server_id == 1: 
             payload = {"range": range_val, "is_national": False, "remove_plus": False}
@@ -1151,7 +1188,7 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="Bot is running perfectly! V25 Enterprise Edition with Parallel High-Speed Processing.")
+    return web.Response(text="Bot is running perfectly! V27 Enterprise Edition with ZERO ERRORS on Render.")
 
 async def start_dummy_server():
     try:
@@ -1168,6 +1205,10 @@ async def start_dummy_server():
 async def post_init(app: Application):
     await init_db()
     asyncio.create_task(start_dummy_server())
+    
+    # 🔥 EXTREME NATIVE ASYNC LOOP (Completely Bypasses Render PTB JobQueue Crash)
+    asyncio.create_task(global_otp_checker_loop(app))
+    asyncio.create_task(auto_range_forwarder_loop(app))
 
 if __name__ == "__main__":
     app = Application.builder().token(TOKEN).post_init(post_init).build()
@@ -1184,8 +1225,5 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    app.job_queue.run_repeating(global_otp_checker_job, interval=4, first=2)
-    app.job_queue.run_repeating(auto_range_forwarder_job, interval=60, first=10)
-    
-    logger.info("✨ VERSION 25.0 ENTERPRISE (NO FULL SMS IN INBOX) STARTED SUCCESSFULLY... ✨")
+    logger.info("✨ VERSION 27.0 (RENDER CRASH FIX + RANGE GROUP FORMAT) STARTED SUCCESSFULLY... ✨")
     app.run_polling(drop_pending_updates=True)
