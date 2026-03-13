@@ -1444,4 +1444,4 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(soft_regenerator_job,     interval=480, first=480)
 
     logger.info("✨ FINAL ULTRA VERSION — STARTED SUCCESSFULLY ✨")
-    app.run_polling(drop_pending_updates=True, pool_timeout=30, read_timeout=30, write_timeout=30)
+    app.run_polling(drop_pending_updates=True)
