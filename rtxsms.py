@@ -1497,9 +1497,5 @@ if __name__ == "__main__":
     logger.info("✨ VERSION 31.0 FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(
         drop_pending_updates=True,
-        allowed_updates=["message", "callback_query"],
-        pool_timeout=20,
-        read_timeout=20,
-        write_timeout=20,
-        connect_timeout=20
+        allowed_updates=["message", "callback_query"]
     )
