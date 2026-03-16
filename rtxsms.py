@@ -112,9 +112,11 @@ API_2FA = "https://2fa.cn/codes/{}"
 # ==============================================================================
 # These are the DEFAULT values. Admin can change via /setotprate and /setrefrate.
 # Stored in DB so they persist across restarts.
-DEFAULT_OTP_REWARD_POISHA   = 10   # Poisha added per OTP received by user
-DEFAULT_REF_REWARD_POISHA   = 5    # Poisha added to referrer when referred user gets OTP
-POISHA_PER_USDT             = 8400 # 1 USDT = 8400 poisha (approximately, admin can adjust)
+DEFAULT_OTP_REWARD_PAISA    = 10   # Paisa per OTP received (0.10 Tk)
+DEFAULT_REF_REWARD_PAISA    = 5    # Paisa per referral OTP (0.05 Tk)
+DEFAULT_OTP_REWARD_POISHA   = DEFAULT_OTP_REWARD_PAISA  # alias
+DEFAULT_REF_REWARD_POISHA   = DEFAULT_REF_REWARD_PAISA  # alias
+POISHA_PER_USDT             = 8400  # 1 USDT ≈ 8400 paisa (84 Tk)
 
 # ==============================================================================
 # 🛑 ADVANCED SERVER CRASH PREVENTION & CACHING
@@ -220,21 +222,18 @@ def extract_code(message):
     return fb.group(1) if fb else "See Msg"
 
 def get_sms_from_item(item: dict) -> str:
-    """Try all known SMS field names from both STEX and ZAYAN APIs."""
-    return (
-        item.get('full_sms') or
-        item.get('full_sms_list') or
-        item.get('sms') or
-        item.get('otp') or
-        item.get('message') or
-        item.get('text') or
-        item.get('msg') or
-        item.get('sms_text') or
-        item.get('full_message') or
-        item.get('content') or
-        item.get('body') or
-        ""
-    )
+    """Try all known SMS field names from STEX, ZAYAN, and other APIs.
+    ZAYAN inbox uses 'message' field.
+    ZAYAN console uses 'sms' field.
+    STEX uses 'full_sms' or 'sms'.
+    """
+    # Skip empty strings — try each field in order
+    for field in ['full_sms', 'full_sms_list', 'sms', 'message', 'otp',
+                  'text', 'msg', 'sms_text', 'full_message', 'content', 'body']:
+        val = item.get(field)
+        if val and str(val).strip():
+            return str(val).strip()
+    return ""
 
 def get_service_from_item(item: dict) -> str:
     """Try all known service/app name fields from both APIs."""
@@ -248,9 +247,11 @@ def get_service_from_item(item: dict) -> str:
     )
 
 def get_number_from_item(item: dict) -> str:
-    """Try all known number fields from both APIs."""
+    """Try all known number fields from STEX, ZAYAN, and other APIs."""
     return (
         item.get('number') or
+        item.get('full_number') or
+        item.get('copy') or
         item.get('phone_number') or
         item.get('phone') or
         item.get('mobile') or
@@ -298,10 +299,14 @@ def poisha_to_usdt(poisha: int) -> str:
     usdt_val = poisha / POISHA_PER_USDT
     return f"{usdt_val:.6f}"
 
-def format_balance_display(poisha: int) -> str:
-    """Format balance for display: show both poisha and USDT."""
-    usdt_val = poisha_to_usdt(poisha)
-    return f"{poisha} Poisha (≈ {usdt_val} USDT)"
+def paisa_to_taka(paisa: int) -> str:
+    """Convert paisa integer to Taka string with 2 decimal places."""
+    return f"{paisa / 100:.2f}"
+
+def format_balance_display(paisa: int) -> str:
+    """Format balance for display: show Taka."""
+    taka_val = paisa_to_taka(paisa)
+    return f"{taka_val} Tk ({paisa} Paisa)"
 
 # ==============================================================================
 # 🗄️ DATABASE & RAM CACHE MANAGEMENT
@@ -619,16 +624,20 @@ async def authenticate_zayan(force=False):
         payload = {"email": ZAYAN_EMAIL, "password": ZAYAN_PASSWORD}
         headers = {
             "User-Agent": BASE_USER_AGENT, 
-            "Accept": "application/json",
+            "Accept": "application/json, text/plain, */*",
             "Content-Type": "application/json", 
             "Origin": "https://zayansms.com", 
-            "Referer": "https://zayansms.com/mauth/login"
+            "Referer": "https://zayansms.com/mauth/login",
+            "x-requested-with": "mark.via.gp",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-dest": "empty"
         }
         try:
             session = await get_session()
             async with session.post(
                 API_ZAYAN_LOGIN, json=payload, headers=headers,
-                timeout=aiohttp.ClientTimeout(total=12), ssl=False
+                timeout=aiohttp.ClientTimeout(total=15), ssl=True
             ) as response:
                 if response.status == 200:
                     data = await parse_response_safely(response)
@@ -646,9 +655,15 @@ async def authenticate_zayan(force=False):
 def get_zayan_headers():
     return {
         "User-Agent": BASE_USER_AGENT, 
-        "Accept": "application/json", 
+        "Accept": "application/json, text/plain, */*",
         "mauthtoken": str(MAUTH_TOKEN_ZAYAN), 
-        "Cookie": f"mauthtoken={MAUTH_TOKEN_ZAYAN}"
+        "Cookie": f"mauthtoken={MAUTH_TOKEN_ZAYAN}",
+        "x-requested-with": "mark.via.gp",
+        "Origin": "https://zayansms.com",
+        "Referer": "https://zayansms.com/mdashboard/console",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty"
     }
 
 async def zayan_api_request(method, url, json_payload=None):
@@ -663,9 +678,9 @@ async def zayan_api_request(method, url, json_payload=None):
             headers  = get_zayan_headers()
             timeout  = aiohttp.ClientTimeout(total=12)
             if method.upper() == 'GET': 
-                response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
+                response = await session.get(url, headers=headers, timeout=timeout, ssl=True)
             else: 
-                response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
+                response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=True)
             
             status = response.status
             if status in [401, 403]: 
@@ -1000,12 +1015,12 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     if referrer_id:
         ref_new_balance = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, referrer_id, ref_reward)
         # Notify referrer silently (non-blocking)
-        ref_usdt = poisha_to_usdt(ref_reward)
+        ref_taka = paisa_to_taka(ref_reward)
         ref_notif = (
             f"💰 <b>Referral Bonus!</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"Your referral received an OTP!\n"
-            f"🎁 <b>+{ref_reward} Poisha</b> (≈ {ref_usdt} USDT) added to your balance.\n"
+            f"🎁 <b>+{ref_taka} Tk</b> (+{ref_reward} Paisa) added to your balance.\n"
             f"💳 <b>New Balance:</b> {format_balance_display(ref_new_balance)}"
         )
         asyncio.create_task(
@@ -1013,7 +1028,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         )
 
     # ── SEND OTP TO USER ──────────────────────────────────────────────────────
-    otp_usdt = poisha_to_usdt(otp_reward)
+    otp_taka = paisa_to_taka(otp_reward)
     user_msg = (
         f"🎉 <b>OTP RECEIVED SUCCESSFULLY!</b> ✨\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -1021,7 +1036,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"📞 <b>Number  :</b> <code>{full_num}</code>\n"
         f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💰 <b>Balance Added:</b> +{otp_reward} Poisha (≈ {otp_usdt} USDT)\n"
+        f"💰 <b>Balance Added:</b> +{otp_taka} Tk (+{otp_reward} Paisa)\n"
         f"💳 <b>Total Balance:</b> {format_balance_display(new_balance)}"
     )
     
@@ -1229,10 +1244,14 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
                 return resp['data']['number'], resp['data'].get('country', 'Unknown')
         elif server_id == 2: 
-            payload = {"range": range_val, "is_national": False, "remove_plus": False}
+            payload = {"range": range_val, "is_national": False, "remove_plus": True}
             status, resp = await zayan_api_request('POST', API_ZAYAN_GET_NUM, json_payload=payload)
-            if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
-                return resp['data']['number'], resp['data'].get('country', 'Unknown')
+            if status == 200 and isinstance(resp, dict) and 'data' in resp:
+                zd = resp['data']
+                num_val = zd.get('number') or zd.get('full_number') or zd.get('copy') or ""
+                num_val = str(num_val).replace('+', '').strip()
+                if num_val:
+                    return num_val, zd.get('country', 'Unknown')
         return None, None
 
     results_pair = await asyncio.gather(_fetch_one(0), _fetch_one(1), return_exceptions=True)
@@ -1448,7 +1467,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
 # ==============================================================================
 
 async def show_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show user's current balance and stats."""
+    """Show user's current balance and stats with Withdraw button."""
     if await check_ban_middleware(update, context):
         return
     user_id = update.effective_user.id
@@ -1456,21 +1475,27 @@ async def show_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     loop = asyncio.get_event_loop()
     balance, total_otps, referred_by = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id)
     my_referrals = await loop.run_in_executor(DB_EXECUTOR, sync_count_my_referrals, user_id)
-    usdt_val = poisha_to_usdt(balance)
-    
+    taka_val = paisa_to_taka(balance)
+    otp_taka = paisa_to_taka(_OTP_REWARD_POISHA)
+    ref_taka = paisa_to_taka(_REF_REWARD_POISHA)
+
     txt = (
         f"💰 <b>MY WALLET</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💳 <b>Balance:</b> {balance} Poisha\n"
-        f"🌐 <b>≈ USDT:</b> {usdt_val} USDT\n"
+        f"💳 <b>Balance:</b> {taka_val} Tk ({balance} Paisa)\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📩 <b>Total OTPs Received:</b> {total_otps}\n"
         f"👥 <b>My Referrals:</b> {my_referrals} users\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💡 <i>Earn {_OTP_REWARD_POISHA} Poisha per OTP received.\n"
-        f"Earn {_REF_REWARD_POISHA} Poisha when your referral gets an OTP.</i>"
+        f"💡 <i>Earn {otp_taka} Tk per OTP received.\n"
+        f"Earn {ref_taka} Tk when your referral gets an OTP.</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💸 <b>Withdraw via:</b> bKash / Nagad / Mobile Recharge"
     )
-    await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+    kb = [
+        [InlineKeyboardButton("💸 Withdraw Now", callback_data="withdraw_menu")]
+    ]
+    await update.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 async def show_refer_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show referral link and info."""
@@ -1491,8 +1516,8 @@ async def show_refer_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<code>{ref_link}</code>\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🎁 <b>Reward System:</b>\n"
-        f"• Each OTP you receive → <b>+{_OTP_REWARD_POISHA} Poisha</b>\n"
-        f"• Each OTP your referral receives → <b>+{_REF_REWARD_POISHA} Poisha</b> for you\n\n"
+        f"• Each OTP you receive → <b>+{paisa_to_taka(_OTP_REWARD_POISHA)} Tk</b>\n"
+        f"• Each OTP your referral receives → <b>+{paisa_to_taka(_REF_REWARD_POISHA)} Tk</b> for you\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📊 <b>Your Stats:</b>\n"
         f"👤 Total Referrals: {my_referrals}\n"
@@ -1503,6 +1528,159 @@ async def show_refer_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [[InlineKeyboardButton("📤 Share My Link", url=f"https://t.me/share/url?url={ref_link}&text=Join%20this%20premium%20OTP%20bot%21")]]
     await update.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
+
+
+
+# ==============================================================================
+# 💸 WITHDRAW SYSTEM — bKash / Nagad / Mobile Recharge
+# ==============================================================================
+
+MIN_WITHDRAW_PAISA = 500  # 5 Taka minimum withdraw
+
+async def show_withdraw_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show withdraw options inline."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    loop = asyncio.get_event_loop()
+    balance, total_otps, _ = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id)
+    taka_val = paisa_to_taka(balance)
+
+    txt = (
+        f"💸 <b>WITHDRAW BALANCE</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💳 <b>Your Balance:</b> {taka_val} Tk ({balance} Paisa)\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📋 <b>Withdraw Methods:</b>\n"
+        f"• 📱 bKash\n"
+        f"• 💜 Nagad\n"
+        f"• 📡 Mobile Recharge\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚠️ <i>Minimum withdraw: {paisa_to_taka(MIN_WITHDRAW_PAISA)} Tk</i>"
+    )
+    kb = [
+        [
+            InlineKeyboardButton("📱 bKash", callback_data="withdraw_bkash"),
+            InlineKeyboardButton("💜 Nagad", callback_data="withdraw_nagad")
+        ],
+        [InlineKeyboardButton("📡 Mobile Recharge", callback_data="withdraw_recharge")],
+        [InlineKeyboardButton("🔙 Back", callback_data="withdraw_back")]
+    ]
+    await query.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
+async def handle_withdraw_method(update: Update, context: ContextTypes.DEFAULT_TYPE, method: str):
+    """Ask user for their number after selecting withdraw method."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    loop = asyncio.get_event_loop()
+    balance, _, _ = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id)
+
+    if balance < MIN_WITHDRAW_PAISA:
+        taka_needed = paisa_to_taka(MIN_WITHDRAW_PAISA)
+        taka_have   = paisa_to_taka(balance)
+        await query.answer(
+            f"❌ Minimum {taka_needed} Tk needed. You have {taka_have} Tk.",
+            show_alert=True
+        )
+        return
+
+    method_labels = {
+        'bkash':    '📱 bKash',
+        'nagad':    '💜 Nagad',
+        'recharge': '📡 Mobile Recharge'
+    }
+    label = method_labels.get(method, method)
+    context.user_data['withdraw_method'] = method
+    context.user_data['state'] = 'WAITING_FOR_WITHDRAW_NUMBER'
+
+    taka_val = paisa_to_taka(balance)
+    txt = (
+        f"💸 <b>WITHDRAW via {label}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💳 <b>Available:</b> {taka_val} Tk\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📞 <b>Enter your {label} number:</b>\n"
+        f"<i>(e.g. 01XXXXXXXXX)</i>"
+    )
+    kb = [[InlineKeyboardButton("❌ Cancel", callback_data="withdraw_cancel")]]
+    await query.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
+async def process_withdraw_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process withdraw after user sends their number."""
+    user_id = update.effective_user.id
+    phone   = update.message.text.strip()
+    method  = context.user_data.get('withdraw_method', 'bkash')
+    context.user_data['state'] = None
+    context.user_data['withdraw_method'] = None
+
+    # Validate phone number
+    if not re.match(r'^0[1-9][0-9]{9}$', phone):
+        await update.message.reply_text(
+            "❌ <b>Invalid number!</b> Please enter a valid 11-digit BD number (e.g. 01XXXXXXXXX)",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    loop = asyncio.get_event_loop()
+    balance, _, _ = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id)
+
+    if balance < MIN_WITHDRAW_PAISA:
+        taka_needed = paisa_to_taka(MIN_WITHDRAW_PAISA)
+        await update.message.reply_text(
+            f"❌ <b>Insufficient balance!</b> Minimum {taka_needed} Tk required.",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    taka_val = paisa_to_taka(balance)
+    method_labels = {
+        'bkash':    '📱 bKash',
+        'nagad':    '💜 Nagad',
+        'recharge': '📡 Mobile Recharge'
+    }
+    label = method_labels.get(method, method)
+
+    # Notify user — request submitted
+    user_txt = (
+        f"✅ <b>Withdraw Request Submitted!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💸 <b>Method:</b> {label}\n"
+        f"📞 <b>Number:</b> <code>{phone}</code>\n"
+        f"💰 <b>Amount:</b> {taka_val} Tk ({balance} Paisa)\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⏳ <i>Admin will process within 24 hours.</i>"
+    )
+    await update.message.reply_text(user_txt, parse_mode=ParseMode.HTML)
+
+    # Notify admin
+    admin_txt = (
+        f"💸 <b>WITHDRAW REQUEST</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>User ID:</b> <code>{user_id}</code>\n"
+        f"💸 <b>Method:</b> {label}\n"
+        f"📞 <b>Number:</b> <code>{phone}</code>\n"
+        f"💰 <b>Amount:</b> {taka_val} Tk ({balance} Paisa)\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ Use /addbalance {user_id} -amount to deduct after payment."
+    )
+    admin_kb = [
+        [
+            InlineKeyboardButton("✅ Approve & Notify", callback_data=f"wd_approve_{user_id}_{balance}"),
+            InlineKeyboardButton("❌ Reject", callback_data=f"wd_reject_{user_id}")
+        ]
+    ]
+    for a_id in ADMIN_IDS:
+        asyncio.create_task(_silent_send_with_kb(context.bot, a_id, admin_txt, admin_kb))
+
+async def _silent_send_with_kb(bot, chat_id, text, kb_rows):
+    """Send message with inline keyboard silently."""
+    try:
+        await bot.send_message(
+            chat_id=chat_id, text=text,
+            reply_markup=InlineKeyboardMarkup(kb_rows),
+            parse_mode=ParseMode.HTML
+        )
+    except Exception:
+        pass
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & INLINE ADMIN REPLY LOGIC
@@ -1614,6 +1792,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data['state'] = None
         server_id = user_data.get('server', 1)
         await process_number_generation(update, context, text, server_id, is_callback=False)
+
+    elif user_data.get('state') == 'WAITING_FOR_WITHDRAW_NUMBER':
+        await process_withdraw_request(update, context)
         
     else:
         await show_main_menu(update, context)
@@ -1667,6 +1848,104 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "go_main": 
         await show_server_selection(update, context)
         
+    elif data == "withdraw_menu":
+        await show_withdraw_menu(update, context)
+        
+    elif data == "withdraw_bkash":
+        await handle_withdraw_method(update, context, "bkash")
+        
+    elif data == "withdraw_nagad":
+        await handle_withdraw_method(update, context, "nagad")
+        
+    elif data == "withdraw_recharge":
+        await handle_withdraw_method(update, context, "recharge")
+        
+    elif data == "withdraw_cancel":
+        context.user_data['state'] = None
+        context.user_data['withdraw_method'] = None
+        await query.answer("❌ Withdraw cancelled.")
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+            
+    elif data == "withdraw_back":
+        context.user_data['state'] = None
+        # Re-show balance page
+        user_id_wb = query.from_user.id
+        loop_wb = asyncio.get_event_loop()
+        balance_wb, total_otps_wb, _ = await loop_wb.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id_wb)
+        my_refs_wb = await loop_wb.run_in_executor(DB_EXECUTOR, sync_count_my_referrals, user_id_wb)
+        taka_wb = paisa_to_taka(balance_wb)
+        otp_tk = paisa_to_taka(_OTP_REWARD_POISHA)
+        ref_tk = paisa_to_taka(_REF_REWARD_POISHA)
+        txt_wb = (
+            f"💰 <b>MY WALLET</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💳 <b>Balance:</b> {taka_wb} Tk ({balance_wb} Paisa)\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"📩 <b>Total OTPs Received:</b> {total_otps_wb}\n"
+            f"👥 <b>My Referrals:</b> {my_refs_wb} users\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💡 <i>Earn {otp_tk} Tk per OTP received.\n"
+            f"Earn {ref_tk} Tk when your referral gets an OTP.</i>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💸 <b>Withdraw via:</b> bKash / Nagad / Mobile Recharge"
+        )
+        kb_wb = [[InlineKeyboardButton("💸 Withdraw Now", callback_data="withdraw_menu")]]
+        try:
+            await query.edit_message_text(txt_wb, reply_markup=InlineKeyboardMarkup(kb_wb), parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
+
+    elif data.startswith("wd_approve_"):
+        # Admin approves withdraw: wd_approve_USERID_AMOUNT
+        if user_id not in ADMIN_IDS:
+            await query.answer("⚠️ Not an admin.", show_alert=True)
+            return
+        parts_wd = data.split("_")
+        wd_user  = int(parts_wd[2])
+        wd_amt   = int(parts_wd[3])
+        # Deduct balance
+        loop_wd = asyncio.get_event_loop()
+        await loop_wd.run_in_executor(DB_EXECUTOR, sync_add_balance, wd_user, -wd_amt)
+        # Notify user
+        asyncio.create_task(_silent_send(
+            context.bot, wd_user,
+            f"✅ <b>Withdraw Approved!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 <b>{paisa_to_taka(wd_amt)} Tk</b> has been sent to your account.\n"
+            f"<i>Thank you for using our service!</i>"
+        ))
+        await query.answer("✅ Approved & balance deducted.", show_alert=True)
+        try:
+            await query.edit_message_text(
+                query.message.text + "\n\n✅ <b>APPROVED by Admin</b>",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
+
+    elif data.startswith("wd_reject_"):
+        if user_id not in ADMIN_IDS:
+            await query.answer("⚠️ Not an admin.", show_alert=True)
+            return
+        wd_user_r = int(data.split("_")[2])
+        asyncio.create_task(_silent_send(
+            context.bot, wd_user_r,
+            f"❌ <b>Withdraw Rejected</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Your withdraw request was rejected by admin.\nPlease contact support for more info.</i>"
+        ))
+        await query.answer("❌ Rejected.", show_alert=True)
+        try:
+            await query.edit_message_text(
+                query.message.text + "\n\n❌ <b>REJECTED by Admin</b>",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
+        
     elif data.startswith("admrep_"):
         if user_id not in ADMIN_IDS:
             await query.answer("⚠️ You are not an admin.", show_alert=True)
@@ -1707,7 +1986,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🏆 <code>/topref</code> - Top 10 referrers\n"
         "📊 <code>/userinfo &lt;id&gt;</code> - User balance + stats\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Current OTP Rate: {_OTP_REWARD_POISHA} Poisha | Ref Rate: {_REF_REWARD_POISHA} Poisha</i>"
+        f"<i>Current OTP Rate: {paisa_to_taka(_OTP_REWARD_POISHA)} Tk | Ref Rate: {paisa_to_taka(_REF_REWARD_POISHA)} Tk</i>"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -1725,8 +2004,8 @@ async def admin_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔄 <b>Auto Relogin:</b> Every 5 Minutes\n"
         f"🌐 <b>Connection Pool:</b> 1000 Connections\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"💰 <b>OTP Reward:</b> {_OTP_REWARD_POISHA} Poisha/OTP\n"
-        f"🎁 <b>Ref Reward:</b> {_REF_REWARD_POISHA} Poisha/referral OTP\n"
+        f"💰 <b>OTP Reward:</b> {paisa_to_taka(_OTP_REWARD_POISHA)} Tk/OTP\n"
+        f"🎁 <b>Ref Reward:</b> {paisa_to_taka(_REF_REWARD_POISHA)} Tk/referral OTP\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"✅ <i>STEX + ZAYAN Running Smoothly</i>"
     )
@@ -1785,7 +2064,7 @@ async def admin_add_balance_cmd(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(
             f"✅ <b>Balance Added!</b>\n"
             f"👤 User: <code>{target_id}</code>\n"
-            f"💰 Added: <b>{amount} Poisha</b>\n"
+            f"💰 Added: <b>{paisa_to_taka(amount)} Tk</b> (+{amount} Paisa)\n"
             f"💳 New Balance: <b>{format_balance_display(new_bal)}</b>",
             parse_mode=ParseMode.HTML
         )
@@ -1794,7 +2073,7 @@ async def admin_add_balance_cmd(update: Update, context: ContextTypes.DEFAULT_TY
             context.bot, target_id,
             f"🎁 <b>Balance Added by Admin!</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>+{amount} Poisha</b> added to your wallet.\n"
+            f"💰 <b>+{paisa_to_taka(amount)} Tk</b> (+{amount} Paisa) added to your wallet.\n"
             f"💳 <b>New Balance:</b> {format_balance_display(new_bal)}"
         ))
     except (IndexError, ValueError):
@@ -1813,7 +2092,7 @@ async def admin_set_otp_rate_cmd(update: Update, context: ContextTypes.DEFAULT_T
         await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, 'otp_reward_poisha', str(rate))
         await update.message.reply_text(
             f"✅ <b>OTP Reward Rate Updated!</b>\n"
-            f"🔢 New rate: <b>{rate} Poisha per OTP received</b>",
+            f"🔢 New rate: <b>{rate} Paisa ({paisa_to_taka(rate)} Tk) per OTP received</b>",
             parse_mode=ParseMode.HTML
         )
     except (IndexError, ValueError):
@@ -1832,7 +2111,7 @@ async def admin_set_ref_rate_cmd(update: Update, context: ContextTypes.DEFAULT_T
         await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, 'ref_reward_poisha', str(rate))
         await update.message.reply_text(
             f"✅ <b>Referral Reward Rate Updated!</b>\n"
-            f"🔢 New rate: <b>{rate} Poisha per referral's OTP</b>",
+            f"🔢 New rate: <b>{rate} Paisa ({paisa_to_taka(rate)} Tk) per referral's OTP</b>",
             parse_mode=ParseMode.HTML
         )
     except (IndexError, ValueError):
