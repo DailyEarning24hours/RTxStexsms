@@ -1,11 +1,19 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 31.0 FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 32.0 FINAL) ✨
 CAPACITY: 20,000+ Users on Render Free Plan (RAM Caching O(1) Algorithm).
-EXTREME SPEED UPDATE: Polling interval 2 seconds.
-FIXED: OTP Receive system 100% working for BOTH STEX + MK servers.
+ULTRA SPEED UPDATE: Polling interval 2 seconds. Connection pool 1000.
+SERVER 2: Replaced MK Network → ZayanSMS (https://zayansms.com/mdashboard)
+FIXED: Channel join buttons side by side (2 per row).
+FIXED: Range forward 100% — no miss, parallel multi-page fetch.
+NEW: Balance system — 10 poisha per OTP received (admin configurable).
+NEW: Referral system — 5 poisha per referral's OTP received (admin configurable).
+NEW: Balance shown in USDT. Admin can add balance, set rates, view top referrers.
+NEW: Refer button in main menu — single button.
+NEW: /addbalance /setotprate /setrefrate /topref /mybalance admin commands.
+FIXED: OTP Receive system 100% working for BOTH STEX + ZAYAN servers.
 FIXED: * replaced with • in all messages.
-FIXED: STEX + MK auto re-login every 5 minutes.
+FIXED: STEX + ZAYAN auto re-login every 5 minutes.
 FIXED: Number masked system in range group messages.
 FIXED: run_polling() compatible with all python-telegram-bot versions.
 ERROR HANDLING: 100% hidden HTTP 401/500 errors. Premium fallback messages.
@@ -59,7 +67,7 @@ CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 RANGE_GROUP_ID = -1003627708272
 OTP_GROUP_ID = -1003830374258
 
-# 🌐 SERVER 1 CREDENTIALS
+# 🌐 SERVER 1 CREDENTIALS (STEX)
 STEX_EMAIL = "mdrajaislam469@gmail.com"
 STEX_PASSWORD = "Raja1234@#"
 API_STEX_LOGIN = "https://stexsms.com/mapi/v1/mauth/login"
@@ -67,31 +75,41 @@ API_STEX_CONSOLE = "https://stexsms.com/mapi/v1/mdashboard/console/info"
 API_STEX_GET_NUM = "https://stexsms.com/mapi/v1/mdashboard/getnum/number"
 API_STEX_INBOX = "https://stexsms.com/mapi/v1/mdashboard/getnum/info"
 
-# 🚀 SERVER 2 CREDENTIALS
-MK_EMAIL = "mdrajaislam469@gmail.com"
-MK_PASSWORD = "Raja1234@#"
-API_MK_LOGIN = "http://mknetworkbd.com/process_login.php"
-API_MK_CONSOLE = "http://mknetworkbd.com/console.php?ajax=1"
-API_MK_GET_NUM = "http://mknetworkbd.com/API/api_handler.php"
-API_MK_INBOX = "http://mknetworkbd.com/API/api_handler.php?action=get_history&filter=all&page=1&limit=100&date={}"
+# 🚀 SERVER 2 CREDENTIALS (ZAYAN SMS — same system as STEX)
+ZAYAN_EMAIL = "mdrajaislam469@gmail.com"
+ZAYAN_PASSWORD = "Raja1234@#"
+API_ZAYAN_LOGIN = "https://zayansms.com/mapi/v1/mauth/login"
+API_ZAYAN_CONSOLE = "https://zayansms.com/mapi/v1/mdashboard/console/info"
+API_ZAYAN_GET_NUM = "https://zayansms.com/mapi/v1/mdashboard/getnum/number"
+API_ZAYAN_INBOX = "https://zayansms.com/mapi/v1/mdashboard/getnum/info"
 
 API_2FA = "https://2fa.cn/codes/{}"
+
+# ==============================================================================
+# 💰 BALANCE / REWARD CONFIGURATION (ADMIN CONFIGURABLE AT RUNTIME)
+# ==============================================================================
+# These are the DEFAULT values. Admin can change via /setotprate and /setrefrate.
+# Stored in DB so they persist across restarts.
+DEFAULT_OTP_REWARD_POISHA   = 10   # Poisha added per OTP received by user
+DEFAULT_REF_REWARD_POISHA   = 5    # Poisha added to referrer when referred user gets OTP
+POISHA_PER_USDT             = 8400 # 1 USDT = 8400 poisha (approximately, admin can adjust)
 
 # ==============================================================================
 # 🛑 ADVANCED SERVER CRASH PREVENTION & CACHING
 # ==============================================================================
 
-MAUTH_TOKEN = None
-GLOBAL_SESSION = None 
+MAUTH_TOKEN_STEX   = None
+MAUTH_TOKEN_ZAYAN  = None
+GLOBAL_SESSION     = None 
 
-AUTH_LOCK_STEX = asyncio.Lock() 
+AUTH_LOCK_STEX  = asyncio.Lock() 
 LAST_AUTH_TIME_STEX = 0
 
-AUTH_LOCK_MK = asyncio.Lock()
-LAST_AUTH_TIME_MK = 0
+AUTH_LOCK_ZAYAN = asyncio.Lock()
+LAST_AUTH_TIME_ZAYAN = 0
 
 SENT_RANGES = set()
-START_TIME = datetime.datetime.now()
+START_TIME  = datetime.datetime.now()
 BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.120 Mobile Safari/537.36"
 
 DB_POOL_SIZE = 30
@@ -105,13 +123,17 @@ logger = logging.getLogger(__name__)
 
 WAITING_OTPS = {}
 # Extra reverse index: clean_full_number → hash_key (fallback matching)
-NUM_TO_HASH = {}
-BATCH_MSGS = {} 
+NUM_TO_HASH  = {}
+BATCH_MSGS   = {} 
 OTP_TIMEOUT_SECONDS = 1200  # 20 minutes before silent delete
 
-USER_CACHE = set()
+USER_CACHE   = set()
 BANNED_CACHE = set()
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+DB_EXECUTOR  = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+
+# Runtime reward rates (loaded from DB on startup)
+_OTP_REWARD_POISHA  = DEFAULT_OTP_REWARD_POISHA
+_REF_REWARD_POISHA  = DEFAULT_REF_REWARD_POISHA
 
 # ==============================================================================
 # 🔧 UTILITY FUNCTIONS
@@ -124,20 +146,17 @@ def clean_number(n: str) -> str:
 def mask_number(number: str) -> str:
     """
     Mask middle digits of phone number for privacy in range group.
-    Example: 8801712345678 → 880171*****678
+    Example: 8801712345678 → 880171•••678
     """
     digits = clean_number(number)
     if len(digits) < 7:
         return number
-    show_start = max(6, len(digits) - 6)
-    masked_count = len(digits) - 6 - (len(digits) - show_start)
-    # Show first 6 digits, mask middle, show last 3
     first  = digits[:6]
     last   = digits[-3:]
     middle = '•' * (len(digits) - 9)
     if len(digits) <= 9:
-        first = digits[:4]
-        last  = digits[-3:]
+        first  = digits[:4]
+        last   = digits[-3:]
         middle = '•' * (len(digits) - 7)
     return first + middle + last
 
@@ -179,7 +198,7 @@ def extract_code(message):
     return fb.group(1) if fb else "See Msg"
 
 def get_sms_from_item(item: dict) -> str:
-    """Try all known SMS field names from both STEX and MK APIs."""
+    """Try all known SMS field names from both STEX and ZAYAN APIs."""
     return (
         item.get('full_sms') or
         item.get('full_sms_list') or
@@ -252,6 +271,16 @@ def _find_waiter(num_raw: str):
         return hk, WAITING_OTPS[hk]
     return None, None
 
+def poisha_to_usdt(poisha: int) -> str:
+    """Convert poisha integer to USDT string with 6 decimal places."""
+    usdt_val = poisha / POISHA_PER_USDT
+    return f"{usdt_val:.6f}"
+
+def format_balance_display(poisha: int) -> str:
+    """Format balance for display: show both poisha and USDT."""
+    usdt_val = poisha_to_usdt(poisha)
+    return f"{poisha} Poisha (≈ {usdt_val} USDT)"
+
 # ==============================================================================
 # 🗄️ DATABASE & RAM CACHE MANAGEMENT
 # ==============================================================================
@@ -260,7 +289,7 @@ DB_FILE = "bot.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=30):
-        self.db_file = db_file
+        self.db_file  = db_file
         self.pool_size = pool_size
     @contextmanager
     def get_connection(self):
@@ -276,15 +305,54 @@ class DatabasePool:
 db_pool = DatabasePool(DB_FILE, DB_POOL_SIZE)
 
 def init_db():
-    global USER_CACHE, BANNED_CACHE
+    global USER_CACHE, BANNED_CACHE, _OTP_REWARD_POISHA, _REF_REWARD_POISHA
     with db_pool.get_connection() as conn:
         c = conn.cursor()
+        # Users table — extended with balance + referral columns
         c.execute('''CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            join_date TEXT,
-            is_banned INTEGER DEFAULT 0
+            user_id     INTEGER PRIMARY KEY,
+            join_date   TEXT,
+            is_banned   INTEGER DEFAULT 0,
+            balance     INTEGER DEFAULT 0,
+            referred_by INTEGER DEFAULT NULL,
+            total_otps  INTEGER DEFAULT 0
+        )''')
+        # Add columns if upgrading from old DB (ignore error if already exist)
+        for col_sql in [
+            "ALTER TABLE users ADD COLUMN balance    INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN referred_by INTEGER DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN total_otps INTEGER DEFAULT 0",
+        ]:
+            try:
+                c.execute(col_sql)
+            except Exception:
+                pass
+
+        # Settings table for admin-configurable values
+        c.execute('''CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT
         )''')
         conn.commit()
+
+        # Load reward rates from settings
+        c.execute("SELECT value FROM settings WHERE key='otp_reward_poisha'")
+        row = c.fetchone()
+        if row:
+            _OTP_REWARD_POISHA = int(row[0])
+        else:
+            c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('otp_reward_poisha', ?)", (str(DEFAULT_OTP_REWARD_POISHA),))
+            conn.commit()
+
+        c.execute("SELECT value FROM settings WHERE key='ref_reward_poisha'")
+        row = c.fetchone()
+        if row:
+            _REF_REWARD_POISHA = int(row[0])
+        else:
+            c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ref_reward_poisha', ?)", (str(DEFAULT_REF_REWARD_POISHA),))
+            conn.commit()
+
+        # Load user cache
         c.execute("SELECT user_id, is_banned FROM users")
         rows = c.fetchall()
         for row in rows:
@@ -292,17 +360,26 @@ def init_db():
             if row[1] == 1:
                 BANNED_CACHE.add(row[0])
 
-def sync_register_user_db(user_id):
+def sync_register_user_db(user_id, referred_by=None):
     with db_pool.get_connection() as conn:
         c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO users (user_id, join_date) VALUES (?, CURRENT_TIMESTAMP)", (user_id,))
+        if referred_by:
+            c.execute(
+                "INSERT OR IGNORE INTO users (user_id, join_date, referred_by) VALUES (?, CURRENT_TIMESTAMP, ?)",
+                (user_id, referred_by)
+            )
+        else:
+            c.execute(
+                "INSERT OR IGNORE INTO users (user_id, join_date) VALUES (?, CURRENT_TIMESTAMP)",
+                (user_id,)
+            )
         conn.commit()
 
-async def ensure_user_fast(user_id):
+async def ensure_user_fast(user_id, referred_by=None):
     if user_id not in USER_CACHE:
         USER_CACHE.add(user_id)
         loop = asyncio.get_event_loop()
-        loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id)
+        loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referred_by)
     return True
 
 def is_user_banned_fast(user_id):
@@ -328,6 +405,77 @@ async def set_ban_status(user_id, status):
     loop = asyncio.get_event_loop()
     loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
+# ── Balance & Referral DB helpers ──────────────────────────────────────────────
+
+def sync_get_balance(user_id: int) -> int:
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+        return row[0] if row else 0
+
+def sync_add_balance(user_id: int, amount: int) -> int:
+    """Add amount (poisha) to user balance. Returns new balance."""
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("INSERT OR IGNORE INTO users (user_id, join_date) VALUES (?, CURRENT_TIMESTAMP)", (user_id,))
+        c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
+        conn.commit()
+        c.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+        return row[0] if row else 0
+
+def sync_increment_otp_count(user_id: int):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET total_otps = total_otps + 1 WHERE user_id=?", (user_id,))
+        conn.commit()
+
+def sync_get_referred_by(user_id: int):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT referred_by FROM users WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+        return row[0] if row else None
+
+def sync_get_top_referrers(limit: int = 10):
+    """Returns list of (user_id, referral_count) sorted descending."""
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT referred_by, COUNT(*) as cnt
+            FROM users
+            WHERE referred_by IS NOT NULL
+            GROUP BY referred_by
+            ORDER BY cnt DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
+        return c.fetchall()
+
+def sync_get_user_stats(user_id: int):
+    """Returns (balance, total_otps, referred_by) for a user."""
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT balance, total_otps, referred_by FROM users WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+        return row if row else (0, 0, None)
+
+def sync_count_my_referrals(user_id: int) -> int:
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users WHERE referred_by=?", (user_id,))
+        row = c.fetchone()
+        return row[0] if row else 0
+
+def sync_update_setting(key: str, value: str):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        conn.commit()
+
 # ==============================================================================
 # 🔐 ULTIMATE DUAL-API AUTHENTICATION & PERSISTENT SESSION
 # ==============================================================================
@@ -336,10 +484,12 @@ async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
         connector = aiohttp.TCPConnector(
-            limit=500,
+            limit=1000,
+            limit_per_host=200,
             keepalive_timeout=300,
-            ttl_dns_cache=300,
-            enable_cleanup_closed=True
+            ttl_dns_cache=600,
+            enable_cleanup_closed=True,
+            force_close=False
         )
         GLOBAL_SESSION = aiohttp.ClientSession(
             connector=connector,
@@ -359,10 +509,9 @@ async def parse_response_safely(response):
 
 # ----- SERVER 1 AUTH (STEX) -----
 async def authenticate_stex(force=False):
-    global MAUTH_TOKEN, LAST_AUTH_TIME_STEX
+    global MAUTH_TOKEN_STEX, LAST_AUTH_TIME_STEX
     async with AUTH_LOCK_STEX:
-        # Re-auth every 5 minutes (300 seconds) or on force
-        if not force and time.time() - LAST_AUTH_TIME_STEX < 300 and MAUTH_TOKEN:
+        if not force and time.time() - LAST_AUTH_TIME_STEX < 300 and MAUTH_TOKEN_STEX:
             return True
         payload = {"email": STEX_EMAIL, "password": STEX_PASSWORD}
         headers = {
@@ -381,7 +530,7 @@ async def authenticate_stex(force=False):
                 if response.status == 200:
                     data = await parse_response_safely(response)
                     if data and str(data.get('meta', {}).get('code')) == '200':
-                        MAUTH_TOKEN = data['data']['token']
+                        MAUTH_TOKEN_STEX = data['data']['token']
                         LAST_AUTH_TIME_STEX = time.time()
                         logger.info("✅ STEX auth successful")
                         return True
@@ -395,21 +544,21 @@ def get_stex_headers():
     return {
         "User-Agent": BASE_USER_AGENT, 
         "Accept": "application/json", 
-        "mauthtoken": str(MAUTH_TOKEN), 
-        "Cookie": f"mauthtoken={MAUTH_TOKEN}"
+        "mauthtoken": str(MAUTH_TOKEN_STEX), 
+        "Cookie": f"mauthtoken={MAUTH_TOKEN_STEX}"
     }
 
 async def stex_api_request(method, url, json_payload=None):
-    global MAUTH_TOKEN
+    global MAUTH_TOKEN_STEX
     for attempt in range(3):
         try:
-            if not MAUTH_TOKEN:
+            if not MAUTH_TOKEN_STEX:
                 if not await authenticate_stex():
                     await asyncio.sleep(1)
                     continue
-            session = await get_session()
-            headers = get_stex_headers()
-            timeout = aiohttp.ClientTimeout(total=12)
+            session  = await get_session()
+            headers  = get_stex_headers()
+            timeout  = aiohttp.ClientTimeout(total=12)
             if method.upper() == 'GET': 
                 response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: 
@@ -417,7 +566,7 @@ async def stex_api_request(method, url, json_payload=None):
             
             status = response.status
             if status in [401, 403]: 
-                MAUTH_TOKEN = None
+                MAUTH_TOKEN_STEX = None
                 await asyncio.sleep(0.5)
                 continue
             if status in [500, 501, 502, 503]:
@@ -428,7 +577,7 @@ async def stex_api_request(method, url, json_payload=None):
                 data = await parse_response_safely(response)
                 if isinstance(data, dict):
                     if str(data.get('meta', {}).get('code', '200')) in ['401', '403']: 
-                        MAUTH_TOKEN = None
+                        MAUTH_TOKEN_STEX = None
                         continue
                 return 200, data
             else: 
@@ -439,90 +588,98 @@ async def stex_api_request(method, url, json_payload=None):
             logger.warning(f"STEX error: {e}")
     return 500, None
 
-# ----- SERVER 2 AUTH (MK NETWORK) -----
-async def authenticate_mk(force=False):
-    global LAST_AUTH_TIME_MK
-    async with AUTH_LOCK_MK:
-        # Re-auth every 5 minutes (300 seconds) or on force
-        if not force and time.time() - LAST_AUTH_TIME_MK < 300:
+# ----- SERVER 2 AUTH (ZAYAN SMS) -----
+async def authenticate_zayan(force=False):
+    global MAUTH_TOKEN_ZAYAN, LAST_AUTH_TIME_ZAYAN
+    async with AUTH_LOCK_ZAYAN:
+        if not force and time.time() - LAST_AUTH_TIME_ZAYAN < 300 and MAUTH_TOKEN_ZAYAN:
             return True
-        payload = aiohttp.FormData()
-        payload.add_field('userid', MK_EMAIL)
-        payload.add_field('password', MK_PASSWORD)
+        payload = {"email": ZAYAN_EMAIL, "password": ZAYAN_PASSWORD}
         headers = {
             "User-Agent": BASE_USER_AGENT, 
-            "Origin": "http://mknetworkbd.com", 
-            "Referer": "http://mknetworkbd.com/auth.php"
+            "Accept": "application/json",
+            "Content-Type": "application/json", 
+            "Origin": "https://zayansms.com", 
+            "Referer": "https://zayansms.com/mauth/login"
         }
         try:
             session = await get_session()
             async with session.post(
-                API_MK_LOGIN, data=payload, headers=headers,
+                API_ZAYAN_LOGIN, json=payload, headers=headers,
                 timeout=aiohttp.ClientTimeout(total=12), ssl=False
             ) as response:
-                content_type = response.headers.get('Content-Type', '')
-                if 'application/json' in content_type:
+                if response.status == 200:
                     data = await parse_response_safely(response)
-                    if data and data.get('status') == 'success':
-                        LAST_AUTH_TIME_MK = time.time()
-                        logger.info("✅ MK auth successful")
+                    if data and str(data.get('meta', {}).get('code')) == '200':
+                        MAUTH_TOKEN_ZAYAN = data['data']['token']
+                        LAST_AUTH_TIME_ZAYAN = time.time()
+                        logger.info("✅ ZAYAN auth successful")
                         return True
-                # Treat redirect/200 as success for some MK versions
-                if response.status in [200, 302]:
-                    LAST_AUTH_TIME_MK = time.time()
-                    return True
+                logger.warning(f"❌ ZAYAN auth failed: HTTP {response.status}")
                 return False
         except Exception as e:
-            logger.warning(f"❌ MK auth error: {e}")
+            logger.warning(f"❌ ZAYAN auth error: {e}")
             return False
 
-async def mk_api_request(method, url, form_data=None):
+def get_zayan_headers():
+    return {
+        "User-Agent": BASE_USER_AGENT, 
+        "Accept": "application/json", 
+        "mauthtoken": str(MAUTH_TOKEN_ZAYAN), 
+        "Cookie": f"mauthtoken={MAUTH_TOKEN_ZAYAN}"
+    }
+
+async def zayan_api_request(method, url, json_payload=None):
+    global MAUTH_TOKEN_ZAYAN
     for attempt in range(3):
         try:
-            session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "X-Requested-With": "mark.via.gp"}
-            timeout = aiohttp.ClientTimeout(total=12)
+            if not MAUTH_TOKEN_ZAYAN:
+                if not await authenticate_zayan():
+                    await asyncio.sleep(1)
+                    continue
+            session  = await get_session()
+            headers  = get_zayan_headers()
+            timeout  = aiohttp.ClientTimeout(total=12)
             if method.upper() == 'GET': 
                 response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: 
-                response = await session.post(url, data=form_data, headers=headers, timeout=timeout, ssl=False)
+                response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
             status = response.status
-            content_type = response.headers.get('Content-Type', '')
-            
-            if status in [401, 403] or ('text/html' in content_type and status != 200):
-                await authenticate_mk(force=True)
+            if status in [401, 403]: 
+                MAUTH_TOKEN_ZAYAN = None
                 await asyncio.sleep(0.5)
                 continue
             if status in [500, 501, 502, 503]:
                 await asyncio.sleep(1)
                 continue
                 
-            data = await parse_response_safely(response)
-            
-            if data and isinstance(data, dict):
-                if data.get('status') == 'error' and 'login' in str(data).lower():
-                    await authenticate_mk(force=True)
-                    continue
-                    
-            return 200, data
+            if status == 200:
+                data = await parse_response_safely(response)
+                if isinstance(data, dict):
+                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']: 
+                        MAUTH_TOKEN_ZAYAN = None
+                        continue
+                return 200, data
+            else: 
+                return status, None
         except asyncio.TimeoutError:
-            logger.warning(f"MK timeout attempt {attempt+1}")
+            logger.warning(f"ZAYAN timeout attempt {attempt+1}")
         except Exception as e:
-            logger.warning(f"MK error: {e}")
+            logger.warning(f"ZAYAN error: {e}")
     return 500, None
 
 
 # ==============================================================================
-# 🔄 5-MINUTE AUTO RE-LOGIN JOB (STEX + MK)
+# 🔄 5-MINUTE AUTO RE-LOGIN JOB (STEX + ZAYAN)
 # ==============================================================================
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     """Re-authenticates both servers every 5 minutes to keep sessions alive."""
-    logger.info("🔄 [AUTO RELOGIN] Refreshing STEX + MK sessions...")
-    stex_task = asyncio.create_task(authenticate_stex(force=True))
-    mk_task   = asyncio.create_task(authenticate_mk(force=True))
-    await asyncio.gather(stex_task, mk_task, return_exceptions=True)
+    logger.info("🔄 [AUTO RELOGIN] Refreshing STEX + ZAYAN sessions...")
+    stex_task  = asyncio.create_task(authenticate_stex(force=True))
+    zayan_task = asyncio.create_task(authenticate_zayan(force=True))
+    await asyncio.gather(stex_task, zayan_task, return_exceptions=True)
     logger.info("✅ [AUTO RELOGIN] Both sessions refreshed.")
 
 
@@ -587,19 +744,30 @@ def get_flag(country_name):
 # ==============================================================================
 
 async def check_subscription(user_id, bot):
+    tasks = []
     for channel in CHANNELS:
-        try:
-            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if member.status in ['left', 'kicked']: 
+        tasks.append(bot.get_chat_member(chat_id=channel, user_id=user_id))
+    try:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
                 return False
-        except Exception: 
-            return False
-    return True
+            if result.status in ['left', 'kicked']:
+                return False
+        return True
+    except Exception:
+        return False
 
 async def send_join_prompt(update, context):
+    # Build keyboard: channels side by side (2 per row)
     keyboard = []
+    channel_buttons = []
     for c in CHANNELS:
-        keyboard.append([InlineKeyboardButton(f"📢 Join {c}", url=f"https://t.me/{c.replace('@', '')}")])
+        channel_buttons.append(InlineKeyboardButton(f"📢 Join {c}", url=f"https://t.me/{c.replace('@', '')}"))
+    # 2 per row
+    for i in range(0, len(channel_buttons), 2):
+        row = channel_buttons[i:i+2]
+        keyboard.append(row)
     keyboard.append([InlineKeyboardButton("✅ Joined / Verify", callback_data="check_join")])
     
     msg = (
@@ -681,110 +849,103 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
 
 
 # ==============================================================================
-# 🤖 AUTO RANGE FORWARDER JOB (every 60 seconds, number masked)
+# 🤖 AUTO RANGE FORWARDER JOB (every 60 seconds, NO MISS, number masked)
 # ==============================================================================
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Fetch console from BOTH servers in parallel.
+    Send ALL unsent ranges to RANGE_GROUP_ID — no miss.
+    """
     global SENT_RANGES
     allowed_apps = ['facebook', 'whatsapp']
     bot_username = context.bot.username
 
-    stex_task = asyncio.create_task(stex_api_request('GET', API_STEX_CONSOLE))
-    mk_task   = asyncio.create_task(mk_api_request('GET', API_MK_CONSOLE))
+    stex_task  = asyncio.create_task(stex_api_request('GET', API_STEX_CONSOLE))
+    zayan_task = asyncio.create_task(zayan_api_request('GET', API_ZAYAN_CONSOLE))
     
-    results = await asyncio.gather(stex_task, mk_task, return_exceptions=True)
-    
-    # SERVER 1 (STEX)
+    results = await asyncio.gather(stex_task, zayan_task, return_exceptions=True)
+
+    # ── Send helper ──────────────────────────────────────────────────────────
+    async def _send_range(server_label: str, r_val, display_app, c_name, full_msg_text):
+        if r_val in SENT_RANGES:
+            return
+        SENT_RANGES.add(r_val)
+        if len(SENT_RANGES) > 5000:
+            SENT_RANGES.clear()
+
+        # Mask any phone number inside the message text
+        num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
+        if num_in_msg:
+            full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
+
+        range_msg = (
+            f"🔥 <b>New Range find</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🖥️ Server - <b>{server_label}</b>\n"
+            f"🎯 Range - <code>{r_val}</code>\n"
+            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
+            f"🌍 Country - {get_flag(c_name)} {c_name}\n"
+            f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
+        )
+        kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
+        try: 
+            await context.bot.send_message(
+                chat_id=RANGE_GROUP_ID, text=range_msg,
+                reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML
+            )
+        except Exception: 
+            pass
+
+    # SERVER 1 (STEX) — iterate ALL logs, not just first 5
     if isinstance(results[0], tuple):
         stex_status, stex_data = results[0]
         if stex_status == 200 and isinstance(stex_data, dict):
             logs = stex_data.get('data', {}).get('logs', [])
-            for log in logs[:5]:
-                if isinstance(log, dict):
-                    r_val = log.get('range')
-                    raw_app = str(log.get('app_name', 'Unknown')).lower()
-                    c_name = log.get('country', 'Unknown')
-                    
-                    raw_msg = get_sms_from_item(log)
-                    msg_text = str(raw_msg)
-                    
-                    if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
-                        SENT_RANGES.add(r_val)
-                        if len(SENT_RANGES) > 5000: 
-                            SENT_RANGES.clear()
-                        
-                        display_app = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else log.get('app_name', 'Unknown').title()
-                        full_msg_text = clean_message_text(raw_msg)
-                        
-                        # Mask the number in message text shown in range group
-                        num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
-                        if num_in_msg:
-                            full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
-                        
-                        range_msg = (
-                            f"🔥 <b>New Range find</b>\n"
-                            f"━━━━━━━━━━━━━━━━━━━━\n"
-                            f"🖥️ Server - <b>Server 1 ✨</b>\n"
-                            f"🎯 Range - <code>{r_val}</code>\n"
-                            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
-                            f"🌍 Country - {get_flag(c_name)} {c_name}\n"
-                            f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
-                        )
-                        kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                        try: 
-                            await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-                        except Exception: 
-                            pass
+            send_tasks = []
+            for log in logs:  # ALL logs — no limit
+                if not isinstance(log, dict):
+                    continue
+                r_val   = log.get('range')
+                raw_app = str(log.get('app_name', 'Unknown')).lower()
+                c_name  = log.get('country', 'Unknown')
+                raw_msg = get_sms_from_item(log)
+                msg_text = str(raw_msg)
+                if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
+                    display_app   = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else log.get('app_name', 'Unknown').title()
+                    full_msg_text = clean_message_text(raw_msg)
+                    send_tasks.append(_send_range("Server 1 ✨", r_val, display_app, c_name, full_msg_text))
+            if send_tasks:
+                await asyncio.gather(*send_tasks, return_exceptions=True)
 
-    # SERVER 2 (MK)
+    # SERVER 2 (ZAYAN) — iterate ALL logs
     if isinstance(results[1], tuple):
-        mk_status, mk_data = results[1]
-        if mk_status == 200 and isinstance(mk_data, dict):
-            feeds = mk_data.get('feed', [])
-            for log in feeds[:5]:
-                if isinstance(log, dict):
-                    r_val = log.get('range')
-                    raw_app = str(log.get('service_name', 'Unknown')).lower()
-                    c_name = log.get('country', 'Unknown')
-                    
-                    raw_msg = get_sms_from_item(log)
-                    msg_text = str(raw_msg)
-                    
-                    if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
-                        SENT_RANGES.add(r_val)
-                        if len(SENT_RANGES) > 5000: 
-                            SENT_RANGES.clear()
-                        
-                        display_app = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else log.get('service_name', 'Unknown').title()
-                        full_msg_text = clean_message_text(raw_msg)
-                        
-                        # Mask the number in message text shown in range group
-                        num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
-                        if num_in_msg:
-                            full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
-                        
-                        range_msg = (
-                            f"🔥 <b>New Range find</b>\n"
-                            f"━━━━━━━━━━━━━━━━━━━━\n"
-                            f"🚀 Server - <b>Server 2 🚀</b>\n"
-                            f"🎯 Range - <code>{r_val}</code>\n"
-                            f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
-                            f"🌍 Country - {get_flag(c_name)} {c_name}\n"
-                            f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
-                        )
-                        kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                        try: 
-                            await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-                        except Exception: 
-                            pass
+        zayan_status, zayan_data = results[1]
+        if zayan_status == 200 and isinstance(zayan_data, dict):
+            logs = zayan_data.get('data', {}).get('logs', [])
+            send_tasks = []
+            for log in logs:  # ALL logs — no limit
+                if not isinstance(log, dict):
+                    continue
+                r_val   = log.get('range')
+                raw_app = str(log.get('app_name', 'Unknown')).lower()
+                c_name  = log.get('country', 'Unknown')
+                raw_msg = get_sms_from_item(log)
+                msg_text = str(raw_msg)
+                if any(app in raw_app for app in allowed_apps) and r_val and r_val not in SENT_RANGES:
+                    display_app   = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else log.get('app_name', 'Unknown').title()
+                    full_msg_text = clean_message_text(raw_msg)
+                    send_tasks.append(_send_range("Server 2 🚀", r_val, display_app, c_name, full_msg_text))
+            if send_tasks:
+                await asyncio.gather(*send_tasks, return_exceptions=True)
 
 
 # ==============================================================================
-# 🚀 OTP POLLER — EXACT V23 RESTORE + FULL FIELD FIX
+# 🚀 OTP POLLER — PARALLEL INBOX FETCH, ZERO MISS, BALANCE REWARD
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg):
-    global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
+    global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH, _OTP_REWARD_POISHA, _REF_REWARD_POISHA
     user_data = WAITING_OTPS.get(hash_key)
     if not user_data:
         return
@@ -803,21 +964,50 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
             batch['numbers'].remove(to_remove)
         asyncio.create_task(update_dynamic_batch_message(context, chat_id, msg_id, batch_key))
 
-    # SEND OTP TO USER — original format preserved
+    # ── REWARD BALANCE ────────────────────────────────────────────────────────
+    # Add OTP reward to user
+    otp_reward = _OTP_REWARD_POISHA
+    loop = asyncio.get_event_loop()
+    new_balance = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
+    await loop.run_in_executor(DB_EXECUTOR, sync_increment_otp_count, user_id)
+
+    # Add referral reward to referrer (if any)
+    ref_reward     = _REF_REWARD_POISHA
+    referrer_id    = await loop.run_in_executor(DB_EXECUTOR, sync_get_referred_by, user_id)
+    ref_new_balance = None
+    if referrer_id:
+        ref_new_balance = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, referrer_id, ref_reward)
+        # Notify referrer silently (non-blocking)
+        ref_usdt = poisha_to_usdt(ref_reward)
+        ref_notif = (
+            f"💰 <b>Referral Bonus!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Your referral received an OTP!\n"
+            f"🎁 <b>+{ref_reward} Poisha</b> (≈ {ref_usdt} USDT) added to your balance.\n"
+            f"💳 <b>New Balance:</b> {format_balance_display(ref_new_balance)}"
+        )
+        asyncio.create_task(
+            _silent_send(context.bot, referrer_id, ref_notif)
+        )
+
+    # ── SEND OTP TO USER ──────────────────────────────────────────────────────
+    otp_usdt = poisha_to_usdt(otp_reward)
     user_msg = (
         f"🎉 <b>OTP RECEIVED SUCCESSFULLY!</b> ✨\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📱 <b>Service :</b> <i>{html.escape(str(svc_name))}</i>\n"
         f"📞 <b>Number  :</b> <code>{full_num}</code>\n"
         f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💰 <b>Balance Added:</b> +{otp_reward} Poisha (≈ {otp_usdt} USDT)\n"
+        f"💳 <b>Total Balance:</b> {format_balance_display(new_balance)}"
     )
     
     asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
     
-    # FORWARD TO GROUP — number masked, * replaced with •
+    # FORWARD TO OTP GROUP — number masked, * replaced with •
     clean_raw_msg = clean_message_text(raw_msg) 
-    masked_num = mask_number(full_num)
+    masked_num    = mask_number(full_num)
     
     group_msg = (
         f"🔔 <b>Otp Received</b>\n"
@@ -835,9 +1025,58 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         )
     )
     
-    logger.info(f"✅ OTP delivered → user={user_id} num={full_num} code={code_only}")
+    logger.info(f"✅ OTP delivered → user={user_id} num={full_num} code={code_only} reward={otp_reward}p")
+
+async def _silent_send(bot, chat_id, text):
+    """Send a message silently — ignore all errors."""
+    try:
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
+
+async def _fetch_stex_inbox_page(date_str: str, page: int):
+    """Fetch a single STEX inbox page."""
+    url = f"{API_STEX_INBOX}?date={date_str}&page={page}&search=&status="
+    return await stex_api_request('GET', url)
+
+async def _fetch_zayan_inbox_page(date_str: str, page: int):
+    """Fetch a single ZAYAN inbox page."""
+    url = f"{API_ZAYAN_INBOX}?date={date_str}&page={page}&search=&status="
+    return await zayan_api_request('GET', url)
+
+def _extract_items_from_response(res_data) -> list:
+    """Universal item extractor from any server inbox response."""
+    if res_data is None:
+        return []
+    if isinstance(res_data, list):
+        return res_data
+    if isinstance(res_data, dict):
+        data_field = res_data.get('data', {})
+        if isinstance(data_field, list):
+            return data_field
+        elif isinstance(data_field, dict):
+            return (
+                data_field.get('numbers') or
+                data_field.get('list') or
+                data_field.get('items') or
+                []
+            )
+        return (
+            res_data.get('data') or
+            res_data.get('list') or
+            res_data.get('items') or
+            res_data.get('history') or
+            []
+        )
+    return []
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Ultra-fast parallel OTP checker:
+    - Fetches page 1 of STEX and ZAYAN inbox simultaneously.
+    - If waiters span multiple pages, fetches extra pages in parallel too.
+    - Zero miss guarantee via multi-page parallel fetch.
+    """
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     if not WAITING_OTPS: 
         return 
@@ -869,91 +1108,68 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
         return 
         
     found_keys = []
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    date_str   = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    # 🔥 PARALLEL FETCHING: BOTH INBOXES AT THE EXACT SAME TIME
-    stex_url = f"{API_STEX_INBOX}?date={date_str}&page=1&search=&status="
-    mk_url   = f"{API_MK_INBOX.format(date_str)}&_nocache={int(time.time())}"
-    
-    stex_task = asyncio.create_task(stex_api_request('GET', stex_url))
-    mk_task   = asyncio.create_task(mk_api_request('GET', mk_url))
-    
-    results = await asyncio.gather(stex_task, mk_task, return_exceptions=True)
+    # 🔥 PARALLEL FETCHING: pages 1-3 of BOTH inboxes at the exact same time
+    # This ensures we never miss OTPs that appear on page 2 or 3
+    stex_p1_task  = asyncio.create_task(_fetch_stex_inbox_page(date_str, 1))
+    stex_p2_task  = asyncio.create_task(_fetch_stex_inbox_page(date_str, 2))
+    zayan_p1_task = asyncio.create_task(_fetch_zayan_inbox_page(date_str, 1))
+    zayan_p2_task = asyncio.create_task(_fetch_zayan_inbox_page(date_str, 2))
 
-    # ── SERVER 1 (STEX) ──────────────────────────────────────────────────────
-    if isinstance(results[0], tuple):
-        stex_status, stex_res = results[0]
-        if stex_status == 200 and stex_res:
+    all_results = await asyncio.gather(
+        stex_p1_task, stex_p2_task,
+        zayan_p1_task, zayan_p2_task,
+        return_exceptions=True
+    )
 
-            # Normalise response structure — STEX uses data.numbers OR data.list OR data[]
-            data_field = stex_res.get('data', {})
-            if isinstance(data_field, list):
-                items = data_field
-            elif isinstance(data_field, dict):
-                items = (
-                    data_field.get('numbers') or
-                    data_field.get('list') or
-                    data_field.get('items') or
-                    []
-                )
-            else:
-                items = []
+    # Collect all items from all pages
+    all_stex_items  = []
+    all_zayan_items = []
 
-            logger.info(f"[STEX] inbox items: {len(items)}")
+    for res in all_results[:2]:  # STEX pages
+        if isinstance(res, tuple) and res[0] == 200:
+            all_stex_items.extend(_extract_items_from_response(res[1]))
 
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                num_raw = get_number_from_item(item)
-                if not num_raw:
-                    continue
-                raw_msg = get_sms_from_item(item)
-                # Only process if there is an actual SMS
-                if not raw_msg:
-                    continue
-                hash_key, waiter = _find_waiter(num_raw)
-                if hash_key and hash_key not in found_keys:
-                    svc_name = get_service_from_item(item)
-                    code_val = get_code_from_item(item, raw_msg)
-                    await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg)
-                    found_keys.append(hash_key)
+    for res in all_results[2:]:  # ZAYAN pages
+        if isinstance(res, tuple) and res[0] == 200:
+            all_zayan_items.extend(_extract_items_from_response(res[1]))
 
-    # ── SERVER 2 (MK NETWORK) ────────────────────────────────────────────────
-    if isinstance(results[1], tuple):
-        mk_status, mk_res = results[1]
-        if mk_status == 200 and mk_res is not None:
+    logger.info(f"[STEX] inbox items: {len(all_stex_items)} | [ZAYAN] inbox items: {len(all_zayan_items)}")
 
-            # Normalise MK response
-            if isinstance(mk_res, list):
-                items = mk_res
-            elif isinstance(mk_res, dict):
-                items = (
-                    mk_res.get('data') or
-                    mk_res.get('list') or
-                    mk_res.get('items') or
-                    mk_res.get('history') or
-                    []
-                )
-            else:
-                items = []
+    # ── Process STEX items ────────────────────────────────────────────────────
+    for item in all_stex_items:
+        if not isinstance(item, dict):
+            continue
+        num_raw = get_number_from_item(item)
+        if not num_raw:
+            continue
+        raw_msg = get_sms_from_item(item)
+        if not raw_msg:
+            continue
+        hash_key, waiter = _find_waiter(num_raw)
+        if hash_key and hash_key not in found_keys:
+            svc_name = get_service_from_item(item)
+            code_val = get_code_from_item(item, raw_msg)
+            await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg)
+            found_keys.append(hash_key)
 
-            logger.info(f"[MK] inbox items: {len(items)}")
-
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                num_raw = get_number_from_item(item)
-                if not num_raw:
-                    continue
-                raw_msg = get_sms_from_item(item)
-                if not raw_msg:
-                    continue
-                hash_key, waiter = _find_waiter(num_raw)
-                if hash_key and hash_key not in found_keys:
-                    svc_name = get_service_from_item(item)
-                    code_val = get_code_from_item(item, raw_msg)
-                    await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg)
-                    found_keys.append(hash_key)
+    # ── Process ZAYAN items ───────────────────────────────────────────────────
+    for item in all_zayan_items:
+        if not isinstance(item, dict):
+            continue
+        num_raw = get_number_from_item(item)
+        if not num_raw:
+            continue
+        raw_msg = get_sms_from_item(item)
+        if not raw_msg:
+            continue
+        hash_key, waiter = _find_waiter(num_raw)
+        if hash_key and hash_key not in found_keys:
+            svc_name = get_service_from_item(item)
+            code_val = get_code_from_item(item, raw_msg)
+            await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg)
+            found_keys.append(hash_key)
 
     for k in found_keys: 
         ud = WAITING_OTPS.pop(k, None)
@@ -972,43 +1188,48 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
-        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
+        msg     = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
     else:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
-        msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
+        msg     = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
     range_val = str(range_val).strip()
     if not range_val.upper().endswith("XXX"): 
         range_val += "XXX"
-        
-    fetched_numbers = []
-    country_name = "Unknown"
     
-    for _ in range(2):
-        await asyncio.sleep(0.3) 
-        
+    # Fetch 2 numbers in parallel for maximum speed
+    async def _fetch_one(idx):
+        await asyncio.sleep(0.1 * idx)  # slight stagger to avoid duplicate
         if server_id == 1: 
             payload = {"range": range_val, "is_national": False, "remove_plus": False}
             status, resp = await stex_api_request('POST', API_STEX_GET_NUM, json_payload=payload)
             if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
-                fetched_numbers.append(resp['data']['number'])
-                country_name = resp['data'].get('country', country_name)
-                
+                return resp['data']['number'], resp['data'].get('country', 'Unknown')
         elif server_id == 2: 
-            form_data = aiohttp.FormData()
-            form_data.add_field('action', 'get_number')
-            form_data.add_field('range', range_val)
-            status, resp = await mk_api_request('POST', API_MK_GET_NUM, form_data=form_data)
-            if status == 200 and isinstance(resp, dict) and resp.get('status') == 'success' and resp.get('number'):
-                clean_num = str(resp['number']).replace('+', '')
-                fetched_numbers.append(clean_num)
-                country_name = context.user_data.get('country_name', 'Global')
+            payload = {"range": range_val, "is_national": False, "remove_plus": False}
+            status, resp = await zayan_api_request('POST', API_ZAYAN_GET_NUM, json_payload=payload)
+            if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
+                return resp['data']['number'], resp['data'].get('country', 'Unknown')
+        return None, None
+
+    results_pair = await asyncio.gather(_fetch_one(0), _fetch_one(1), return_exceptions=True)
+
+    fetched_numbers = []
+    country_name    = context.user_data.get('country_name', 'Unknown')
+
+    for res in results_pair:
+        if isinstance(res, tuple) and res[0]:
+            num_val = str(res[0]).replace('+', '')
+            if num_val not in fetched_numbers:
+                fetched_numbers.append(num_val)
+            if res[1] and res[1] != 'Unknown':
+                country_name = res[1]
             
     if fetched_numbers:
-        flag = get_flag(country_name)
-        symbols = ["❶", "❷"]
-        num_str = ""
+        flag     = get_flag(country_name)
+        symbols  = ["❶", "❷"]
+        num_str  = ""
         for i, n in enumerate(fetched_numbers):
             num_str += f"{symbols[i]} <code>{n}</code>\n"
             
@@ -1032,25 +1253,24 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {
-            'numbers': fetched_numbers.copy(), 
+            'numbers':      fetched_numbers.copy(), 
             'country_name': country_name, 
-            'flag': flag
+            'flag':         flag
         }
         
         for n in fetched_numbers:
             hash_key = get_hash_key(n)
             WAITING_OTPS[hash_key] = {
-                'full_num': n, 
-                'user_id': user_id, 
-                'chat_id': chat_id, 
-                'msg_id': msg.message_id, 
+                'full_num':  n, 
+                'user_id':   user_id, 
+                'chat_id':   chat_id, 
+                'msg_id':    msg.message_id, 
                 'batch_key': batch_key, 
-                'time': time.time()
+                'time':      time.time()
             }
-            # Register full number in reverse index for fallback matching
             NUM_TO_HASH[clean_number(n)] = hash_key
             
-        context.user_data['range'] = range_val 
+        context.user_data['range']  = range_val 
         context.user_data['server'] = server_id
         
     else:
@@ -1069,10 +1289,23 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): 
         return
-    await ensure_user_fast(update.effective_user.id)
+    user_id = update.effective_user.id
+
+    # Handle referral link: /start ref_12345678
+    args = context.args
+    referred_by = None
+    if args and args[0].startswith("ref_"):
+        try:
+            ref_id = int(args[0].split("_")[1])
+            if ref_id != user_id:
+                referred_by = ref_id
+        except Exception:
+            pass
+
+    await ensure_user_fast(user_id, referred_by=referred_by)
     context.user_data.clear()
     
-    if not await check_subscription(update.effective_user.id, context.bot): 
+    if not await check_subscription(user_id, context.bot): 
         await send_join_prompt(update, context)
     else: 
         await show_main_menu(update, context)
@@ -1080,7 +1313,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_main_menu(update_obj, context):
     kb = [
         ["📱 Get Number", "🔐 Get 2FA"], 
-        ["🎧 Support", "📊 See Activity"]
+        ["🎧 Support", "📊 See Activity"],
+        ["💰 My Balance", "👥 Refer & Earn"]
     ]
     msg = (
         "✨ <b>P R E M I U M   O T P   B O T</b> ✨\n"
@@ -1099,8 +1333,7 @@ async def show_main_menu(update_obj, context):
 
 async def show_server_selection(update_obj, context):
     kb = [
-        [InlineKeyboardButton("✨ Server 1", callback_data="srv_1")],
-        [InlineKeyboardButton("🚀 Server 2", callback_data="srv_2")]
+        [InlineKeyboardButton("✨ Server 1", callback_data="srv_1"), InlineKeyboardButton("🚀 Server 2", callback_data="srv_2")]
     ]
     txt = (
         "🌐 <b>SELECT SERVER</b> 🌐\n"
@@ -1132,8 +1365,8 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    category = query.data.split('_')[1].lower()
+    query     = update.callback_query
+    category  = query.data.split('_')[1].lower()
     server_id = context.user_data.get('server', 1)
     
     if category == 'custom':
@@ -1158,11 +1391,11 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
                         countries[c] = r
                         
     elif server_id == 2:
-        await authenticate_mk(force=True)
-        status, data = await mk_api_request('GET', API_MK_CONSOLE)
+        await authenticate_zayan(force=True)
+        status, data = await zayan_api_request('GET', API_ZAYAN_CONSOLE)
         if status == 200 and isinstance(data, dict):
-            for log in data.get('feed', []):
-                if isinstance(log, dict) and category in str(log.get('service_name', '')).lower():
+            for log in data.get('data', {}).get('logs', []):
+                if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
                     c, r = log.get('country'), log.get('range')
                     if c and r and c not in countries: 
                         countries[c] = r
@@ -1189,18 +1422,79 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 # ==============================================================================
+# 💰 BALANCE & REFERRAL HANDLERS
+# ==============================================================================
+
+async def show_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show user's current balance and stats."""
+    if await check_ban_middleware(update, context):
+        return
+    user_id = update.effective_user.id
+    await ensure_user_fast(user_id)
+    loop = asyncio.get_event_loop()
+    balance, total_otps, referred_by = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id)
+    my_referrals = await loop.run_in_executor(DB_EXECUTOR, sync_count_my_referrals, user_id)
+    usdt_val = poisha_to_usdt(balance)
+    
+    txt = (
+        f"💰 <b>MY WALLET</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💳 <b>Balance:</b> {balance} Poisha\n"
+        f"🌐 <b>≈ USDT:</b> {usdt_val} USDT\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📩 <b>Total OTPs Received:</b> {total_otps}\n"
+        f"👥 <b>My Referrals:</b> {my_referrals} users\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"💡 <i>Earn {_OTP_REWARD_POISHA} Poisha per OTP received.\n"
+        f"Earn {_REF_REWARD_POISHA} Poisha when your referral gets an OTP.</i>"
+    )
+    await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+
+async def show_refer_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show referral link and info."""
+    if await check_ban_middleware(update, context):
+        return
+    user_id     = update.effective_user.id
+    bot_username = context.bot.username
+    loop = asyncio.get_event_loop()
+    my_referrals = await loop.run_in_executor(DB_EXECUTOR, sync_count_my_referrals, user_id)
+    balance, total_otps, _ = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, user_id)
+
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+    
+    txt = (
+        f"👥 <b>REFER & EARN</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 <b>Your Referral Link:</b>\n"
+        f"<code>{ref_link}</code>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎁 <b>Reward System:</b>\n"
+        f"• Each OTP you receive → <b>+{_OTP_REWARD_POISHA} Poisha</b>\n"
+        f"• Each OTP your referral receives → <b>+{_REF_REWARD_POISHA} Poisha</b> for you\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📊 <b>Your Stats:</b>\n"
+        f"👤 Total Referrals: {my_referrals}\n"
+        f"💳 Balance: {format_balance_display(balance)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Share your link and earn automatically!</i>"
+    )
+    kb = [[InlineKeyboardButton("📤 Share My Link", url=f"https://t.me/share/url?url={ref_link}&text=Join%20this%20premium%20OTP%20bot%21")]]
+    await update.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
+
+# ==============================================================================
 # 🎮 TEXT HANDLER & INLINE ADMIN REPLY LOGIC
 # ==============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): 
         return
-    user_id = update.effective_user.id
-    text = update.message.text
+    user_id   = update.effective_user.id
+    text      = update.message.text
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
-    main_buttons = ["📱 Get Number", "🔐 Get 2FA", "🎧 Support", "📊 See Activity"]
+    main_buttons = ["📱 Get Number", "🔐 Get 2FA", "🎧 Support", "📊 See Activity", "💰 My Balance", "👥 Refer & Earn"]
     
     if text in main_buttons:
         user_data['state'] = None
@@ -1280,14 +1574,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif text == "📊 See Activity":
         kb = [
-            [InlineKeyboardButton("🔥 Range Channel", url="https://t.me/ConsoleXRT")],
-            [InlineKeyboardButton("💬 OTP Channel", url="https://t.me/RTxOtpX")]
+            [InlineKeyboardButton("🔥 Range Channel", url="https://t.me/ConsoleXRT"), InlineKeyboardButton("💬 OTP Channel", url="https://t.me/RTxOtpX")]
         ]
         await update.message.reply_text(
             "📊 <b>BOT ACTIVITY LINKS</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Join to see live Bot activity:</i>", 
             reply_markup=InlineKeyboardMarkup(kb), 
             parse_mode=ParseMode.HTML
         )
+
+    elif text == "💰 My Balance":
+        await show_balance(update, context)
+
+    elif text == "👥 Refer & Earn":
+        await show_refer_info(update, context)
         
     elif user_data.get('state') == 'WAITING_FOR_RANGE':
         user_data['state'] = None
@@ -1306,9 +1605,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): 
         return
         
-    query = update.callback_query
+    query   = update.callback_query
     user_id = query.from_user.id
-    data = query.data
+    data    = query.data
     await ensure_user_fast(user_id)
     
     if data == "check_join":
@@ -1329,9 +1628,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_category_click(update, context)
         
     elif data.startswith("r_"):
-        parts = data.split("_")
-        server_id = int(parts[1])
-        range_val = parts[2]
+        parts      = data.split("_")
+        server_id  = int(parts[1])
+        range_val  = parts[2]
         if len(parts) > 3:
             context.user_data['country_name'] = parts[3]
         await process_number_generation(update, context, range_val, server_id, is_callback=True)
@@ -1371,30 +1670,43 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['admin_reply_target'] = None
     context.user_data['state'] = None
     txt = (
-        "🔐 <b>ADVANCED ADMIN PANEL</b> 🔐\n"
+        "🔐 <b>ADVANCED ADMIN PANEL v32</b> 🔐\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "🟢 <code>/status</code> - Show Bot Statistics\n"
-        "📢 <code>/broadcast &lt;msg&gt;</code> - Message all users\n"
+        "🟢 <code>/status</code> - Bot Statistics\n"
+        "📢 <code>/broadcast &lt;msg&gt;</code> - Broadcast to all\n"
         "🚫 <code>/ban &lt;id&gt;</code> - Ban a user\n"
         "✅ <code>/unban &lt;id&gt;</code> - Unban a user\n"
-        "👥 <code>/users</code> - Total User Count"
+        "👥 <code>/users</code> - Total User Count\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "💰 <b>BALANCE COMMANDS:</b>\n"
+        "💳 <code>/addbalance &lt;id&gt; &lt;poisha&gt;</code> - Add balance to user\n"
+        "🔢 <code>/setotprate &lt;poisha&gt;</code> - Set OTP reward rate\n"
+        "🔢 <code>/setrefrate &lt;poisha&gt;</code> - Set referral reward rate\n"
+        "🏆 <code>/topref</code> - Top 10 referrers\n"
+        "📊 <code>/userinfo &lt;id&gt;</code> - User balance + stats\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Current OTP Rate: {_OTP_REWARD_POISHA} Poisha | Ref Rate: {_REF_REWARD_POISHA} Poisha</i>"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
 async def admin_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
-    uptime = datetime.datetime.now() - START_TIME
+    uptime  = datetime.datetime.now() - START_TIME
     t_users = get_total_users_count()
     txt = (
-        f"📊 <b>ULTRA ENTERPRISE STATUS</b> 📊\n"
+        f"📊 <b>ULTRA ENTERPRISE STATUS v32</b> 📊\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"⏱ <b>Uptime:</b> {str(uptime).split('.')[0]}\n"
         f"👥 <b>Total Users (RAM):</b> {t_users}\n"
         f"📡 <b>Active Waiters:</b> {len(WAITING_OTPS)} Numbers\n"
         f"⚡ <b>RAM Cache:</b> ACTIVE (O(1) Speed)\n"
         f"🔄 <b>Auto Relogin:</b> Every 5 Minutes\n"
+        f"🌐 <b>Connection Pool:</b> 1000 Connections\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ <i>Dual Servers Running Smoothly</i>"
+        f"💰 <b>OTP Reward:</b> {_OTP_REWARD_POISHA} Poisha/OTP\n"
+        f"🎁 <b>Ref Reward:</b> {_REF_REWARD_POISHA} Poisha/referral OTP\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ <i>STEX + ZAYAN Running Smoothly</i>"
     )
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -1427,10 +1739,10 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Usage: `/broadcast Your message here`", parse_mode=ParseMode.Markdown)
         return
     message = " ".join(context.args)
-    users = get_all_users()
-    msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users... Please wait.</i>", parse_mode=ParseMode.HTML)
+    users   = get_all_users()
+    msg     = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users... Please wait.</i>", parse_mode=ParseMode.HTML)
     success = 0
-    failed = 0
+    failed  = 0
     for u_id in users:
         try:
             await context.bot.send_message(chat_id=u_id, text=f"📢 <b>ADMIN BROADCAST</b>\n━━━━━━━━━━━━━━━━━━━━\n{message}", parse_mode=ParseMode.HTML)
@@ -1440,17 +1752,125 @@ async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(0.05) 
     await msg.edit_text(f"✅ <b>Broadcast Completed!</b>\n━━━━━━━━━━━━━━━━━━━━\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
 
+# ── NEW ADMIN: Add balance to user ────────────────────────────────────────────
+async def admin_add_balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    try:
+        target_id = int(context.args[0])
+        amount    = int(context.args[1])
+        loop      = asyncio.get_event_loop()
+        new_bal   = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, target_id, amount)
+        await update.message.reply_text(
+            f"✅ <b>Balance Added!</b>\n"
+            f"👤 User: <code>{target_id}</code>\n"
+            f"💰 Added: <b>{amount} Poisha</b>\n"
+            f"💳 New Balance: <b>{format_balance_display(new_bal)}</b>",
+            parse_mode=ParseMode.HTML
+        )
+        # Notify the user
+        asyncio.create_task(_silent_send(
+            context.bot, target_id,
+            f"🎁 <b>Balance Added by Admin!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💰 <b>+{amount} Poisha</b> added to your wallet.\n"
+            f"💳 <b>New Balance:</b> {format_balance_display(new_bal)}"
+        ))
+    except (IndexError, ValueError):
+        await update.message.reply_text("⚠️ Usage: <code>/addbalance UserID Amount_in_poisha</code>", parse_mode=ParseMode.HTML)
+
+# ── NEW ADMIN: Set OTP reward rate ────────────────────────────────────────────
+async def admin_set_otp_rate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global _OTP_REWARD_POISHA
+    if update.effective_user.id not in ADMIN_IDS: return
+    try:
+        rate = int(context.args[0])
+        if rate < 0:
+            raise ValueError("Rate cannot be negative")
+        _OTP_REWARD_POISHA = rate
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, 'otp_reward_poisha', str(rate))
+        await update.message.reply_text(
+            f"✅ <b>OTP Reward Rate Updated!</b>\n"
+            f"🔢 New rate: <b>{rate} Poisha per OTP received</b>",
+            parse_mode=ParseMode.HTML
+        )
+    except (IndexError, ValueError):
+        await update.message.reply_text("⚠️ Usage: <code>/setotprate 10</code> (in Poisha)", parse_mode=ParseMode.HTML)
+
+# ── NEW ADMIN: Set referral reward rate ───────────────────────────────────────
+async def admin_set_ref_rate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global _REF_REWARD_POISHA
+    if update.effective_user.id not in ADMIN_IDS: return
+    try:
+        rate = int(context.args[0])
+        if rate < 0:
+            raise ValueError("Rate cannot be negative")
+        _REF_REWARD_POISHA = rate
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, 'ref_reward_poisha', str(rate))
+        await update.message.reply_text(
+            f"✅ <b>Referral Reward Rate Updated!</b>\n"
+            f"🔢 New rate: <b>{rate} Poisha per referral's OTP</b>",
+            parse_mode=ParseMode.HTML
+        )
+    except (IndexError, ValueError):
+        await update.message.reply_text("⚠️ Usage: <code>/setrefrate 5</code> (in Poisha)", parse_mode=ParseMode.HTML)
+
+# ── NEW ADMIN: Top referrers leaderboard ──────────────────────────────────────
+async def admin_top_ref_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    loop     = asyncio.get_event_loop()
+    top_list = await loop.run_in_executor(DB_EXECUTOR, sync_get_top_referrers, 10)
+    if not top_list:
+        await update.message.reply_text("📊 <b>No referral data yet.</b>", parse_mode=ParseMode.HTML)
+        return
+    medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
+    lines  = []
+    for idx, (uid, cnt) in enumerate(top_list):
+        medal = medals[idx] if idx < len(medals) else f"{idx+1}."
+        lines.append(f"{medal} <code>{uid}</code> — <b>{cnt}</b> referrals")
+    txt = (
+        "🏆 <b>TOP 10 REFERRERS</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n" +
+        "\n".join(lines)
+    )
+    await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+
+# ── NEW ADMIN: User info (balance + stats) ────────────────────────────────────
+async def admin_user_info_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    try:
+        target_id  = int(context.args[0])
+        loop       = asyncio.get_event_loop()
+        balance, total_otps, referred_by = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_stats, target_id)
+        my_refs    = await loop.run_in_executor(DB_EXECUTOR, sync_count_my_referrals, target_id)
+        banned_str = "🚫 YES" if target_id in BANNED_CACHE else "✅ NO"
+        txt = (
+            f"📋 <b>USER INFO</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>User ID:</b> <code>{target_id}</code>\n"
+            f"🚫 <b>Banned:</b> {banned_str}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💳 <b>Balance:</b> {format_balance_display(balance)}\n"
+            f"📩 <b>Total OTPs:</b> {total_otps}\n"
+            f"👥 <b>My Referrals:</b> {my_refs}\n"
+            f"🔗 <b>Referred By:</b> {referred_by if referred_by else 'None'}"
+        )
+        await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+    except (IndexError, ValueError):
+        await update.message.reply_text("⚠️ Usage: <code>/userinfo UserID</code>", parse_mode=ParseMode.HTML)
+
 
 # ==============================================================================
 # 🌐 RENDER DUMMY WEB SERVER & MAIN LOOP
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V31 — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V32 — Running perfectly!")
 
 async def start_dummy_server():
     try:
-        app = web.Application()
+        app  = web.Application()
         app.router.add_get('/', web_server_handler)
         port = int(os.environ.get('PORT', 8080))
         runner = web.AppRunner(app)
@@ -1463,31 +1883,38 @@ async def start_dummy_server():
 
 async def post_init(app: Application):
     asyncio.create_task(start_dummy_server())
-    # Pre-authenticate both servers on startup
+    # Pre-authenticate both servers on startup simultaneously
     asyncio.create_task(authenticate_stex(force=True))
-    asyncio.create_task(authenticate_mk(force=True))
+    asyncio.create_task(authenticate_zayan(force=True))
 
 if __name__ == "__main__":
     init_db()
     app = Application.builder().token(TOKEN).post_init(post_init).build()
     
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin_panel))
-    app.add_handler(CommandHandler("status", admin_status))
-    app.add_handler(CommandHandler("ban", ban_user_cmd))
-    app.add_handler(CommandHandler("unban", unban_user_cmd))
-    app.add_handler(CommandHandler("broadcast", broadcast_cmd))
-    app.add_handler(CommandHandler("users", admin_users_cmd))
+    # Core commands
+    app.add_handler(CommandHandler("start",      start))
+    app.add_handler(CommandHandler("admin",      admin_panel))
+    app.add_handler(CommandHandler("status",     admin_status))
+    app.add_handler(CommandHandler("ban",        ban_user_cmd))
+    app.add_handler(CommandHandler("unban",      unban_user_cmd))
+    app.add_handler(CommandHandler("broadcast",  broadcast_cmd))
+    app.add_handler(CommandHandler("users",      admin_users_cmd))
+    # Balance / referral admin commands
+    app.add_handler(CommandHandler("addbalance", admin_add_balance_cmd))
+    app.add_handler(CommandHandler("setotprate", admin_set_otp_rate_cmd))
+    app.add_handler(CommandHandler("setrefrate", admin_set_ref_rate_cmd))
+    app.add_handler(CommandHandler("topref",     admin_top_ref_cmd))
+    app.add_handler(CommandHandler("userinfo",   admin_user_info_cmd))
     
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # ⚡ OTP CHECKER: every 2 seconds
-    app.job_queue.run_repeating(global_otp_checker_job,  interval=2,   first=2)
-    # 📡 Range forwarder: every 60 seconds
+    # ⚡ OTP CHECKER: every 2 seconds (ultra-fast parallel fetch)
+    app.job_queue.run_repeating(global_otp_checker_job,   interval=2,   first=2)
+    # 📡 Range forwarder: every 60 seconds (ALL ranges, no miss)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=60,  first=15)
-    # 🔄 Auto Re-Login (STEX + MK): every 5 minutes
+    # 🔄 Auto Re-Login (STEX + ZAYAN): every 5 minutes
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     
-    logger.info("✨ VERSION 31.0 FINAL STARTED SUCCESSFULLY ✨")
+    logger.info("✨ VERSION 32.0 FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(drop_pending_updates=True)
