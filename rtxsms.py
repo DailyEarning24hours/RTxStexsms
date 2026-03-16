@@ -21,6 +21,28 @@ FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
 
+import subprocess
+import sys
+
+# ==============================================================================
+# 🔧 AUTO-INSTALL CORRECT VERSIONS ON STARTUP (Render free plan safe)
+# ==============================================================================
+def _ensure_correct_ptb():
+    try:
+        import telegram as _tg
+        ver = tuple(int(x) for x in _tg.__version__.split(".")[:2])
+        if ver[0] < 20:
+            raise ImportError("old version detected")
+    except Exception:
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install",
+            "python-telegram-bot[job-queue]==20.7",
+            "APScheduler==3.10.4",
+            "--quiet", "--upgrade"
+        ])
+
+_ensure_correct_ptb()
+
 import logging
 import aiohttp
 import os
