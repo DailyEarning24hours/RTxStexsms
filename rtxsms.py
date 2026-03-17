@@ -23,37 +23,52 @@ FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 
 import subprocess
 import sys
+import os
 
 # ==============================================================================
-# 🔧 AUTO-INSTALL CORRECT VERSIONS ON STARTUP (Render free plan safe)
+# 🔧 FORCE INSTALL ALL DEPENDENCIES ON STARTUP — NO requirements.txt NEEDED
 # ==============================================================================
-def _ensure_correct_ptb():
+def _force_install_all():
+    """
+    Force install all required packages at startup.
+    This runs BEFORE any import so version conflicts are impossible.
+    Render free plan safe — only installs if needed.
+    """
+    packages = [
+        "python-telegram-bot[job-queue]==20.7",
+        "APScheduler==3.10.4",
+        "aiohttp==3.9.3",
+        "curl_cffi==0.7.4",
+    ]
+    needs_install = False
     try:
         import telegram as _tg
         ver = tuple(int(x) for x in _tg.__version__.split(".")[:2])
         if ver[0] < 20:
-            raise ImportError("old version detected")
+            needs_install = True
     except Exception:
+        needs_install = True
+
+    if needs_install:
+        print("📦 Installing dependencies...", flush=True)
         subprocess.check_call([
             sys.executable, "-m", "pip", "install",
-            "python-telegram-bot[job-queue]==20.7",
-            "APScheduler==3.10.4",
-            "--quiet", "--upgrade"
-        ])
+            "--upgrade", "--force-reinstall", "--quiet",
+            "--no-cache-dir",
+        ] + packages)
+        print("✅ Dependencies installed. Restarting...", flush=True)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
-_ensure_correct_ptb()
-
-# Auto-install curl_cffi for Cloudflare bypass
-def _ensure_curl_cffi():
+    # curl_cffi separate check
     try:
         import curl_cffi
     except ImportError:
         subprocess.check_call([
             sys.executable, "-m", "pip", "install",
-            "curl_cffi", "--quiet", "--upgrade"
+            "curl_cffi==0.7.4", "--quiet", "--no-cache-dir"
         ])
 
-_ensure_curl_cffi()
+_force_install_all()
 
 import logging
 import aiohttp
