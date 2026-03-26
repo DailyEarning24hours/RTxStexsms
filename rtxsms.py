@@ -722,33 +722,36 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
     
     # 🌟 IF numbers are still waiting, keep showing them neatly
     else:
-        num_str = ""
-        symbols = ["❶", "❷"] 
-        for i, n in enumerate(batch['numbers']):
-            short_name = get_short_code(batch['country_name'])
-            if n in batch['received_for']:
-                num_str += f"{symbols[i % len(symbols)]} [{short_name}] <del>{n}</del> ✅\n"
-            else:
-                num_str += f"{symbols[i % len(symbols)]} [{short_name}] <code>{n}</code>\n"
-            
         flag = batch['flag']
         country_name = batch['country_name']
         short_name = get_short_code(country_name)
         nums = batch['numbers']
+        received = batch['received_for']
+        
+        # Check if any received already
+        all_waiting = all(n not in received for n in nums)
+        status_icon = "✅" if not all_waiting else "⏳"
         
         txt = (
             f"{flag} <b>{country_name} [{short_name}]</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>Number Generated</b> <i>𒊹︎︎︎</i>\n\n"
-            f"{num_str}\n"
+            f"<b>Number Generated ✅</b>\n\n"
             f"<i>𒊹︎︎︎ Waiting For Otp 💥</i>"
         )
+        
+        n1 = nums[0] if len(nums) > 0 else "N/A"
+        n2 = nums[1] if len(nums) > 1 else "N/A"
+        n1_label = f"✅ {n1}" if n1 in received else f"📋 {n1}"
+        n2_label = f"✅ {n2}" if n2 in received else f"📋 {n2}"
+        
         kb = [
             [
-                InlineKeyboardButton(nums[0] if len(nums) > 0 else "—", callback_data="noop_1"),
-                InlineKeyboardButton(nums[1] if len(nums) > 1 else "—", callback_data="noop_2"),
-                InlineKeyboardButton("🔄 Change", callback_data="change_num"),
-                InlineKeyboardButton("💬 OTP Group", url="https://t.me/RTxOtpX"),
+                InlineKeyboardButton(n1_label, switch_inline_query_current_chat=n1),
+                InlineKeyboardButton(n2_label, switch_inline_query_current_chat=n2),
+            ],
+            [
+                InlineKeyboardButton("🔄 Change Number", callback_data="change_num"),
+                InlineKeyboardButton("💬 OTP Group ↗", url="https://t.me/RTxOtpX"),
             ],
             [InlineKeyboardButton("🔙 Back To Main Menu", callback_data="go_main")]
         ]
@@ -800,8 +803,7 @@ async def process_console_logs(context, logs, server_name, bot_username):
                         f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
                     )
                     kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                    try: await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-                    except Exception: pass
+                    asyncio.create_task(context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML))
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     bot_username = context.bot.username
@@ -812,17 +814,21 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
     
+    process_tasks = []
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
         logs = results[0][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 1 ✨", bot_username)
+        process_tasks.append(process_console_logs(context, logs, "Server 1 ✨", bot_username))
 
     if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
         logs = results[1][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 2 🚀", bot_username)
+        process_tasks.append(process_console_logs(context, logs, "Server 2 🚀", bot_username))
 
     if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
         logs = results[2][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 3 🔥", bot_username)
+        process_tasks.append(process_console_logs(context, logs, "Server 3 🔥", bot_username))
+
+    if process_tasks:
+        await asyncio.gather(*process_tasks, return_exceptions=True)
 
 
 # ==============================================================================
@@ -887,16 +893,18 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🛒 <b>Service</b> - <i>{html.escape(str(svc_name))}</i>\n"
         f"📞 <b>Number</b> - <code>{masked_num}</code>\n"
-        f"🖥️ <b>Server</b> - <b>{server_name}</b>\n"
+        f"🖥️ <b>Server</b> - {server_name}\n"
         f"🎯 <b>Range</b> - <code>{range_val}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"✉️ <pre>{html.escape(str(clean_raw_msg))}</pre>"
     )
+    # Row 1: OTP copy button (1 click copy via switch_inline)
+    # Row 2: Main Channel | Owner (side by side)
     group_kb = [
-        [InlineKeyboardButton(f"🔑 OTP: {code_only}", callback_data="noop_otp")],
+        [InlineKeyboardButton(f"🔑 Copy OTP: {code_only}", switch_inline_query_current_chat=str(code_only))],
         [
+            InlineKeyboardButton("📢 Main Channel", url="https://t.me/RTx_Sms"),
             InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R"),
-            InlineKeyboardButton("📲 Get Number", url=f"https://t.me/{context.bot.username}")
         ]
     ]
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
@@ -991,8 +999,11 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     fetched_numbers = []
     country_name = context.user_data.get('country_name', 'Unknown')
     
-    # 🚀 FAST: Generate both numbers in PARALLEL (no sleep delay)
-    async def fetch_one_number():
+    # 🚀 Server 1: Parallel (no CF issue)
+    # ⚠️ Server 2 & 3: Sequential with 0.3s delay to avoid Cloudflare block
+    async def fetch_single(delay=0.0):
+        if delay > 0:
+            await asyncio.sleep(delay)
         payload = {"range": range_val, "is_national": False, "remove_plus": True}
         if server_id == 1:
             payload["remove_plus"] = False
@@ -1003,40 +1014,49 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             return await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
         return 500, None
 
-    results_parallel = await asyncio.gather(fetch_one_number(), fetch_one_number(), return_exceptions=True)
-    
-    for res in results_parallel:
+    if server_id == 1:
+        # Server 1: both in parallel, fast
+        results_gen = await asyncio.gather(fetch_single(0), fetch_single(0), return_exceptions=True)
+    else:
+        # Server 2 & 3: sequential with 0.3s between each to avoid CF block
+        r1 = await fetch_single(0)
+        await asyncio.sleep(0.3)
+        r2 = await fetch_single(0)
+        results_gen = [r1, r2]
+
+    for res in results_gen:
         if isinstance(res, tuple):
             status, resp = res
             if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
                 num = str(resp['data']['number']).replace('+', '')
-                if num not in fetched_numbers:  # avoid duplicate numbers
+                if num not in fetched_numbers:
                     fetched_numbers.append(num)
                     country_name = resp['data'].get('country', country_name)
             
     if fetched_numbers:
         flag = get_flag(country_name)
         short_name = get_short_code(country_name)
-        symbols = ["❶", "❷"]
-        num_str = ""
-        for i, n in enumerate(fetched_numbers):
-            num_str += f"{symbols[i]} [{short_name}] <code>{n}</code>\n"
-            
+        
         txt = (
             f"{flag} <b>{country_name} [{short_name}]</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"<b>Number Generated</b> <i>𒊹︎︎︎</i>\n\n"
-            f"{num_str}\n"
+            f"<b>Number Generated ✅</b>\n\n"
             f"<i>𒊹︎︎︎ Waiting For Otp 💥</i>"
         )
         
-        # 4 buttons side-by-side on row 1, Back to Main Menu below
+        # Row 1: Number 1 | Number 2  (copy on click via copy_to_clipboard)
+        # Row 2: 🔄 Change | 💬 OTP Group
+        # Row 3: 🔙 Back To Main Menu
+        n1 = fetched_numbers[0] if len(fetched_numbers) > 0 else "N/A"
+        n2 = fetched_numbers[1] if len(fetched_numbers) > 1 else "N/A"
         kb = [
             [
-                InlineKeyboardButton(fetched_numbers[0] if len(fetched_numbers) > 0 else "—", callback_data="noop_1"),
-                InlineKeyboardButton(fetched_numbers[1] if len(fetched_numbers) > 1 else "—", callback_data="noop_2"),
-                InlineKeyboardButton("🔄 Change", callback_data="change_num"),
-                InlineKeyboardButton("💬 OTP Group", url="https://t.me/RTxOtpX"),
+                InlineKeyboardButton(f"📋 {n1}", switch_inline_query_current_chat=n1),
+                InlineKeyboardButton(f"📋 {n2}", switch_inline_query_current_chat=n2),
+            ],
+            [
+                InlineKeyboardButton("🔄 Change Number", callback_data="change_num"),
+                InlineKeyboardButton("💬 OTP Group ↗", url="https://t.me/RTxOtpX"),
             ],
             [InlineKeyboardButton("🔙 Back To Main Menu", callback_data="go_main")]
         ]
@@ -1148,19 +1168,16 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data['state'] = 'WAITING_FOR_RANGE'
         return
     
-    await query.edit_message_text(text="📡 <i>Connecting to Server... Calculating Success Rates!</i> ⏳", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text="📡 <i>Loading available ranges...</i> ⚡", parse_mode=ParseMode.HTML)
     
     country_stats = {}
     status, data = 500, None
 
     if server_id == 1:
-        await auth_s1(force=True)
         status, data = await s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
     elif server_id == 2:
-        await auth_s2(force=True)
         status, data = await s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
     elif server_id == 3:
-        await auth_s3(force=True)
         status, data = await s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
 
     if status == 200 and isinstance(data, dict):
@@ -1471,10 +1488,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    if data.startswith("noop_"):
-        await query.answer()
-        return
-
     if data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
