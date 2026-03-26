@@ -1,15 +1,15 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 40.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 45.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (RAM Caching & Text Diff Algorithm).
 UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1, Server 2, Server 3).
 CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2 & 3!
-NEW FEATURES: 
-- Live Success Rate (%) for Countries!
-- Multi-OTP System (Receives 2nd, 3rd OTPs beautifully).
-- Advanced Number UI (Shows ✅ when OTP received, doesn't disappear).
-- 2FA Auto-Delete completely removes the user's key message too.
-- Range tracking forwarded to OTP Channel.
+NEW UI FEATURES:
+- Extremely Fast Parallel Number Generation!
+- Screenshot Matching UI: Inline buttons for Numbers, Custom Colors (Emojis).
+- Deep Linking: "Get Number" button in channels auto-generates that exact range!
+- Custom Service Overrides: Shows strictly what user selected.
+- Persistent Numbers: Numbers don't disappear on OTP, they get a ✅ mark!
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
@@ -75,7 +75,7 @@ S3_EMAIL = "rtxraja0011@gmail.com"
 S3_PASSWORD = "Raja1234@#"
 S3_BASE_URL = "https://x.mnitnetwork.com/mapi/v1"
 
-# 🔥 CLOUDFLARE BYPASS HEADERS — matches the exact browser fingerprint
+# 🔥 CLOUDFLARE BYPASS HEADERS
 def get_cf_headers(origin_domain):
     return {
         "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.159 Mobile Safari/537.36",
@@ -129,7 +129,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
-# 🧠 ENTERPRISE MEMORY SYSTEM (FOR 30,000+ USERS RAM CACHING)
+# 🧠 ENTERPRISE MEMORY SYSTEM
 # ==============================================================================
 
 WAITING_OTPS = {}
@@ -140,7 +140,6 @@ OTP_TIMEOUT_SECONDS = 1200
 USER_CACHE = set()
 BANNED_CACHE = set()
 
-# Live Settings for Rewards & Withdrawals
 SETTINGS_CACHE = {
     "otp_reward": 0.10,
     "ref_reward": 0.05,
@@ -150,7 +149,7 @@ SETTINGS_CACHE = {
 DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
 # ==============================================================================
-# 🌍 MASSIVE COUNTRY FLAGS & ISO DICTIONARY (250+ COUNTRIES)
+# 🌍 MASSIVE COUNTRY FLAGS & ISO DICTIONARY
 # ==============================================================================
 
 COUNTRY_FLAGS = {
@@ -162,19 +161,15 @@ COUNTRY_CODES = {
 }
 
 def get_flag(country_name):
-    if country_name in COUNTRY_FLAGS: 
-        return COUNTRY_FLAGS[country_name]
+    if country_name in COUNTRY_FLAGS: return COUNTRY_FLAGS[country_name]
     for name, flag in COUNTRY_FLAGS.items():
-        if name.lower() in country_name.lower() or country_name.lower() in name.lower(): 
-            return flag
+        if name.lower() in country_name.lower() or country_name.lower() in name.lower(): return flag
     return "🚩"
 
 def get_short_code(country_name):
-    if country_name in COUNTRY_CODES: 
-        return COUNTRY_CODES[country_name]
+    if country_name in COUNTRY_CODES: return COUNTRY_CODES[country_name]
     for name, code in COUNTRY_CODES.items():
-        if name.lower() in country_name.lower() or country_name.lower() in name.lower(): 
-            return code
+        if name.lower() in country_name.lower() or country_name.lower() in name.lower(): return code
     return str(country_name)[:2].upper()
 
 # ==============================================================================
@@ -186,8 +181,7 @@ def clean_number(n: str) -> str:
 
 def mask_number(number: str) -> str:
     digits = clean_number(number)
-    if len(digits) < 7:
-        return number
+    if len(digits) < 7: return number
     first  = digits[:6]
     last   = digits[-3:]
     middle = '•' * (len(digits) - 9)
@@ -198,46 +192,36 @@ def mask_number(number: str) -> str:
     return first + middle + last
 
 def clean_message_text(raw_text):
-    if not raw_text or str(raw_text).strip() == "":
-        return "No Message Provided"
+    if not raw_text or str(raw_text).strip() == "": return "No Message Provided"
     text = str(raw_text)
     text = html.unescape(html.unescape(text))
     text = re.sub(r'<[^>]+>', '', text)
     text = text.replace('&lt;', '<').replace('&gt;', '>')
     text = re.sub(r'\*+', lambda m: '•' * len(m.group()), text)
-    text = " ".join(text.split())
-    return text.strip() if text.strip() else "No Message Provided"
+    return " ".join(text.split()).strip() or "No Message Provided"
 
 def get_hash_key(number_str):
     clean_str = re.sub(r'\D', '', str(number_str))
-    if not clean_str: return "UNKNOWN"
-    return clean_str[-8:]
+    return clean_str[-8:] if clean_str else "UNKNOWN"
 
 def extract_code(message):
     msg = str(message)
     wa_match = re.search(r'\b(\d{3})-(\d{3})\b', msg)
-    if wa_match:
-        return wa_match.group(1) + wa_match.group(2)
-        
+    if wa_match: return wa_match.group(1) + wa_match.group(2)
     kw = re.search(r'(?:otp|code|verification|verify|pin|passcode|password)[^0-9]{0,25}(\d{4,8})', msg, re.IGNORECASE)
-    if kw:
-        return kw.group(1)
+    if kw: return kw.group(1)
     fb = re.search(r'\b(\d{4,8})\b', msg)
     return fb.group(1) if fb else "See Msg"
 
 def get_sms_from_item(item: dict) -> str:
     return item.get('full_sms') or item.get('full_sms_list') or item.get('sms') or item.get('otp') or item.get('message') or item.get('text') or item.get('msg') or ""
 
-def get_service_from_item(item: dict) -> str:
-    return item.get('app_name') or item.get('service_name') or item.get('service') or item.get('operator') or item.get('app') or "Service"
-
 def get_number_from_item(item: dict) -> str:
     return item.get('number') or item.get('phone_number') or item.get('phone') or item.get('mobile') or item.get('msisdn') or ""
 
 def get_code_from_item(item: dict, raw_msg: str) -> str:
     explicit = item.get('otps') or item.get('otp_code') or item.get('verification_code') or item.get('code') or ""
-    if explicit and re.match(r'^\d{4,8}$', str(explicit).strip()):
-        return str(explicit).strip()
+    if explicit and re.match(r'^\d{4,8}$', str(explicit).strip()): return str(explicit).strip()
     return extract_code(raw_msg)
 
 def _find_waiter(num_raw: str):
@@ -255,7 +239,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
 # ==============================================================================
 
-DB_FILE = "bot_v40_enterprise.db"
+DB_FILE = "bot_v45_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=30):
@@ -266,11 +250,8 @@ class DatabasePool:
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
         conn.execute('PRAGMA journal_mode=WAL;')
         conn.execute('PRAGMA synchronous=NORMAL;')
-        conn.execute('PRAGMA cache_size=-20000;') 
-        try: 
-            yield conn
-        finally: 
-            conn.close()
+        try: yield conn
+        finally: conn.close()
 
 db_pool = DatabasePool(DB_FILE, DB_POOL_SIZE)
 
@@ -279,49 +260,31 @@ def init_db():
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            join_date TEXT,
-            is_banned INTEGER DEFAULT 0,
-            balance REAL DEFAULT 0.0,
-            referrer_id INTEGER DEFAULT NULL,
-            total_referrals INTEGER DEFAULT 0
+            user_id INTEGER PRIMARY KEY, join_date TEXT, is_banned INTEGER DEFAULT 0,
+            balance REAL DEFAULT 0.0, referrer_id INTEGER DEFAULT NULL, total_referrals INTEGER DEFAULT 0
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
-            id INTEGER PRIMARY KEY,
-            otp_reward REAL DEFAULT 0.10,
-            ref_reward REAL DEFAULT 0.05,
-            min_withdraw REAL DEFAULT 50.0
+            id INTEGER PRIMARY KEY, otp_reward REAL DEFAULT 0.10, ref_reward REAL DEFAULT 0.05, min_withdraw REAL DEFAULT 50.0
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            amount REAL,
-            method TEXT,
-            account TEXT,
-            status TEXT DEFAULT 'pending',
-            date TEXT DEFAULT CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL,
+            method TEXT, account TEXT, status TEXT DEFAULT 'pending', date TEXT DEFAULT CURRENT_TIMESTAMP
         )''')
         
         c.execute("SELECT otp_reward, ref_reward, min_withdraw FROM settings WHERE id=1")
         settings_row = c.fetchone()
         if not settings_row:
             c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw) VALUES (1, 0.10, 0.05, 50.0)")
-            SETTINGS_CACHE["otp_reward"] = 0.10
-            SETTINGS_CACHE["ref_reward"] = 0.05
-            SETTINGS_CACHE["min_withdraw"] = 50.0
         else:
             SETTINGS_CACHE["otp_reward"] = settings_row[0]
             SETTINGS_CACHE["ref_reward"] = settings_row[1]
             SETTINGS_CACHE["min_withdraw"] = float(settings_row[2]) if len(settings_row)>2 and settings_row[2] else 50.0
             
         conn.commit()
-        
         c.execute("SELECT user_id, is_banned FROM users")
-        rows = c.fetchall()
-        for row in rows:
+        for row in c.fetchall():
             USER_CACHE.add(row[0])
-            if row[1] == 1:
-                BANNED_CACHE.add(row[0])
+            if row[1] == 1: BANNED_CACHE.add(row[0])
 
 def sync_register_user_db(user_id, referrer_id=None):
     with db_pool.get_connection() as conn:
@@ -329,8 +292,7 @@ def sync_register_user_db(user_id, referrer_id=None):
         c.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
         if not c.fetchone():
             c.execute("INSERT INTO users (user_id, join_date, referrer_id) VALUES (?, CURRENT_TIMESTAMP, ?)", (user_id, referrer_id))
-            if referrer_id:
-                c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
+            if referrer_id: c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
         conn.commit()
 
 async def ensure_user_fast(user_id, referrer_id=None):
@@ -340,14 +302,9 @@ async def ensure_user_fast(user_id, referrer_id=None):
         loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
-def is_user_banned_fast(user_id):
-    return user_id in BANNED_CACHE
-
-def get_all_users():
-    return list(USER_CACHE)
-
-def get_total_users_count():
-    return len(USER_CACHE)
+def is_user_banned_fast(user_id): return user_id in BANNED_CACHE
+def get_all_users(): return list(USER_CACHE)
+def get_total_users_count(): return len(USER_CACHE)
 
 def sync_set_ban_status_db(user_id, status):
     with db_pool.get_connection() as conn:
@@ -356,10 +313,8 @@ def sync_set_ban_status_db(user_id, status):
         conn.commit()
 
 async def set_ban_status(user_id, status):
-    if status == 1:
-        BANNED_CACHE.add(user_id)
-    else:
-        BANNED_CACHE.discard(user_id)
+    if status == 1: BANNED_CACHE.add(user_id)
+    else: BANNED_CACHE.discard(user_id)
     loop = asyncio.get_event_loop()
     loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
@@ -368,8 +323,7 @@ def sync_get_user_info(user_id):
         c = conn.cursor()
         c.execute("SELECT balance, total_referrals, referrer_id FROM users WHERE user_id=?", (user_id,))
         row = c.fetchone()
-        if row: return {"balance": row[0], "total_referrals": row[1], "referrer_id": row[2]}
-        return {"balance": 0.0, "total_referrals": 0, "referrer_id": None}
+        return {"balance": row[0], "total_referrals": row[1], "referrer_id": row[2]} if row else {"balance": 0.0, "total_referrals": 0, "referrer_id": None}
 
 def sync_add_balance(user_id, amount):
     with db_pool.get_connection() as conn:
@@ -415,13 +369,9 @@ def sync_update_withdraw_status(wd_id, status):
         c.execute("SELECT user_id, amount, status FROM withdrawals WHERE id=?", (wd_id,))
         row = c.fetchone()
         if not row or row[2] != 'pending': return False, None, None
-        
         user_id, amount = row[0], row[1]
         c.execute("UPDATE withdrawals SET status=? WHERE id=?", (status, wd_id))
-        
-        if status == 'rejected':
-            c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
-            
+        if status == 'rejected': c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
         conn.commit()
         return True, user_id, amount
 
@@ -439,13 +389,10 @@ async def get_session():
 async def parse_response_safely(response):
     try: return await response.json(content_type=None)
     except Exception:
-        try:
-            text = await response.text()
-            return json.loads(text)
-        except Exception:
-            return None
+        try: return json.loads(await response.text())
+        except Exception: return None
 
-# --- SERVER 1: STEX (Standard Request) ---
+# --- SERVER 1: STEX ---
 async def auth_s1(force=False):
     global S1_TOKEN, LAST_AUTH_S1
     async with AUTH_LOCK_S1:
@@ -453,8 +400,7 @@ async def auth_s1(force=False):
         payload = {"email": S1_EMAIL, "password": S1_PASSWORD}
         headers = {
             "User-Agent": BASE_USER_AGENT, "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json", "Origin": "https://stexsms.com",
-            "Referer": "https://stexsms.com/"
+            "Content-Type": "application/json", "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"
         }
         try:
             session = await get_session()
@@ -464,7 +410,6 @@ async def auth_s1(force=False):
                     if data and str(data.get('meta', {}).get('code')) == '200':
                         S1_TOKEN = data['data']['token']
                         LAST_AUTH_S1 = time.time()
-                        logger.info("✅ Server 1 (Stex) auth successful")
                         return True
                 return False
         except Exception: return False
@@ -478,34 +423,27 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
                     await asyncio.sleep(1)
                     continue
             session = await get_session()
-            headers = {
-                "User-Agent": BASE_USER_AGENT, "Accept": "application/json",
-                "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}"
-            }
+            headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}"}
             timeout = aiohttp.ClientTimeout(total=12)
+            
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
             status = response.status
-            if status in [401, 403]: 
-                S1_TOKEN = None
-                await asyncio.sleep(0.5)
-                continue
-            if status in [500, 501, 502, 503]:
-                await asyncio.sleep(1)
-                continue
+            if status in [401, 403]: S1_TOKEN = None; await asyncio.sleep(0.5); continue
+            if status in [500, 501, 502, 503]: await asyncio.sleep(1); continue
+            
             if status == 200:
                 text_response = await response.text()
                 if return_text: return 200, text_response
                 try: data = json.loads(text_response)
                 except: data = None
                 return 200, data
-            else: return status, None
+            return status, None
         except Exception: pass
     return 500, None
 
-
-# --- SERVER 2: ZAYAN SMS (curl_cffi CF Bypass) ---
+# --- SERVER 2: ZAYAN SMS (CF Bypass) ---
 async def get_s2_session():
     global S2_SESSION
     if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome120")
@@ -527,10 +465,9 @@ async def auth_s2(force=False):
                 if data and str(data.get('meta', {}).get('code')) == '200':
                     S2_TOKEN = data['data']['token']
                     LAST_AUTH_S2 = time.time()
-                    logger.info("✅ Server 2 (Zayan) CF Bypass Auth successful")
                     return True
             return False
-        except Exception as e: return False
+        except Exception: return False
 
 async def s2_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S2_TOKEN
@@ -548,27 +485,20 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
 
             status = response.status_code
-            if status in [401, 403, 429, 500, 502, 503]:
-                S2_TOKEN = None
-                await asyncio.sleep(2)
-                await auth_s2(force=True)
-                continue
+            if status in [401, 403, 429, 500, 502, 503]: S2_TOKEN = None; await asyncio.sleep(2); await auth_s2(force=True); continue
             if status == 200:
                 if return_text: return 200, response.text
                 try: data = response.json()
                 except Exception: data = None
-                if isinstance(data, dict):
-                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
-                        S2_TOKEN = None
-                        await auth_s2(force=True)
-                        continue
+                if isinstance(data, dict) and str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
+                    S2_TOKEN = None; await auth_s2(force=True); continue
                 return 200, data
-            else: return status, None
+            return status, None
         except Exception: await asyncio.sleep(2)
     return 500, None
 
 
-# --- SERVER 3: MNIT NETWORK (curl_cffi CF Bypass) ---
+# --- SERVER 3: MNIT NETWORK (CF Bypass) ---
 async def get_s3_session():
     global S3_SESSION
     if S3_SESSION is None: S3_SESSION = CurlAsyncSession(impersonate="chrome120")
@@ -590,10 +520,9 @@ async def auth_s3(force=False):
                 if data and str(data.get('meta', {}).get('code')) == '200':
                     S3_TOKEN = data['data']['token']
                     LAST_AUTH_S3 = time.time()
-                    logger.info("✅ Server 3 (MNIT) CF Bypass Auth successful")
                     return True
             return False
-        except Exception as e: return False
+        except Exception: return False
 
 async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S3_TOKEN
@@ -611,22 +540,15 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
 
             status = response.status_code
-            if status in [401, 403, 429, 500, 502, 503]:
-                S3_TOKEN = None
-                await asyncio.sleep(2)
-                await auth_s3(force=True)
-                continue
+            if status in [401, 403, 429, 500, 502, 503]: S3_TOKEN = None; await asyncio.sleep(2); await auth_s3(force=True); continue
             if status == 200:
                 if return_text: return 200, response.text
                 try: data = response.json()
                 except Exception: data = None
-                if isinstance(data, dict):
-                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
-                        S3_TOKEN = None
-                        await auth_s3(force=True)
-                        continue
+                if isinstance(data, dict) and str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
+                    S3_TOKEN = None; await auth_s3(force=True); continue
                 return 200, data
-            else: return status, None
+            return status, None
         except Exception: await asyncio.sleep(2)
     return 500, None
 
@@ -637,7 +559,6 @@ async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     await auth_s2(force=True)
     await auth_s3(force=True)
 
-
 # ==============================================================================
 # 🔒 MIDDLEWARES & DYNAMIC UI
 # ==============================================================================
@@ -646,10 +567,8 @@ async def check_subscription(user_id, bot):
     for channel in CHANNELS:
         try:
             member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if member.status in ['left', 'kicked']: 
-                return False
-        except Exception: 
-            return False
+            if member.status in ['left', 'kicked']: return False
+        except Exception: return False
     return True
 
 async def send_join_prompt(update, context):
@@ -661,30 +580,20 @@ async def send_join_prompt(update, context):
             keyboard.append(row)
             row = []
     if row: keyboard.append(row)
-        
     keyboard.append([InlineKeyboardButton("✅ Joined / Verify", callback_data="check_join")])
     
-    msg = (
-        "⛔ <b>Access Denied!</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "<i>You must be a member of our official channels to use this bot.</i>\n\n"
-        "👇 <b>Please join below:</b>"
-    )
-    if update.callback_query: 
-        await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    else: 
-        await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    msg = "⛔ <b>Access Denied!</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>You must be a member of our official channels to use this bot.</i>\n\n👇 <b>Please join below:</b>"
+    if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    else: await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if is_user_banned_fast(user_id):
+    if is_user_banned_fast(update.effective_user.id):
         if update.callback_query: await update.callback_query.answer("🚫 You are banned.", show_alert=True)
         else: await update.message.reply_text("🚫 <b>You have been banned.</b>", parse_mode=ParseMode.HTML)
         return True
     return False
 
 async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=None):
-    """Wait and delete a message. Optionally delete the user's triggering message too."""
     await asyncio.sleep(delay_seconds)
     try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
     except Exception: pass
@@ -692,15 +601,18 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=
         try: await bot.delete_message(chat_id=chat_id, message_id=user_msg_id)
         except Exception: pass
 
+# ==============================================================================
+# 🌟 ADVANCED UI UPDATE FUNCTION
+# ==============================================================================
+
 async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
     """
-    Beautifully updates the message to show the remaining waiting numbers.
-    If all numbers are received, it deletes the message and asks if they want another.
+    Beautifully updates the message to show ✅ next to received numbers.
+    If all numbers are received, asks if they want another!
     """
     if batch_key not in BATCH_MSGS: return
     batch = BATCH_MSGS[batch_key]
     
-    # 🌟 NEW LOGIC: When ALL numbers get OTPs
     if len(batch['received_for']) == len(batch['numbers']):
         try: await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
         except Exception: pass
@@ -714,43 +626,41 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
             [InlineKeyboardButton("🔄 Get Number Again", callback_data="change_num")],
             [InlineKeyboardButton("🔙 Main Menu", callback_data="go_main")]
         ]
-        try: 
-            await context.bot.send_message(chat_id=chat_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        try: await context.bot.send_message(chat_id=chat_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         except Exception: pass
-        
         BATCH_MSGS.pop(batch_key, None)
     
-    # 🌟 IF numbers are still waiting, keep showing them neatly
     else:
-        num_str = ""
-        symbols = ["❶", "❷"] 
-        for i, n in enumerate(batch['numbers']):
-            short_name = get_short_code(batch['country_name'])
-            if n in batch['received_for']:
-                num_str += f"{symbols[i % len(symbols)]} [{short_name}] <del>{n}</del> ✅\n"
-            else:
-                num_str += f"{symbols[i % len(symbols)]} [{short_name}] <code>{n}</code> ⏳\n"
-            
+        # EXACT SCREENSHOT UI MATCH
         txt = (
-            f"✅ <b>NUMBERS GENERATED</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🌍 <b>{batch['flag']} {batch['country_name']}</b>\n\n"
-            f"{num_str}\n"
-            f"⏳ <i>Waiting for SMS...</i>"
+            f"{batch['flag']} <b>{batch['country_name']} [{get_short_code(batch['country_name'])}] Numbers Assigned</b> ✅\n\n"
+            f"Number Generated <i>\n"
+            f"𒊹︎︎︎ <i> waiting For Otps 💥</i>"
         )
-        kb = [
-            [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
-            [InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), InlineKeyboardButton("🔙 Back", callback_data="go_main")]
-        ]
-        try: 
-            await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        
+        num_buttons = []
+        for n in batch['numbers']:
+            if n in batch['received_for']:
+                num_buttons.append(InlineKeyboardButton(f"✅ +{n}", callback_data="ignore"))
+            else:
+                num_buttons.append(InlineKeyboardButton(f"📋 +{n}", callback_data="ignore"))
+        
+        kb = []
+        if len(num_buttons) == 2: kb.append(num_buttons)
+        else: kb.append([num_buttons[0]])
+        
+        # 3rd Change Number, 4th OTP Group side by side, 5th Back
+        kb.append([InlineKeyboardButton("🔄 CHANGE NUMBER", callback_data="change_num"), InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")])
+        kb.append([InlineKeyboardButton("🔙 BACK TO MAIN MENU", callback_data="go_main")])
+        
+        try: await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         except Exception: pass
 
 # ==============================================================================
-# 🤖 AUTO RANGE FORWARDER JOB (Triple Server Parallel Processing)
+# 🤖 AUTO RANGE FORWARDER JOB
 # ==============================================================================
 
-async def process_console_logs(context, logs, server_name, bot_username):
+async def process_console_logs(context, logs, server_name, server_id, bot_username):
     global SENT_RANGES
     allowed_apps = ['facebook', 'whatsapp']
     
@@ -766,8 +676,6 @@ async def process_console_logs(context, logs, server_name, bot_username):
             if any(app in raw_app for app in allowed_apps) and r_val:
                 full_msg_text = clean_message_text(raw_msg)
                 code_sig = extract_code(raw_msg)
-                
-                # Multi-OTP Fix for Range Group
                 range_sig = f"{r_val}_{code_sig}_{str(raw_msg)[:20]}"
                 
                 if range_sig not in SENT_RANGES:
@@ -775,10 +683,8 @@ async def process_console_logs(context, logs, server_name, bot_username):
                     if len(SENT_RANGES) > 10000: SENT_RANGES.clear()
                     
                     display_app = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else raw_app.title()
-                    
                     num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
-                    if num_in_msg:
-                        full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
+                    if num_in_msg: full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
                     
                     range_msg = (
                         f"🔥 <b>New Range find</b>\n"
@@ -789,7 +695,12 @@ async def process_console_logs(context, logs, server_name, bot_username):
                         f"🌍 Country - {get_flag(c_name)} {c_name}\n"
                         f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
                     )
-                    kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
+                    
+                    # Deep Linking for Range Group
+                    kb = [
+                        [InlineKeyboardButton("🤖 Main Channel", url="https://t.me/EarnXtract"), 
+                         InlineKeyboardButton("📱 Get Number", url=f"https://t.me/{bot_username}?start=range_{server_id}_{r_val}")]
+                    ]
                     try: await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
                     except Exception: pass
 
@@ -804,16 +715,15 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
         logs = results[0][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 1 ✨", bot_username)
+        await process_console_logs(context, logs, "Server 1 ✨", 1, bot_username)
 
     if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
         logs = results[1][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 2 🚀", bot_username)
+        await process_console_logs(context, logs, "Server 2 🚀", 2, bot_username)
 
     if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
         logs = results[2][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 3 🔥", bot_username)
-
+        await process_console_logs(context, logs, "Server 3 🔥", 3, bot_username)
 
 # ==============================================================================
 # 🚀 ULTRA-FAST OTP POLLER WITH MULTI-OTP SUPPORT
@@ -830,6 +740,10 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     full_num = user_data['full_num']
     batch_key = user_data['batch_key']
     range_val = user_data.get('range', 'Unknown')
+    server_id = user_data.get('server_id', 1)
+    
+    # Use exact category user selected
+    custom_service_name = user_data.get('service_name', svc_name)
     
     loop = asyncio.get_event_loop()
     otp_reward = SETTINGS_CACHE["otp_reward"]
@@ -841,44 +755,47 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     referrer_id = user_info.get("referrer_id")
     if referrer_id:
         await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, referrer_id, ref_reward)
-        try:
-            ref_msg = f"🎁 <b>Referral Bonus!</b>\nYour referral received an OTP. You got <b>+{ref_reward:.2f} Tk</b>!"
-            asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=ref_msg, parse_mode=ParseMode.HTML))
+        try: asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=f"🎁 <b>Referral Bonus!</b>\nYour referral received an OTP. You got <b>+{ref_reward:.2f} Tk</b>!", parse_mode=ParseMode.HTML))
         except Exception: pass
 
-    # UI updates: Mark the number as received and update dynamic UI
+    # UI updates: Mark the number as received
     if not is_multi and batch_key in BATCH_MSGS:
         BATCH_MSGS[batch_key]['received_for'].add(full_num)
         asyncio.create_task(update_dynamic_batch_message(context, chat_id, msg_id, batch_key))
 
-    header_text = "🔄 <b>MULTI OTP RECEIVED!</b>" if is_multi else "🎉 <b>OTP RECEIVED SUCCESSFULLY!</b>"
-    
+    # User Received Message (Screenshot style)
     user_msg = (
-        f"{header_text} ✨\n"
+        f"🎉 <b>Otp rcv successfully</b> ✨\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 <b>Service :</b> <i>{html.escape(str(svc_name).upper())}</i>\n"
-        f"📞 <b>Number  :</b> <code>{full_num}</code>\n"
-        f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
+        f"🛒 <b>Service:</b> {html.escape(str(custom_service_name).title())}\n"
+        f"📱 <b>Number:</b> <code>{full_num}</code>\n"
         f"💰 <b>Balance Added:</b> +{otp_reward:.2f} Tk\n"
         f"💳 <b>Total Balance:</b> {new_balance:.2f} Tk\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
+    user_kb = [[InlineKeyboardButton(f"📋 {code_only}", callback_data="ignore")]]
     
-    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
+    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
     
     clean_raw_msg = clean_message_text(raw_msg) 
     masked_num = mask_number(full_num)
     
+    # OTP Group Message (Screenshot style)
     group_msg = (
         f"🔔 <b>Otp Received</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🎯 Range - <code>{range_val}</code>\n"
+        f"🛒 Service - <pre>{html.escape(str(custom_service_name).title())}</pre>\n"
         f"📱 Number - <code>{masked_num}</code>\n"
-        f"🛒 Service - <pre>{html.escape(str(svc_name))}</pre>\n"
-        f"🔑 Code - <code>{code_only}</code>\n"
+        f"🖥️ Server - Server {server_id}\n"
+        f"🎯 Range - <code>{range_val}</code>\n"
         f"✉️ Full sms - <pre>{html.escape(str(clean_raw_msg))}</pre>"
     )
-    group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
+    
+    bot_username = context.bot.username
+    group_kb = [
+        [InlineKeyboardButton(f"🟩 {code_only}", callback_data="ignore")],
+        [InlineKeyboardButton("↗️ Main Channel", url="https://t.me/EarnXtract"), InlineKeyboardButton("📱 Get Number", url=f"https://t.me/{bot_username}?start=range_{server_id}_{range_val}")]
+    ]
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
 
 async def check_inbox(context, server_res, last_text, text_var_name):
@@ -949,13 +866,13 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ==============================================================================
-# 🎯 EXACTLY 2-NUMBER GENERATION SYSTEM (Triple Server Support)
+# 🎯 EXTREMELY FAST PARALLEL NUMBER GENERATION
 # ==============================================================================
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     
-    wait_txt = "⏳ <i>Connecting to secure server... Generating 2 Numbers...</i> 🚀"
+    wait_txt = "⏳ <i>Connecting to secure server... Generating Numbers...</i> 🚀"
     if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
@@ -971,53 +888,62 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     fetched_numbers = []
     country_name = context.user_data.get('country_name', 'Unknown')
     
+    # 🔥 PARALLEL NUMBER FETCHING (Speed x2)
+    payload = {"range": range_val, "is_national": False, "remove_plus": True}
+    tasks = []
+    
     for _ in range(2):
-        await asyncio.sleep(0.3) 
-        payload = {"range": range_val, "is_national": False, "remove_plus": True}
-        
         if server_id == 1:
             payload["remove_plus"] = False
-            status, resp = await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+            tasks.append(s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload))
         elif server_id == 2:
-            status, resp = await s2_api_request('POST', f"{S2_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+            tasks.append(s2_api_request('POST', f"{S2_BASE_URL}/mdashboard/getnum/number", json_payload=payload))
         elif server_id == 3:
-            status, resp = await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-            
-        if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
-            fetched_numbers.append(str(resp['data']['number']).replace('+', ''))
-            country_name = resp['data'].get('country', country_name)
+            tasks.append(s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for res in results:
+        if isinstance(res, tuple):
+            status, resp = res
+            if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
+                fetched_numbers.append(str(resp['data']['number']).replace('+', ''))
+                country_name = resp['data'].get('country', country_name)
             
     if fetched_numbers:
         flag = get_flag(country_name)
-        short_name = get_short_code(country_name)
-        symbols = ["❶", "❷"]
-        num_str = ""
-        for i, n in enumerate(fetched_numbers):
-            num_str += f"{symbols[i]} [{short_name}] <code>{n}</code> ⏳\n"
-            
+        
+        # EXACT SCREENSHOT UI MATCH
         txt = (
-            f"✅ <b>NUMBERS GENERATED</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🌍 <b>{flag} {country_name}</b>\n\n"
-            f"{num_str}\n"
-            f"⏳ <i>Waiting for SMS...</i>"
+            f"{flag} <b>{country_name} [{get_short_code(country_name)}] Numbers Assigned</b> ✅\n\n"
+            f"Number Generated <i>\n"
+            f"𒊹︎︎︎ <i> waiting For Otps 💥</i>"
         )
         
-        kb = [
-            [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
-            [InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), InlineKeyboardButton("🔙 Menu", callback_data="go_main")]
-        ]
+        num_buttons = []
+        for n in fetched_numbers:
+            num_buttons.append(InlineKeyboardButton(f"📋 +{n}", callback_data="ignore"))
+        
+        kb = []
+        if len(num_buttons) == 2: kb.append(num_buttons)
+        else: kb.append([num_buttons[0]])
+        
+        # 3rd Change Number, 4th OTP Group side by side, 5th Back
+        kb.append([InlineKeyboardButton("🔄 CHANGE NUMBER", callback_data="change_num"), InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")])
+        kb.append([InlineKeyboardButton("🔙 BACK TO MAIN MENU", callback_data="go_main")])
         
         await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {'numbers': fetched_numbers.copy(), 'country_name': country_name, 'flag': flag, 'received_for': set()}
         
+        custom_svc = context.user_data.get('service_name', 'Unknown')
         for n in fetched_numbers:
             hash_key = get_hash_key(n)
             WAITING_OTPS[hash_key] = {
                 'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
-                'batch_key': batch_key, 'time': time.time(), 'received_codes': set(), 'range': range_val
+                'batch_key': batch_key, 'time': time.time(), 'received_codes': set(), 
+                'range': range_val, 'server_id': server_id, 'service_name': custom_svc
             }
             NUM_TO_HASH[clean_number(n)] = hash_key
             
@@ -1046,6 +972,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: pass
         if referrer_id == user_id: referrer_id = None
         
+    # DEEP LINK HANDLER FOR GET NUMBER AUTO
+    if context.args and context.args[0].startswith("range_"):
+        parts = context.args[0].split("_")
+        if len(parts) == 3:
+            srv_id = int(parts[1])
+            rng_val = parts[2]
+            context.user_data['service_name'] = "Custom Search"
+            await process_number_generation(update, context, rng_val, srv_id, is_callback=False)
+            return
+
     await ensure_user_fast(user_id, referrer_id)
     context.user_data.clear()
     
@@ -1108,6 +1044,9 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     category = query.data.split('_')[1].lower()
     server_id = context.user_data.get('server', 1)
+    
+    # Save Selected Category so API name is overridden later
+    context.user_data['service_name'] = category.title()
     
     if category == 'custom':
         await query.edit_message_text(text="🎯 <b>CUSTOM RANGE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n✏️ <i>Type your custom range below.</i>\n💡 <b>Ex:</b> <code>88017XXX</code>", parse_mode=ParseMode.HTML)
@@ -1437,7 +1376,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    if data == "check_join":
+    if data == "ignore": 
+        return await query.answer()
+    
+    elif data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
             except: pass
@@ -1542,7 +1484,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V40 Enterprise Edition (TRIPLE Server + Auto Withdraw) — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V45 Enterprise Edition (TRIPLE Server) — Running perfectly!")
 
 async def start_dummy_server():
     try:
@@ -1579,5 +1521,5 @@ if __name__ == "__main__":
     # Session refresh
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     
-    logger.info("✨ VERSION 40.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
+    logger.info("✨ VERSION 45.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(drop_pending_updates=True)
