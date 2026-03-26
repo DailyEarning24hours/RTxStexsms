@@ -65,32 +65,35 @@ S1_EMAIL = "mdrajaislam469@gmail.com"
 S1_PASSWORD = "Raja1234@#"
 S1_BASE_URL = "https://stexsms.com/mapi/v1"
 
-# 🚀 SERVER 2 CREDENTIALS (ZAYAN SMS - CLOUDFLARE PROTECTED)
-S2_EMAIL = "mdrajaislam469@gmail.com"
-S2_PASSWORD = "Raja1234@#"
-S2_BASE_URL = "https://zayansms.com/mapi/v1"
+# 🚀 SERVER 2 CREDENTIALS (ACCHUB.IO - JWT Bearer Auth)
+S2_EMAIL = "rtxraja01@gmail.com"
+S2_PASSWORD = "Raja1234"
+S2_BASE_URL = "https://sms.acchub.io"
 
 # 🔥 SERVER 3 CREDENTIALS (MNIT NETWORK - CLOUDFLARE PROTECTED)
 S3_EMAIL = "rtxraja0011@gmail.com"
 S3_PASSWORD = "Raja1234@#"
 S3_BASE_URL = "https://x.mnitnetwork.com/mapi/v1"
 
-# 🔥 CLOUDFLARE BYPASS HEADERS — matches the exact browser fingerprint
-def get_cf_headers(origin_domain):
+# 🔥 CLOUDFLARE BYPASS HEADERS — matches the exact browser fingerprint (for S3/acchub)
+def get_cf_headers(origin_domain, referer_domain=None):
+    ref = referer_domain or origin_domain
     return {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.159 Mobile Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.164 Mobile Safari/537.36",
+        "Accept": "*/*",
         "Content-Type": "application/json",
         "Origin": f"https://{origin_domain}",
-        "sec-ch-ua": '"Not:A-Brand";v="99", "Android WebView";v="145", "Chromium";v="145"',
+        "Referer": f"https://{ref}/",
+        "sec-ch-ua": '"Chromium";v="146", "Not-A.Brand";v="24", "Android WebView";v="146"',
         "sec-ch-ua-mobile": "?1",
         "sec-ch-ua-platform": '"Android"',
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "same-site",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
         "x-requested-with": "mark.via.gp",
-        "accept-encoding": "gzip, deflate, br",
-        "accept-language": "en-US,en-VI;q=0.9,en;q=0.8,bn-BD;q=0.7,bn;q=0.6",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en-US,en-VI;q=0.9,en;q=0.8,bn-BD;q=0.7,bn;q=0.6,en-CA;q=0.5",
+        "priority": "u=1, i",
     }
 
 API_2FA = "https://2fa.cn/codes/{}"
@@ -100,7 +103,7 @@ API_2FA = "https://2fa.cn/codes/{}"
 # ==============================================================================
 
 S1_TOKEN = None
-S2_TOKEN = None
+S2_TOKEN = None  # acchub JWT Bearer token
 S3_TOKEN = None
 
 GLOBAL_SESSION = None 
@@ -118,6 +121,9 @@ LAST_AUTH_S3 = 0
 LAST_INBOX_S1 = ""
 LAST_INBOX_S2 = ""
 LAST_INBOX_S3 = ""
+
+# acchub.io OTP history tracking (last seen ID to detect new ones)
+LAST_ACCHUB_OTP_ID = 0
 
 SENT_RANGES = set()
 START_TIME = datetime.datetime.now()
@@ -505,7 +511,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
     return 500, None
 
 
-# --- SERVER 2: ZAYAN SMS (curl_cffi CF Bypass) ---
+# --- SERVER 2: ACCHUB.IO (curl_cffi CF Bypass - JWT Bearer Auth) ---
 async def get_s2_session():
     global S2_SESSION
     if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome120")
@@ -514,23 +520,32 @@ async def get_s2_session():
 async def auth_s2(force=False):
     global S2_TOKEN, LAST_AUTH_S2
     async with AUTH_LOCK_S2:
-        if not force and time.time() - LAST_AUTH_S2 < 300 and S2_TOKEN: return True
+        if not force and time.time() - LAST_AUTH_S2 < 3600 and S2_TOKEN: return True
         payload = {"email": S2_EMAIL, "password": S2_PASSWORD}
-        headers = get_cf_headers("zayansms.com")
-        headers["Referer"] = "https://zayansms.com/mauth/login"
+        headers = get_cf_headers("acchub.io", "acchub.io")
+        headers["host"] = "sms.acchub.io"
         try:
             session = await get_s2_session()
-            response = await session.post(f"{S2_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=20)
-            if response.status_code == 200:
+            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=20)
+            if response.status_code in [200, 201]:
                 try: data = response.json()
                 except Exception: data = None
-                if data and str(data.get('meta', {}).get('code')) == '200':
-                    S2_TOKEN = data['data']['token']
+                if data and data.get('access_token'):
+                    S2_TOKEN = data['access_token']
                     LAST_AUTH_S2 = time.time()
-                    logger.info("✅ Server 2 (Zayan) CF Bypass Auth successful")
+                    logger.info("✅ Server 2 (Acchub) JWT Auth successful")
                     return True
+            logger.warning(f"⚠️ Acchub auth failed: {response.status_code}")
             return False
-        except Exception as e: return False
+        except Exception as e:
+            logger.warning(f"⚠️ Acchub auth error: {e}")
+            return False
+
+def get_acchub_headers():
+    headers = get_cf_headers("acchub.io", "acchub.io")
+    headers["host"] = "sms.acchub.io"
+    headers["authorization"] = f"Bearer {S2_TOKEN}"
+    return headers
 
 async def s2_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S2_TOKEN
@@ -538,33 +553,34 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
         try:
             if not S2_TOKEN:
                 if not await auth_s2():
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1)
                     continue
             session = await get_s2_session()
-            headers = get_cf_headers("zayansms.com")
-            headers.update({"mauthtoken": str(S2_TOKEN), "Cookie": f"mauthtoken={S2_TOKEN}", "Referer": "https://zayansms.com/mdashboard"})
+            headers = get_acchub_headers()
             
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
+            if method.upper() == 'GET':
+                response = await session.get(url, headers=headers, timeout=15)
+            else:
+                response = await session.post(url, json=json_payload, headers=headers, timeout=15)
 
             status = response.status_code
-            if status in [401, 403, 429, 500, 502, 503]:
+            if status in [401, 403]:
                 S2_TOKEN = None
-                await asyncio.sleep(2)
                 await auth_s2(force=True)
                 continue
-            if status == 200:
+            if status in [429, 500, 502, 503]:
+                await asyncio.sleep(1)
+                continue
+            if status in [200, 201]:
                 if return_text: return 200, response.text
                 try: data = response.json()
                 except Exception: data = None
-                if isinstance(data, dict):
-                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
-                        S2_TOKEN = None
-                        await auth_s2(force=True)
-                        continue
                 return 200, data
-            else: return status, None
-        except Exception: await asyncio.sleep(2)
+            else:
+                return status, None
+        except Exception as e:
+            logger.warning(f"S2 request error: {e}")
+            await asyncio.sleep(1)
     return 500, None
 
 
@@ -633,9 +649,7 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("🔄 Refreshing All 3 Server Sessions...")
-    await auth_s1(force=True)
-    await auth_s2(force=True)
-    await auth_s3(force=True)
+    await asyncio.gather(auth_s1(force=True), auth_s2(force=True), auth_s3(force=True), return_exceptions=True)
 
 
 # ==============================================================================
@@ -767,7 +781,7 @@ async def process_console_logs(context, logs, server_name, bot_username):
                 full_msg_text = clean_message_text(raw_msg)
                 code_sig = extract_code(raw_msg)
                 
-                # Multi-OTP Fix for Range Group
+                # Multi-OTP Fix: unique sig includes message content
                 range_sig = f"{r_val}_{code_sig}_{str(raw_msg)[:20]}"
                 
                 if range_sig not in SENT_RANGES:
@@ -781,7 +795,7 @@ async def process_console_logs(context, logs, server_name, bot_username):
                         full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
                     
                     range_msg = (
-                        f"🔥 <b>New Range find</b>\n"
+                        f"🔥 <b>New Range Found</b>\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"🖥️ Server - <b>{server_name}</b>\n"
                         f"🎯 Range - <code>{r_val}</code>\n"
@@ -790,29 +804,79 @@ async def process_console_logs(context, logs, server_name, bot_username):
                         f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
                     )
                     kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                    try: await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-                    except Exception: pass
+                    asyncio.create_task(context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML))
+
+async def process_acchub_console_logs(context, logs, bot_username):
+    """Process acchub.io console logs — different field structure"""
+    global SENT_RANGES
+    allowed_apps = ['facebook', 'whatsapp']
+    
+    for log in logs:
+        if not isinstance(log, dict): continue
+        # acchub fields: phone_number, provider, sms_text, otp_code, country_name, operator_name
+        raw_app = str(log.get('provider', '')).lower()
+        c_name = log.get('country_name', 'Unknown')
+        raw_msg = log.get('sms_text', '')
+        phone = log.get('phone_number', '')
+        
+        if not any(app in raw_app for app in allowed_apps): continue
+        if not raw_msg: continue
+        
+        # Build range from phone_number: take first 6 digits
+        clean_ph = re.sub(r'\D', '', phone)
+        if len(clean_ph) < 6: continue
+        r_val = clean_ph[:6] + "XXX"
+        
+        full_msg_text = clean_message_text(raw_msg)
+        code_sig = extract_code(raw_msg)
+        range_sig = f"acchub_{r_val}_{code_sig}_{str(raw_msg)[:20]}"
+        
+        if range_sig not in SENT_RANGES:
+            SENT_RANGES.add(range_sig)
+            if len(SENT_RANGES) > 10000: SENT_RANGES.clear()
+            
+            num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
+            if num_in_msg:
+                full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
+            
+            range_msg = (
+                f"🔥 <b>New Range Found</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🖥️ Server - <b>Server 2 🚀</b>\n"
+                f"🎯 Range - <code>{r_val}</code>\n"
+                f"🛒 Service - <i>{html.escape(raw_app.title())}</i>\n"
+                f"🌍 Country - {get_flag(c_name)} {c_name}\n"
+                f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
+            )
+            kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
+            asyncio.create_task(context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML))
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     bot_username = context.bot.username
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
-    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
+    # acchub console
+    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20")
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
     
+    tasks = []
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
         logs = results[0][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 1 ✨", bot_username)
+        tasks.append(process_console_logs(context, logs, "Server 1 ✨", bot_username))
 
     if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
-        logs = results[1][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 2 🚀", bot_username)
+        logs = results[1][1].get('data', [])
+        if isinstance(logs, list):
+            tasks.append(process_acchub_console_logs(context, logs[:20], bot_username))
 
     if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
         logs = results[2][1].get('data', {}).get('logs', [])[:20]
-        await process_console_logs(context, logs, "Server 3 🔥", bot_username)
+        tasks.append(process_console_logs(context, logs, "Server 3 🔥", bot_username))
+    
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # ==============================================================================
@@ -905,6 +969,7 @@ async def check_inbox(context, server_res, last_text, text_var_name):
                     svc_name = get_service_from_item(item)
                     code_val = get_code_from_item(item, raw_msg)
                     
+                    # Multi-OTP: unique sig per code+message
                     msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
                     rcv_set = waiter.setdefault('received_codes', set())
                     if msg_sig not in rcv_set:
@@ -912,6 +977,47 @@ async def check_inbox(context, server_res, last_text, text_var_name):
                         is_multi = len(rcv_set) > 1
                         await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg, is_multi)
         except Exception: pass
+
+async def check_acchub_otp_inbox(context):
+    """Poll acchub OTP history and match against WAITING_OTPS"""
+    global LAST_ACCHUB_OTP_ID
+    if not WAITING_OTPS: return
+    
+    status, data = await s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20")
+    if status != 200 or not isinstance(data, dict): return
+    
+    items = data.get('data', [])
+    if not isinstance(items, list): return
+    
+    for item in items:
+        if not isinstance(item, dict): continue
+        item_id = item.get('id', 0)
+        if item_id <= LAST_ACCHUB_OTP_ID: continue  # already processed
+        
+        phone = item.get('phone_number', '')
+        otp_code = str(item.get('otp_code', ''))
+        sms_text = item.get('sms_text', '')
+        provider = item.get('provider', 'Service')
+        
+        if not phone or not otp_code or otp_code in ['xxxxxxxx', 'xxxx']: continue
+        
+        # Decode HTML entities in sms_text
+        clean_sms = html.unescape(sms_text)
+        
+        hash_key, waiter = _find_waiter(phone)
+        if hash_key:
+            msg_sig = f"{otp_code}_{clean_sms[:15]}"
+            rcv_set = waiter.setdefault('received_codes', set())
+            if msg_sig not in rcv_set:
+                rcv_set.add(msg_sig)
+                is_multi = len(rcv_set) > 1
+                await process_found_otp(context, hash_key, waiter['full_num'], otp_code, provider, clean_sms, is_multi)
+    
+    # Update last seen ID
+    if items:
+        max_id = max((item.get('id', 0) for item in items if isinstance(item, dict)), default=0)
+        if max_id > LAST_ACCHUB_OTP_ID:
+            LAST_ACCHUB_OTP_ID = max_id
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
@@ -937,15 +1043,15 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
         
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
+    # Poll all 3 servers in parallel
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
-    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    acchub_task = check_acchub_otp_inbox(context)
     
-    results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
+    results = await asyncio.gather(s1_task, s3_task, acchub_task, return_exceptions=True)
 
     await check_inbox(context, results[0], LAST_INBOX_S1, "s1")
-    await check_inbox(context, results[1], LAST_INBOX_S2, "s2")
-    await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
+    await check_inbox(context, results[1], LAST_INBOX_S3, "s3")
 
 
 # ==============================================================================
@@ -971,21 +1077,75 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     fetched_numbers = []
     country_name = context.user_data.get('country_name', 'Unknown')
     
-    for _ in range(2):
-        await asyncio.sleep(0.3) 
+    # acchub specific params stored during category selection
+    acchub_country_id = context.user_data.get('acchub_country_id')
+    acchub_operator_id = context.user_data.get('acchub_operator_id')
+    
+    async def fetch_single_s1():
+        payload = {"range": range_val, "is_national": False, "remove_plus": False}
+        return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+    
+    async def fetch_single_s2():
+        # acchub: needs country_id and operator_id
+        if not acchub_country_id or not acchub_operator_id:
+            return 500, None
+        payload = {"country_id": acchub_country_id, "mode": "single", "operator_id": acchub_operator_id, "number_format": "full"}
+        return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
+    
+    async def fetch_single_s3():
         payload = {"range": range_val, "is_national": False, "remove_plus": True}
-        
-        if server_id == 1:
-            payload["remove_plus"] = False
-            status, resp = await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-        elif server_id == 2:
-            status, resp = await s2_api_request('POST', f"{S2_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-        elif server_id == 3:
-            status, resp = await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-            
-        if status == 200 and isinstance(resp, dict) and 'data' in resp and resp['data'].get('number'):
-            fetched_numbers.append(str(resp['data']['number']).replace('+', ''))
-            country_name = resp['data'].get('country', country_name)
+        return await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+    
+    def parse_number_resp(res, srv):
+        """Extract number and country from a server response"""
+        if not isinstance(res, tuple) or res[0] not in [200, 201]: return None, None
+        resp = res[1]
+        if not isinstance(resp, dict): return None, None
+        if srv == 2:
+            # acchub response: {"status":"success","data":{"phone_number":"...","operator_id":...,"operator_name":"..."}}
+            d = resp.get('data', {})
+            num = str(d.get('phone_number', '')).replace('+', '')
+            # country_name already known from user_data
+            return num or None, None
+        else:
+            d = resp.get('data', {})
+            num = str(d.get('number', '')).replace('+', '')
+            cname = d.get('country', None)
+            return num or None, cname
+    
+    if server_id == 1:
+        # Server 1: parallel — no CF issue
+        r1, r2 = await asyncio.gather(fetch_single_s1(), fetch_single_s1(), return_exceptions=True)
+        for res in [r1, r2]:
+            if isinstance(res, Exception): continue
+            num, cname = parse_number_resp(res, 1)
+            if num and num not in fetched_numbers:
+                fetched_numbers.append(num)
+                if cname: country_name = cname
+    
+    elif server_id == 2:
+        # acchub: sequential 0.3s to avoid CF rate limit
+        r1 = await fetch_single_s2()
+        num, _ = parse_number_resp(r1, 2)
+        if num: fetched_numbers.append(num)
+        await asyncio.sleep(0.3)
+        r2 = await fetch_single_s2()
+        num, _ = parse_number_resp(r2, 2)
+        if num and num not in fetched_numbers: fetched_numbers.append(num)
+    
+    elif server_id == 3:
+        # Server 3 (MNIT): sequential 0.3s CF safe
+        r1 = await fetch_single_s3()
+        num, cname = parse_number_resp(r1, 3)
+        if num:
+            fetched_numbers.append(num)
+            if cname: country_name = cname
+        await asyncio.sleep(0.3)
+        r2 = await fetch_single_s3()
+        num, cname = parse_number_resp(r2, 3)
+        if num and num not in fetched_numbers:
+            fetched_numbers.append(num)
+            if cname: country_name = cname
             
     if fetched_numbers:
         flag = get_flag(country_name)
@@ -1114,32 +1274,54 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data['state'] = 'WAITING_FOR_RANGE'
         return
     
-    await query.edit_message_text(text="📡 <i>Connecting to Server... Calculating Success Rates!</i> ⏳", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text="⚡ <i>Loading ranges instantly...</i>", parse_mode=ParseMode.HTML)
     
-    country_stats = {}
+    country_stats = {}  # {display_name: {'range': ..., 'count': ..., 'country_id': ..., 'operator_id': ...}}
     status, data = 500, None
 
     if server_id == 1:
-        await auth_s1(force=True)
         status, data = await s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
-    elif server_id == 2:
-        await auth_s2(force=True)
-        status, data = await s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
-    elif server_id == 3:
-        await auth_s3(force=True)
-        status, data = await s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+        if status == 200 and isinstance(data, dict):
+            for log in data.get('data', {}).get('logs', []):
+                if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
+                    c, r = log.get('country'), log.get('range')
+                    if c and r:
+                        if c not in country_stats: country_stats[c] = {'range': r, 'count': 0}
+                        country_stats[c]['count'] += 1
 
-    if status == 200 and isinstance(data, dict):
-        for log in data.get('data', {}).get('logs', []):
-            if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
-                c, r = log.get('country'), log.get('range')
-                if c and r:
-                    if c not in country_stats: country_stats[c] = {'range': r, 'count': 0}
-                    country_stats[c]['count'] += 1
+    elif server_id == 2:
+        # acchub: use console/data — group by country_name + operator_id
+        status, data = await s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=50")
+        if status == 200 and isinstance(data, dict):
+            for log in data.get('data', []):
+                if not isinstance(log, dict): continue
+                provider = str(log.get('provider', '')).lower()
+                if category not in provider: continue
+                c_name = log.get('country_name', 'Unknown')
+                c_id = log.get('country_id')
+                op_id = log.get('operator_id')
+                phone = log.get('phone_number', '')
+                clean_ph = re.sub(r'\D', '', phone)
+                r_val = clean_ph[:6] + "XXX" if len(clean_ph) >= 6 else None
+                if c_name and c_id and op_id and r_val:
+                    key = f"{c_name}_{op_id}"
+                    if key not in country_stats:
+                        country_stats[key] = {'range': r_val, 'count': 0, 'display': c_name, 'country_id': c_id, 'operator_id': op_id}
+                    country_stats[key]['count'] += 1
+
+    elif server_id == 3:
+        status, data = await s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+        if status == 200 and isinstance(data, dict):
+            for log in data.get('data', {}).get('logs', []):
+                if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
+                    c, r = log.get('country'), log.get('range')
+                    if c and r:
+                        if c not in country_stats: country_stats[c] = {'range': r, 'count': 0}
+                        country_stats[c]['count'] += 1
 
     if not country_stats:
         await query.edit_message_text(
-            text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found for {category.title()}. Please try again in a moment.</i>", 
+            text=f"📡 <b>No ranges found for {category.title()} right now.</b>\n<i>Try again in a moment.</i>", 
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"srv_{server_id}")]]), parse_mode=ParseMode.HTML
         )
         return
@@ -1147,18 +1329,28 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     max_count = max([v['count'] for v in country_stats.values()]) if country_stats else 1
     
     kb = []
-    for c_name, stats in country_stats.items():
+    for key, stats in country_stats.items():
         raw_pct = (stats['count'] / max_count) * 100
         display_rate = min(99, max(45, int(raw_pct + 40))) 
-        
         indicator = "🟢" if display_rate >= 80 else ("🟡" if display_rate >= 60 else "🔴")
-        btn_text = f"{get_flag(c_name)} {c_name} {display_rate}% {indicator}"
         
-        kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{server_id}_{stats['range']}_{c_name[:15]}")])
+        if server_id == 2:
+            # acchub: store country_id+operator_id in callback, display name
+            c_display = stats.get('display', key)
+            btn_text = f"{get_flag(c_display)} {c_display} {display_rate}% {indicator}"
+            # encode as: r_2_RANGE_CNAME|CID|OID
+            op_id = stats.get('operator_id', '')
+            c_id = stats.get('country_id', '')
+            cb_data = f"r_{server_id}_{stats['range']}_{c_display[:10]}|{c_id}|{op_id}"
+        else:
+            btn_text = f"{get_flag(key)} {key} {display_rate}% {indicator}"
+            cb_data = f"r_{server_id}_{stats['range']}_{key[:15]}"
+        
+        kb.append([InlineKeyboardButton(btn_text, callback_data=cb_data)])
         
     kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data=f"srv_{server_id}")])
     
-    await query.edit_message_text(text=f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text=f"🌍 <b>SELECT COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & ADMIN / WITHDRAW LOGIC
@@ -1455,7 +1647,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parts = data.split("_")
         server_id = int(parts[1])
         range_val = parts[2]
-        if len(parts) > 3: context.user_data['country_name'] = parts[3]
+        if len(parts) > 3:
+            country_part = parts[3]
+            # acchub format: CNAME|country_id|operator_id
+            if '|' in country_part:
+                splits = country_part.split('|')
+                context.user_data['country_name'] = splits[0]
+                try:
+                    context.user_data['acchub_country_id'] = int(splits[1])
+                    context.user_data['acchub_operator_id'] = int(splits[2])
+                except: pass
+            else:
+                context.user_data['country_name'] = country_part
         await process_number_generation(update, context, range_val, server_id, is_callback=True)
         
     elif data == "change_num":
