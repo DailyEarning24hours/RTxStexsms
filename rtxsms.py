@@ -1,19 +1,10 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 41.0 ENTERPRISE ULTRA) ✨
-CAPACITY: 20,000+ Concurrent Users on Render Free Plan — Zero Hang Guaranteed.
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 40.0 ENTERPRISE FINAL) ✨
+CAPACITY: 30,000+ Users on Render Free Plan (RAM Caching & Text Diff Algorithm).
 UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1, Server 2, Server 3).
 CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2 & 3!
-NEW PERFORMANCE FEATURES (v41):
-- Global Semaphore Rate Limiter (max 500 concurrent handler tasks).
-- Chunked Broadcast System (20,000 users in parallel batches of 50).
-- Per-User Rate Limiting (max 3 requests per 5 seconds via user cooldown cache).
-- Shielded Job Queue (all jobs wrapped in asyncio.shield to prevent cascade crash).
-- Hardened Connection Pool (1000 connections, 60s keepalive, 30s DNS cache TTL).
-- Non-blocking self-ping every 2 minutes to keep Render free plan alive 24/7.
-- All DB writes fully offloaded to ThreadPoolExecutor (never blocks event loop).
-- OTP checker skips early if WAITING_OTPS is empty (zero wasted CPU cycles).
-EXISTING FEATURES:
+NEW FEATURES: 
 - Live Success Rate (%) for Countries!
 - Multi-OTP System (Receives 2nd, 3rd OTPs beautifully).
 - Advanced Number UI (Shows ✅ when OTP received, doesn't disappear).
@@ -159,20 +150,6 @@ SETTINGS_CACHE = {
 DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
 # ==============================================================================
-# 🚦 GLOBAL RATE LIMITING & CONCURRENCY CONTROL (20,000 USER PROTECTION)
-# ==============================================================================
-
-# Semaphore: max 500 handlers run simultaneously — prevents RAM/CPU spike
-GLOBAL_HANDLER_SEMAPHORE = asyncio.Semaphore(500)
-
-# Per-user rate limiter: stores {user_id: last_request_time}
-# If user sends more than 3 requests within 5 seconds, they get throttled
-USER_RATE_CACHE = {}
-USER_RATE_LIMIT_SECONDS = 5
-USER_RATE_LIMIT_MAX = 3
-USER_RATE_COUNT = {}
-
-# ==============================================================================
 # 🌍 MASSIVE COUNTRY FLAGS & ISO DICTIONARY (250+ COUNTRIES)
 # ==============================================================================
 
@@ -199,40 +176,6 @@ def get_short_code(country_name):
         if name.lower() in country_name.lower() or country_name.lower() in name.lower(): 
             return code
     return str(country_name)[:2].upper()
-
-def check_user_rate_limit(user_id: int) -> bool:
-    """
-    Returns True if the user is within rate limits (allowed to proceed).
-    Returns False if the user is sending too many requests (throttle them).
-    Uses a sliding window: tracks count of requests in last USER_RATE_LIMIT_SECONDS.
-    Safe to call from async context — no blocking I/O.
-    """
-    now = time.time()
-    window_start = now - USER_RATE_LIMIT_SECONDS
-    
-    # Initialize or clean old timestamps for this user
-    if user_id not in USER_RATE_CACHE:
-        USER_RATE_CACHE[user_id] = []
-    
-    # Remove timestamps outside the window
-    USER_RATE_CACHE[user_id] = [t for t in USER_RATE_CACHE[user_id] if t > window_start]
-    
-    # Check if over limit
-    if len(USER_RATE_CACHE[user_id]) >= USER_RATE_LIMIT_MAX:
-        return False
-    
-    # Record this request
-    USER_RATE_CACHE[user_id].append(now)
-    return True
-
-def cleanup_rate_cache():
-    """Remove stale entries from rate cache to prevent memory leak at 20k users."""
-    now = time.time()
-    window_start = now - USER_RATE_LIMIT_SECONDS
-    stale_users = [uid for uid, timestamps in USER_RATE_CACHE.items() 
-                   if not timestamps or max(timestamps) < window_start]
-    for uid in stale_users:
-        USER_RATE_CACHE.pop(uid, None)
 
 # ==============================================================================
 # 🔧 UTILITY FUNCTIONS
@@ -490,19 +433,11 @@ async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
         connector = aiohttp.TCPConnector(
-            limit=1000,                  # Max 1000 simultaneous connections
-            limit_per_host=200,          # Max 200 per host
-            keepalive_timeout=60,        # Keep connections alive 60s
-            enable_cleanup_closed=True,  # Auto-cleanup dead connections
-            ttl_dns_cache=30,           # DNS cache TTL 30 seconds
-            use_dns_cache=True          # Enable DNS caching
+            limit=500,
+            keepalive_timeout=300,
+            enable_cleanup_closed=True
         )
-        timeout = aiohttp.ClientTimeout(total=15, connect=5, sock_read=10)
-        GLOBAL_SESSION = aiohttp.ClientSession(
-            connector=connector,
-            cookie_jar=aiohttp.CookieJar(unsafe=True),
-            timeout=timeout
-        )
+        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
 async def parse_response_safely(response):
@@ -709,17 +644,13 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
 
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
-    """Re-authenticate all 3 servers in parallel. Shielded from cancellation."""
-    try:
-        logger.info("🔄 Refreshing All Server Sessions in parallel...")
-        await asyncio.shield(asyncio.gather(
-            auth_s1(force=True),
-            auth_s2(force=True),
-            auth_s3(force=True),
-            return_exceptions=True
-        ))
-    except Exception as e:
-        logger.warning(f"⚠️ auto_relogin_job error (non-fatal): {e}")
+    logger.info("🔄 Refreshing All Server Sessions in parallel...")
+    await asyncio.gather(
+        auth_s1(force=True),
+        auth_s2(force=True),
+        auth_s3(force=True),
+        return_exceptions=True
+    )
 
 
 # ==============================================================================
@@ -877,25 +808,21 @@ async def process_console_logs(context, logs, server_name, bot_username):
                     ))
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
-    """Fetch console logs from all 3 servers in parallel and forward new ranges. Crash-safe."""
-    try:
-        bot_username = context.bot.username
-        s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
-        s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
-        s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
-        results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
-        
-        proc_tasks = []
-        if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
-            proc_tasks.append(process_console_logs(context, results[0][1].get('data', {}).get('logs', [])[:20], "Server 1 ✨", bot_username))
-        if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
-            proc_tasks.append(process_console_logs(context, results[1][1].get('data', {}).get('logs', [])[:20], "Server 2 🚀", bot_username))
-        if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
-            proc_tasks.append(process_console_logs(context, results[2][1].get('data', {}).get('logs', [])[:20], "Server 3 🔥", bot_username))
-        if proc_tasks:
-            await asyncio.gather(*proc_tasks, return_exceptions=True)
-    except Exception as e:
-        logger.warning(f"⚠️ auto_range_forwarder_job error (non-fatal): {e}")
+    bot_username = context.bot.username
+    s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
+    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+    results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
+    
+    proc_tasks = []
+    if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
+        proc_tasks.append(process_console_logs(context, results[0][1].get('data', {}).get('logs', [])[:20], "Server 1 ✨", bot_username))
+    if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
+        proc_tasks.append(process_console_logs(context, results[1][1].get('data', {}).get('logs', [])[:20], "Server 2 🚀", bot_username))
+    if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
+        proc_tasks.append(process_console_logs(context, results[2][1].get('data', {}).get('logs', [])[:20], "Server 3 🔥", bot_username))
+    if proc_tasks:
+        await asyncio.gather(*proc_tasks, return_exceptions=True)
 
 
 # ==============================================================================
@@ -997,52 +924,38 @@ async def check_inbox(context, server_res, last_text, text_var_name):
         except Exception: pass
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
-    """
-    Ultra-fast OTP inbox poller. Runs every 2 seconds.
-    Wrapped in try/except so a single failure never stops the job queue.
-    Skips immediately if no users are waiting (zero wasted CPU cycles).
-    """
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     if not WAITING_OTPS: return 
     
-    try:
-        current_time = time.time()
-        expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
-                
-        for h_key in expired_keys:
-            u_data = WAITING_OTPS.pop(h_key, None)
-            if u_data:
-                NUM_TO_HASH.pop(clean_number(u_data['full_num']), None)
-                b_key = u_data.get('batch_key')
-                if b_key and b_key in BATCH_MSGS:
-                    if u_data['full_num'] in BATCH_MSGS[b_key]['numbers']:
-                        BATCH_MSGS[b_key]['numbers'].remove(u_data['full_num'])
-                    if len(BATCH_MSGS[b_key]['numbers']) == 0:
-                        try: await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
-                        except: pass
-                        BATCH_MSGS.pop(b_key, None)
-
-        if not WAITING_OTPS: return 
+    current_time = time.time()
+    expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
             
-        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    for h_key in expired_keys:
+        u_data = WAITING_OTPS.pop(h_key, None)
+        if u_data:
+            NUM_TO_HASH.pop(clean_number(u_data['full_num']), None)
+            b_key = u_data.get('batch_key')
+            if b_key and b_key in BATCH_MSGS:
+                if u_data['full_num'] in BATCH_MSGS[b_key]['numbers']:
+                    BATCH_MSGS[b_key]['numbers'].remove(u_data['full_num'])
+                if len(BATCH_MSGS[b_key]['numbers']) == 0:
+                    try: await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
+                    except: pass
+                    BATCH_MSGS.pop(b_key, None)
 
-        s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
-        s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
-        s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    if not WAITING_OTPS: return 
         
-        results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
+    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-        await check_inbox(context, results[0], LAST_INBOX_S1, "s1")
-        await check_inbox(context, results[1], LAST_INBOX_S2, "s2")
-        await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
-        
-        # Periodically clean rate cache to avoid memory leak at 20k users
-        # Runs every ~60 seconds (every 30th OTP check cycle at 2s interval)
-        if int(current_time) % 60 < 2:
-            cleanup_rate_cache()
-            
-    except Exception as e:
-        logger.warning(f"⚠️ global_otp_checker_job error (non-fatal): {e}")
+    s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    
+    results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
+
+    await check_inbox(context, results[0], LAST_INBOX_S1, "s1")
+    await check_inbox(context, results[1], LAST_INBOX_S2, "s2")
+    await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 
 # ==============================================================================
@@ -1303,18 +1216,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
-    # 🚦 Per-user rate limiter — throttle spammers without blocking others
-    # Admin users bypass rate limiting for broadcast/admin commands
-    if user_id not in ADMIN_IDS and not check_user_rate_limit(user_id):
-        try:
-            await update.message.reply_text(
-                "⏳ <b>Too many requests!</b>\n<i>Please wait a moment before trying again.</i>",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception:
-            pass
-        return
-    
     main_buttons = ["📱 Get Number", "🔐 Get 2FA", "🎧 Support", "📊 See Activity", "🎁 Referral & Balance"]
     admin_buttons = ["📊 Bot Status", "👥 Total Users", "📢 Broadcast", "🚫 Ban / Unban", "💰 Set Rewards", "💳 Set Min Withdraw", "💸 Add Balance", "🏆 Top Referrers", "🔙 Main Menu"]
     
@@ -1380,33 +1281,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state = user_data.get('state')
         if state == 'ADMIN_BROADCAST':
             users = get_all_users()
-            msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users in batches...</i>", parse_mode=ParseMode.HTML)
+            msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users...</i>", parse_mode=ParseMode.HTML)
             success, failed = 0, 0
-            
-            # 🚀 CHUNKED BATCH BROADCAST — sends 50 at once in parallel
-            # At 20,000 users: 400 batches × 50 = fast, non-blocking broadcast
-            # Each batch uses asyncio.gather for parallelism
-            BATCH_SIZE = 50
-            broadcast_text = f"📢 <b>ADMIN BROADCAST</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}"
-            
-            async def send_one(u_id):
+            for u_id in users:
                 try:
-                    await context.bot.send_message(chat_id=u_id, text=broadcast_text, parse_mode=ParseMode.HTML)
-                    return True
-                except Exception:
-                    return False
-            
-            for i in range(0, len(users), BATCH_SIZE):
-                batch = users[i:i + BATCH_SIZE]
-                results = await asyncio.gather(*[send_one(u) for u in batch], return_exceptions=True)
-                for r in results:
-                    if r is True:
-                        success += 1
-                    else:
-                        failed += 1
-                # Small sleep between batches to respect Telegram rate limits
-                await asyncio.sleep(0.3)
-            
+                    await context.bot.send_message(chat_id=u_id, text=f"📢 <b>ADMIN BROADCAST</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML)
+                    success += 1
+                except: failed += 1
+                await asyncio.sleep(0.05) 
             await msg.edit_text(f"✅ <b>Broadcast Completed!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
             user_data['state'] = None
             return
@@ -1600,11 +1482,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    # 🚦 Per-user rate limiter for button spam (admin bypass)
-    if user_id not in ADMIN_IDS and not check_user_rate_limit(user_id):
-        await query.answer("⏳ Too many requests! Wait a moment.", show_alert=False)
-        return
-    
     if data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
@@ -1712,38 +1589,16 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 RENDER_PING_URL = "https://rtxstexsms-t84t.onrender.com"
 
 async def web_server_handler(request):
-    """Health-check endpoint for Render and external uptime monitors."""
-    uptime = datetime.datetime.now() - START_TIME
-    uptime_str = str(uptime).split('.')[0]
-    body = (
-        f"✅ Premium OTP Bot V41 Enterprise — Running perfectly!\n"
-        f"⏱ Uptime: {uptime_str}\n"
-        f"👥 Cached Users: {len(USER_CACHE)}\n"
-        f"📡 Active OTP Waiters: {len(WAITING_OTPS)}\n"
-        f"🚦 Rate-limited users (window): {len(USER_RATE_CACHE)}\n"
-    )
-    return web.Response(text=body, content_type="text/plain")
+    return web.Response(text="✅ Premium OTP Bot V40 Enterprise — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
-    """
-    Pings own Render URL every 2 minutes to prevent free-plan sleep.
-    Render free plan sleeps after 15 minutes of no incoming requests.
-    This job ensures the bot stays alive 24/7 as long as Render is running.
-    Uses a short timeout so it never blocks the event loop if Render is slow.
-    Crash-safe: failure is logged but never raises.
-    """
+    """Ping own Render URL every 2 minutes to prevent sleep"""
     try:
         session = await get_session()
-        async with session.get(
-            RENDER_PING_URL,
-            timeout=aiohttp.ClientTimeout(total=10),
-            ssl=False
-        ) as resp:
-            logger.info(f"🏓 Self-ping OK: HTTP {resp.status}")
-    except asyncio.TimeoutError:
-        logger.warning("⚠️ Self-ping timed out (Render may be slow) — bot still running")
+        async with session.get(RENDER_PING_URL, timeout=aiohttp.ClientTimeout(total=10), ssl=False) as resp:
+            logger.info(f"🏓 Self-ping: {resp.status}")
     except Exception as e:
-        logger.warning(f"⚠️ Self-ping failed (non-fatal): {e}")
+        logger.warning(f"Self-ping failed: {e}")
 
 async def start_dummy_server():
     try:
@@ -1776,17 +1631,14 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # ⚡ Fast OTP Check — every 2 seconds, shielded from crashes
-    app.job_queue.run_repeating(global_otp_checker_job,   interval=2,     first=2)
-    # 📡 Range forwarder — every 8 seconds, crash-safe
-    app.job_queue.run_repeating(auto_range_forwarder_job, interval=8,     first=5)
-    # 🔄 Session refresh — every 6 hours to keep all 3 server tokens fresh
+    # Fast OTP Check — every 2 seconds
+    app.job_queue.run_repeating(global_otp_checker_job,   interval=2,   first=2)
+    # Range forwarder — every 8 seconds
+    app.job_queue.run_repeating(auto_range_forwarder_job, interval=8,   first=5)
+    # Session refresh — every 6 hours
     app.job_queue.run_repeating(auto_relogin_job,         interval=21600, first=21600)
-    # 🏓 Self-ping Render — every 2 minutes — keeps Render free plan alive 24/7
-    app.job_queue.run_repeating(self_ping_job,            interval=120,   first=30)
+    # Self-ping Render — every 2 minutes to prevent sleep
+    app.job_queue.run_repeating(self_ping_job,            interval=120,  first=30)
     
-    logger.info("✨ VERSION 41.0 ENTERPRISE ULTRA STARTED ✨")
-    logger.info(f"🚦 Rate Limit: {USER_RATE_LIMIT_MAX} requests per {USER_RATE_LIMIT_SECONDS}s per user")
-    logger.info(f"🔒 Global Semaphore: max 500 concurrent handlers")
-    logger.info(f"🏓 Self-ping URL: {RENDER_PING_URL} (every 2 minutes)")
+    logger.info("✨ VERSION 40.0 ENTERPRISE FINAL STARTED ✨")
     app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query"])
