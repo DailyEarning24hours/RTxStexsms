@@ -14,12 +14,12 @@ NEW UI & SPEED FEATURES:
 - Auto Delete 2FA: Deletes user's message as well.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 FIXED & RESTORED (AS PER REQUEST): 
-1. Added DYNAMIC PING URL SYSTEM in Admin Panel to keep Render Server awake 24/7.
-2. MNIT Server 3 Delay fixed: Preserved token on 502/429 errors to avoid 2-hour IP bans.
-3. SERVER 1 SUPER-SPEED FIX: Removed redundant blocking auth.
-4. Restored V40.0 Classic Number Display System (❶ [BD] 17XXXXXXXX ⏳).
-5. Restored V40.0 Classic OTP Receive System UI & OTP Group UI.
-6. Range Channel strictly contains ONLY the "Get Number" button routing to Bot.
+1. Fixed "Get Number" button crash: Added robust text-matching to bypass Emoji Variation bugs.
+2. Added DYNAMIC PING URL SYSTEM in Admin Panel (Pings every 2 mins to keep Render awake).
+3. MNIT Server 3 Delay fixed: Preserved token on 502/429 errors to avoid 2-hour IP bans.
+4. Range Channel strictly contains ONLY the "Get Number" button routing to Bot (No auto gen).
+5. Restored V40.0 Classic Number Display System (❶ [BD] 17XXXXXXXX ⏳).
+6. Restored V40.0 Classic OTP Receive System UI & OTP Group UI.
 ==============================================================================
 """
 
@@ -159,7 +159,7 @@ COUNTRY_FLAGS = {
 }
 
 COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Timor-Leste":"TL", "Togo":"TG", "Tonga":"TO", "Trinidad and Tobago":"TT", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Tuvalu":"TV", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "📡", "Hong Kong":"🇭🇰", "Macau":"🇲🇴", "Puerto Rico":"🇵🇷"
 }
 
 def get_flag(country_name):
@@ -287,7 +287,6 @@ def init_db():
             id INTEGER PRIMARY KEY, otp_reward REAL DEFAULT 0.10, ref_reward REAL DEFAULT 0.05, min_withdraw REAL DEFAULT 50.0, ping_url TEXT DEFAULT 'https://rtxstexsms-t84t.onrender.com'
         )''')
         
-        # Safely add ping_url column if database was created earlier without it
         try:
             c.execute("ALTER TABLE settings ADD COLUMN ping_url TEXT DEFAULT 'https://rtxstexsms-t84t.onrender.com'")
         except sqlite3.OperationalError:
@@ -551,7 +550,7 @@ async def get_s3_session():
 async def auth_s3(force=False):
     global S3_TOKEN, LAST_AUTH_S3
     async with AUTH_LOCK_S3:
-        # CRITICAL FIX: Preserved 23h token caching logic from V40.0 to avoid IP rate limits
+        # CRITICAL FIX: Preserved 23h token caching logic to avoid IP rate limits from server.
         if not force and time.time() - LAST_AUTH_S3 < 82800 and S3_TOKEN: return True
         payload = {"email": S3_EMAIL, "password": S3_PASSWORD}
         headers = get_cf_headers("x.mnitnetwork.com")
@@ -1155,7 +1154,7 @@ async def show_server_selection(update_obj, context):
     if hasattr(update_obj, 'callback_query') and update_obj.callback_query: 
         await update_obj.callback_query.edit_message_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
     else: 
-        await update.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        await update_obj.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE, server_id):
     context.user_data['server'] = server_id
@@ -1243,7 +1242,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(text=f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
-# 🎮 TEXT HANDLER & ADMIN / WITHDRAW LOGIC
+# 🎮 TEXT HANDLER & ADMIN / WITHDRAW LOGIC (BUG FREE & EMOJI-SAFE)
 # ==============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1256,16 +1255,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
-    main_buttons = ["📱 Get Number", "🔐 Get 2FA", "🎧 Support", "📊 See Activity", "🎁 Referral & Balance"]
-    admin_buttons = ["📊 Bot Status", "👥 Total Users", "📢 Broadcast", "🚫 Ban / Unban", "💰 Set Rewards", "💳 Set Min Withdraw", "💸 Add Balance", "🏆 Top Referrers", "🌐 Set Ping URL", "🔙 Main Menu"]
+    # 🌟 CRITICAL FIX: To prevent Telegram variation selector bugs (crushed buttons), 
+    # we check if the exact English text exists inside the string instead of full-string exact matching.
+    is_main_menu_action = any(btn in text for btn in ["Get Number", "Get 2FA", "Support", "See Activity", "Referral & Balance"])
+    is_admin_action = any(btn in text for btn in ["Bot Status", "Total Users", "Broadcast", "Ban / Unban", "Set Rewards", "Set Min Withdraw", "Add Balance", "Top Referrers", "Set Ping URL", "Main Menu"])
     
-    if text in main_buttons or text in admin_buttons:
+    if is_main_menu_action or is_admin_action:
         user_data['state'] = None
         user_data['admin_reply_target'] = None
         
     # --- ADMIN CONTROLS ---
     if user_id in ADMIN_IDS:
-        if text == "📊 Bot Status":
+        if "Bot Status" in text:
             uptime = datetime.datetime.now() - START_TIME
             current_ping = SETTINGS_CACHE.get("ping_url", "Not Set")
             txt = (
@@ -1284,34 +1285,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
             
-        elif text == "👥 Total Users":
+        elif "Total Users" in text:
             return await update.message.reply_text(f"👥 <b>Total Registered Users:</b> {get_total_users_count()}", parse_mode=ParseMode.HTML)
             
-        elif text == "📢 Broadcast":
+        elif "Broadcast" in text:
             user_data['state'] = 'ADMIN_BROADCAST'
             return await update.message.reply_text("📢 <b>Send the message you want to broadcast.</b>\n<i>(Or click 🔙 Main Menu to cancel)</i>", parse_mode=ParseMode.HTML)
             
-        elif text == "🚫 Ban / Unban":
+        elif "Ban / Unban" in text:
             user_data['state'] = 'ADMIN_BAN'
             return await update.message.reply_text("🚫 <b>Send User ID and action (ban/unban).</b>\nExample: <code>12345678 ban</code>", parse_mode=ParseMode.HTML)
             
-        elif text == "💰 Set Rewards":
+        elif "Set Rewards" in text:
             user_data['state'] = 'ADMIN_REWARD'
             return await update.message.reply_text("💰 <b>Set Reward.</b>\nExample: <code>otp 0.5</code> or <code>ref 0.2</code>", parse_mode=ParseMode.HTML)
             
-        elif text == "💳 Set Min Withdraw":
+        elif "Set Min Withdraw" in text:
             user_data['state'] = 'ADMIN_MIN_WD'
             return await update.message.reply_text("💳 <b>Set Minimum Withdraw Amount.</b>\nExample: <code>100</code>", parse_mode=ParseMode.HTML)
             
-        elif text == "💸 Add Balance":
+        elif "Add Balance" in text:
             user_data['state'] = 'ADMIN_ADD_BAL'
             return await update.message.reply_text("💸 <b>Add balance to user.</b>\nExample: <code>12345678 50.0</code>", parse_mode=ParseMode.HTML)
 
-        elif text == "🌐 Set Ping URL":
+        elif "Set Ping URL" in text:
             user_data['state'] = 'ADMIN_SET_PING'
             return await update.message.reply_text("🌐 <b>Send the URL for Auto-Ping.</b>\nExample: <code>https://my-bot-url.onrender.com</code>", parse_mode=ParseMode.HTML)
             
-        elif text == "🏆 Top Referrers":
+        elif "Top Referrers" in text:
             loop = asyncio.get_event_loop()
             top_users = await loop.run_in_executor(DB_EXECUTOR, sync_get_top_referrers)
             msg = "🏆 <b>TOP 10 REFERRERS</b> 🏆\n━━━━━━━━━━━━━━━━━━━━\n"
@@ -1320,7 +1321,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if "1." not in msg: msg += "<i>No active referrers yet.</i>"
             return await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
             
-        elif text == "🔙 Main Menu":
+        elif "Main Menu" in text:
             await show_main_menu(update, context)
             return
 
@@ -1396,7 +1397,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- USER CONTROLS & STATES ---
     target_reply_user = user_data.get('admin_reply_target')
-    if target_reply_user and text not in main_buttons:
+    if target_reply_user and not is_main_menu_action and not is_admin_action:
         try:
             await context.bot.send_message(chat_id=int(target_reply_user), text=f"👨‍💻 <b>Admin Reply:</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML)
             await update.message.reply_text("✅ <b>Reply sent successfully.</b>", parse_mode=ParseMode.HTML)
@@ -1407,11 +1408,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     state = user_data.get('state')
     
-    if text == "📱 Get Number":
+    # EMOGI BUG FIXED FOREVER: Uses 'in text'
+    if "Get Number" in text:
         if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
         else: await show_server_selection(update, context)
             
-    elif text == "🔐 Get 2FA":
+    elif "Get 2FA" in text:
         user_data['state'] = 'WAITING_FOR_2FA'
         await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
         
@@ -1434,7 +1436,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception: await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
         user_data['state'] = None
 
-    elif text == "🎁 Referral & Balance":
+    elif "Referral & Balance" in text:
         loop = asyncio.get_event_loop()
         user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         bot_username = context.bot.username
@@ -1453,7 +1455,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = [[InlineKeyboardButton("💳 Withdraw Balance", callback_data="req_withdraw")]]
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
-    elif text == "🎧 Support":
+    elif "Support" in text:
         user_data['state'] = 'WAITING_FOR_SUPPORT'
         await update.message.reply_text("🎧 <b>SUPPORT SYSTEM</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Type your problem below.</i>", parse_mode=ParseMode.HTML)
         
@@ -1470,7 +1472,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
         user_data['state'] = None
         
-    elif text == "📊 See Activity":
+    elif "See Activity" in text:
         kb = [[InlineKeyboardButton("🔥 Range Channel", url="https://t.me/ConsoleXRT")], [InlineKeyboardButton("💬 OTP Channel", url="https://t.me/RTxOtpX")]]
         await update.message.reply_text("📊 <b>BOT ACTIVITY LINKS</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Join to see live Bot activity:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
@@ -1519,7 +1521,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     else:
         if user_id not in ADMIN_IDS:
-            await show_main_menu(update, context)
+            if not is_main_menu_action:
+                await show_main_menu(update, context)
 
 # ==============================================================================
 # 🎮 BUTTON HANDLER
