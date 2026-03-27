@@ -1,15 +1,18 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 40.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 45.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (RAM Caching & Text Diff Algorithm).
-UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1, Server 2, Server 3).
+UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1: STEX, Server 2: ACCHUB, Server 3: MNIT).
 CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2 & 3!
-NEW FEATURES: 
-- Live Success Rate (%) for Countries!
-- Multi-OTP System (Receives 2nd, 3rd OTPs beautifully).
-- Advanced Number UI (Shows ✅ when OTP received, doesn't disappear).
-- 2FA Auto-Delete completely removes the user's key message too.
-- Range tracking forwarded to OTP Channel.
+NEW UI & SPEED FEATURES:
+- High-Speed % Calculation: Parallel execution makes loading blink-of-an-eye fast!
+- Ultra-Fast Staggered Generation: 0ms delay for Stex, 0.1s offset for CF servers (100% Safe).
+- Acchub API Integrated: Custom mapping for country_id & operator_id as ranges.
+- Smart Deep Linking: "Get Number" auto-generates from the EXACT SERVER!
+- Custom Service Overrides: Shows strictly what user selected.
+- Persistent Numbers: Numbers don't disappear on OTP, they get a ✅ mark!
+- Auto Delete 2FA: Deletes user's message as well.
+- OTP Group Update: Shows Range & Server beautifully.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
@@ -65,32 +68,33 @@ S1_EMAIL = "mdrajaislam469@gmail.com"
 S1_PASSWORD = "Raja1234@#"
 S1_BASE_URL = "https://stexsms.com/mapi/v1"
 
-# 🚀 SERVER 2 CREDENTIALS (ZAYAN SMS - CLOUDFLARE PROTECTED)
-S2_EMAIL = "mdrajaislam469@gmail.com"
-S2_PASSWORD = "Raja1234@#"
-S2_BASE_URL = "https://zayansms.com/mapi/v1"
+# 🚀 SERVER 2 CREDENTIALS (ACCHUB - CLOUDFLARE PROTECTED)
+S2_EMAIL = "rtxraja01@gmail.com"
+S2_PASSWORD = "Raja1234"
+S2_BASE_URL = "https://sms.acchub.io"
 
 # 🔥 SERVER 3 CREDENTIALS (MNIT NETWORK - CLOUDFLARE PROTECTED)
 S3_EMAIL = "rtxraja0011@gmail.com"
 S3_PASSWORD = "Raja1234@#"
 S3_BASE_URL = "https://x.mnitnetwork.com/mapi/v1"
 
-# 🔥 CLOUDFLARE BYPASS HEADERS — matches the exact browser fingerprint
+# 🔥 CLOUDFLARE BYPASS HEADERS (Universal)
 def get_cf_headers(origin_domain):
     return {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.159 Mobile Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.164 Mobile Safari/537.36",
+        "Accept": "*/*",
         "Content-Type": "application/json",
         "Origin": f"https://{origin_domain}",
-        "sec-ch-ua": '"Not:A-Brand";v="99", "Android WebView";v="145", "Chromium";v="145"',
+        "sec-ch-ua": '"Chromium";v="146", "Not-A.Brand";v="24", "Android WebView";v="146"',
         "sec-ch-ua-mobile": "?1",
         "sec-ch-ua-platform": '"Android"',
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "same-site" if "acchub" in origin_domain else "same-origin",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
         "x-requested-with": "mark.via.gp",
-        "accept-encoding": "gzip, deflate, br",
-        "accept-language": "en-US,en-VI;q=0.9,en;q=0.8,bn-BD;q=0.7,bn;q=0.6",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "en-US,en-VI;q=0.9,en;q=0.8,bn-BD;q=0.7,bn;q=0.6,en-CA;q=0.5",
+        "priority": "u=1, i"
     }
 
 API_2FA = "https://2fa.cn/codes/{}"
@@ -154,7 +158,7 @@ DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 # ==============================================================================
 
 COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "📡", "Hong Kong":"🇭🇰", "Macau":"🇲🇴", "Puerto Rico":"🇵🇷"
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "📡", "Hong Kong":"🇭🇰", "Macau":"🇲🇴", "Puerto Rico":"🇵🇷", "Myanmar":"🇲🇲"
 }
 
 COUNTRY_CODES = {
@@ -225,21 +229,6 @@ def extract_code(message):
     fb = re.search(r'\b(\d{4,8})\b', msg)
     return fb.group(1) if fb else "See Msg"
 
-def get_sms_from_item(item: dict) -> str:
-    return item.get('full_sms') or item.get('full_sms_list') or item.get('sms') or item.get('otp') or item.get('message') or item.get('text') or item.get('msg') or ""
-
-def get_service_from_item(item: dict) -> str:
-    return item.get('app_name') or item.get('service_name') or item.get('service') or item.get('operator') or item.get('app') or "Service"
-
-def get_number_from_item(item: dict) -> str:
-    return item.get('number') or item.get('phone_number') or item.get('phone') or item.get('mobile') or item.get('msisdn') or ""
-
-def get_code_from_item(item: dict, raw_msg: str) -> str:
-    explicit = item.get('otps') or item.get('otp_code') or item.get('verification_code') or item.get('code') or ""
-    if explicit and re.match(r'^\d{4,8}$', str(explicit).strip()):
-        return str(explicit).strip()
-    return extract_code(raw_msg)
-
 def _find_waiter(num_raw: str):
     c = clean_number(num_raw)
     if not c: return None, None
@@ -255,7 +244,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
 # ==============================================================================
 
-DB_FILE = "bot_v40_enterprise.db"
+DB_FILE = "bot_v45_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=30):
@@ -279,36 +268,21 @@ def init_db():
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            join_date TEXT,
-            is_banned INTEGER DEFAULT 0,
-            balance REAL DEFAULT 0.0,
-            referrer_id INTEGER DEFAULT NULL,
-            total_referrals INTEGER DEFAULT 0
+            user_id INTEGER PRIMARY KEY, join_date TEXT, is_banned INTEGER DEFAULT 0,
+            balance REAL DEFAULT 0.0, referrer_id INTEGER DEFAULT NULL, total_referrals INTEGER DEFAULT 0
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
-            id INTEGER PRIMARY KEY,
-            otp_reward REAL DEFAULT 0.10,
-            ref_reward REAL DEFAULT 0.05,
-            min_withdraw REAL DEFAULT 50.0
+            id INTEGER PRIMARY KEY, otp_reward REAL DEFAULT 0.10, ref_reward REAL DEFAULT 0.05, min_withdraw REAL DEFAULT 50.0
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            amount REAL,
-            method TEXT,
-            account TEXT,
-            status TEXT DEFAULT 'pending',
-            date TEXT DEFAULT CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL,
+            method TEXT, account TEXT, status TEXT DEFAULT 'pending', date TEXT DEFAULT CURRENT_TIMESTAMP
         )''')
         
         c.execute("SELECT otp_reward, ref_reward, min_withdraw FROM settings WHERE id=1")
         settings_row = c.fetchone()
         if not settings_row:
             c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw) VALUES (1, 0.10, 0.05, 50.0)")
-            SETTINGS_CACHE["otp_reward"] = 0.10
-            SETTINGS_CACHE["ref_reward"] = 0.05
-            SETTINGS_CACHE["min_withdraw"] = 50.0
         else:
             SETTINGS_CACHE["otp_reward"] = settings_row[0]
             SETTINGS_CACHE["ref_reward"] = settings_row[1]
@@ -317,11 +291,9 @@ def init_db():
         conn.commit()
         
         c.execute("SELECT user_id, is_banned FROM users")
-        rows = c.fetchall()
-        for row in rows:
+        for row in c.fetchall():
             USER_CACHE.add(row[0])
-            if row[1] == 1:
-                BANNED_CACHE.add(row[0])
+            if row[1] == 1: BANNED_CACHE.add(row[0])
 
 def sync_register_user_db(user_id, referrer_id=None):
     with db_pool.get_connection() as conn:
@@ -329,8 +301,7 @@ def sync_register_user_db(user_id, referrer_id=None):
         c.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
         if not c.fetchone():
             c.execute("INSERT INTO users (user_id, join_date, referrer_id) VALUES (?, CURRENT_TIMESTAMP, ?)", (user_id, referrer_id))
-            if referrer_id:
-                c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
+            if referrer_id: c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
         conn.commit()
 
 async def ensure_user_fast(user_id, referrer_id=None):
@@ -340,14 +311,9 @@ async def ensure_user_fast(user_id, referrer_id=None):
         loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
-def is_user_banned_fast(user_id):
-    return user_id in BANNED_CACHE
-
-def get_all_users():
-    return list(USER_CACHE)
-
-def get_total_users_count():
-    return len(USER_CACHE)
+def is_user_banned_fast(user_id): return user_id in BANNED_CACHE
+def get_all_users(): return list(USER_CACHE)
+def get_total_users_count(): return len(USER_CACHE)
 
 def sync_set_ban_status_db(user_id, status):
     with db_pool.get_connection() as conn:
@@ -356,10 +322,8 @@ def sync_set_ban_status_db(user_id, status):
         conn.commit()
 
 async def set_ban_status(user_id, status):
-    if status == 1:
-        BANNED_CACHE.add(user_id)
-    else:
-        BANNED_CACHE.discard(user_id)
+    if status == 1: BANNED_CACHE.add(user_id)
+    else: BANNED_CACHE.discard(user_id)
     loop = asyncio.get_event_loop()
     loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
@@ -418,7 +382,6 @@ def sync_update_withdraw_status(wd_id, status):
         
         user_id, amount = row[0], row[1]
         c.execute("UPDATE withdrawals SET status=? WHERE id=?", (status, wd_id))
-        
         if status == 'rejected':
             c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
             
@@ -432,22 +395,15 @@ def sync_update_withdraw_status(wd_id, status):
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(
-            limit=500,
-            keepalive_timeout=300,
-            enable_cleanup_closed=True
-        )
+        connector = aiohttp.TCPConnector(limit=500, keepalive_timeout=300, enable_cleanup_closed=True)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
 async def parse_response_safely(response):
     try: return await response.json(content_type=None)
     except Exception:
-        try:
-            text = await response.text()
-            return json.loads(text)
-        except Exception:
-            return None
+        try: return json.loads(await response.text())
+        except Exception: return None
 
 # --- SERVER 1: STEX (Standard Request) ---
 async def auth_s1(force=False):
@@ -457,8 +413,7 @@ async def auth_s1(force=False):
         payload = {"email": S1_EMAIL, "password": S1_PASSWORD}
         headers = {
             "User-Agent": BASE_USER_AGENT, "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json", "Origin": "https://stexsms.com",
-            "Referer": "https://stexsms.com/"
+            "Content-Type": "application/json", "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"
         }
         try:
             session = await get_session()
@@ -468,7 +423,6 @@ async def auth_s1(force=False):
                     if data and str(data.get('meta', {}).get('code')) == '200':
                         S1_TOKEN = data['data']['token']
                         LAST_AUTH_S1 = time.time()
-                        logger.info("✅ Server 1 (Stex) auth successful")
                         return True
                 return False
         except Exception: return False
@@ -491,13 +445,8 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
             status = response.status
-            if status in [401, 403]: 
-                S1_TOKEN = None
-                await asyncio.sleep(0.5)
-                continue
-            if status in [500, 501, 502, 503]:
-                await asyncio.sleep(1)
-                continue
+            if status in [401, 403]: S1_TOKEN = None; await asyncio.sleep(0.5); continue
+            if status in [500, 501, 502, 503]: await asyncio.sleep(1); continue
             if status == 200:
                 text_response = await response.text()
                 if return_text: return 200, text_response
@@ -508,8 +457,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
         except Exception: pass
     return 500, None
 
-
-# --- SERVER 2: ZAYAN SMS (curl_cffi CF Bypass) ---
+# --- SERVER 2: ACCHUB.IO (curl_cffi CF Bypass) ---
 async def get_s2_session():
     global S2_SESSION
     if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome120")
@@ -520,21 +468,20 @@ async def auth_s2(force=False):
     async with AUTH_LOCK_S2:
         if not force and time.time() - LAST_AUTH_S2 < 300 and S2_TOKEN: return True
         payload = {"email": S2_EMAIL, "password": S2_PASSWORD}
-        headers = get_cf_headers("zayansms.com")
-        headers["Referer"] = "https://zayansms.com/mauth/login"
+        headers = get_cf_headers("acchub.io")
+        headers["referer"] = "https://acchub.io/"
         try:
             session = await get_s2_session()
-            response = await session.post(f"{S2_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=20)
-            if response.status_code == 200:
+            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=20)
+            if response.status_code in [200, 201]:
                 try: data = response.json()
                 except Exception: data = None
-                if data and str(data.get('meta', {}).get('code')) == '200':
-                    S2_TOKEN = data['data']['token']
+                if data and 'access_token' in data:
+                    S2_TOKEN = data['access_token']
                     LAST_AUTH_S2 = time.time()
-                    logger.info("✅ Server 2 (Zayan) CF Bypass Auth successful")
                     return True
             return False
-        except Exception as e: return False
+        except Exception: return False
 
 async def s2_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S2_TOKEN
@@ -545,8 +492,11 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
                     await asyncio.sleep(2)
                     continue
             session = await get_s2_session()
-            headers = get_cf_headers("zayansms.com")
-            headers.update({"mauthtoken": str(S2_TOKEN), "Cookie": f"mauthtoken={S2_TOKEN}", "Referer": "https://zayansms.com/mdashboard"})
+            headers = get_cf_headers("acchub.io")
+            headers.update({
+                "authorization": f"Bearer {S2_TOKEN}",
+                "referer": "https://acchub.io/"
+            })
             
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
@@ -554,21 +504,16 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
             status = response.status_code
             if status in [401, 403, 429, 500, 502, 503]:
                 S2_TOKEN = None
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
                 await auth_s2(force=True)
                 continue
-            if status == 200:
+            if status in [200, 201]:
                 if return_text: return 200, response.text
                 try: data = response.json()
                 except Exception: data = None
-                if isinstance(data, dict):
-                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
-                        S2_TOKEN = None
-                        await auth_s2(force=True)
-                        continue
                 return 200, data
             else: return status, None
-        except Exception: await asyncio.sleep(2)
+        except Exception: await asyncio.sleep(1)
     return 500, None
 
 
@@ -581,27 +526,22 @@ async def get_s3_session():
 async def auth_s3(force=False):
     global S3_TOKEN, LAST_AUTH_S3
     async with AUTH_LOCK_S3:
-        if not force and time.time() - LAST_AUTH_S3 < 82800 and S3_TOKEN: return True  # 23h cache
+        if not force and time.time() - LAST_AUTH_S3 < 300 and S3_TOKEN: return True
         payload = {"email": S3_EMAIL, "password": S3_PASSWORD}
         headers = get_cf_headers("x.mnitnetwork.com")
         headers["Referer"] = "https://x.mnitnetwork.com/mauth/login"
-        for attempt in range(3):
-            try:
-                session = await get_s3_session()
-                response = await session.post(f"{S3_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=15)
-                if response.status_code == 200:
-                    try: data = response.json()
-                    except Exception: data = None
-                    if data and str(data.get('meta', {}).get('code')) == '200':
-                        S3_TOKEN = data['data']['token']
-                        LAST_AUTH_S3 = time.time()
-                        logger.info("✅ Server 3 (MNIT) Auth successful")
-                        return True
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                logger.warning(f"S3 auth error: {e}")
-                await asyncio.sleep(0.5)
-        return False
+        try:
+            session = await get_s3_session()
+            response = await session.post(f"{S3_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=20)
+            if response.status_code == 200:
+                try: data = response.json()
+                except Exception: data = None
+                if data and str(data.get('meta', {}).get('code')) == '200':
+                    S3_TOKEN = data['data']['token']
+                    LAST_AUTH_S3 = time.time()
+                    return True
+            return False
+        except Exception: return False
 
 async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S3_TOKEN
@@ -609,22 +549,20 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
         try:
             if not S3_TOKEN:
                 if not await auth_s3():
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(2)
                     continue
             session = await get_s3_session()
             headers = get_cf_headers("x.mnitnetwork.com")
             headers.update({"mauthtoken": str(S3_TOKEN), "Cookie": f"mauthtoken={S3_TOKEN}", "Referer": "https://x.mnitnetwork.com/mdashboard"})
             
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=15)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=15)
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
 
             status = response.status_code
-            if status in [401, 403]:
+            if status in [401, 403, 429, 500, 502, 503]:
                 S3_TOKEN = None
+                await asyncio.sleep(1)
                 await auth_s3(force=True)
-                continue
-            if status in [429, 500, 502, 503]:
-                await asyncio.sleep(0.5)
                 continue
             if status == 200:
                 if return_text: return 200, response.text
@@ -637,21 +575,14 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
                         continue
                 return 200, data
             else: return status, None
-        except Exception as e:
-            logger.warning(f"S3 request error: {e}")
-            await asyncio.sleep(0.5)
+        except Exception: await asyncio.sleep(1)
     return 500, None
 
-
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
-    logger.info("🔄 Refreshing All Server Sessions in parallel...")
-    await asyncio.gather(
-        auth_s1(force=True),
-        auth_s2(force=True),
-        auth_s3(force=True),
-        return_exceptions=True
-    )
-
+    logger.info("🔄 Refreshing All Server Sessions...")
+    await auth_s1(force=True)
+    await auth_s2(force=True)
+    await auth_s3(force=True)
 
 # ==============================================================================
 # 🔒 MIDDLEWARES & DYNAMIC UI
@@ -661,10 +592,8 @@ async def check_subscription(user_id, bot):
     for channel in CHANNELS:
         try:
             member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if member.status in ['left', 'kicked']: 
-                return False
-        except Exception: 
-            return False
+            if member.status in ['left', 'kicked']: return False
+        except Exception: return False
     return True
 
 async def send_join_prompt(update, context):
@@ -676,30 +605,20 @@ async def send_join_prompt(update, context):
             keyboard.append(row)
             row = []
     if row: keyboard.append(row)
-        
     keyboard.append([InlineKeyboardButton("✅ Joined / Verify", callback_data="check_join")])
     
-    msg = (
-        "⛔ <b>Access Denied!</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "<i>You must be a member of our official channels to use this bot.</i>\n\n"
-        "👇 <b>Please join below:</b>"
-    )
-    if update.callback_query: 
-        await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    else: 
-        await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    msg = "⛔ <b>Access Denied!</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>You must be a member of our official channels to use this bot.</i>\n\n👇 <b>Please join below:</b>"
+    if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    else: await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if is_user_banned_fast(user_id):
+    if is_user_banned_fast(update.effective_user.id):
         if update.callback_query: await update.callback_query.answer("🚫 You are banned.", show_alert=True)
         else: await update.message.reply_text("🚫 <b>You have been banned.</b>", parse_mode=ParseMode.HTML)
         return True
     return False
 
 async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=None):
-    """Wait and delete a message. Optionally delete the user's triggering message too."""
     await asyncio.sleep(delay_seconds)
     try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
     except Exception: pass
@@ -707,15 +626,14 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=
         try: await bot.delete_message(chat_id=chat_id, message_id=user_msg_id)
         except Exception: pass
 
+# ==============================================================================
+# 🌟 ADVANCED SCREENSHOT UI UPDATE FUNCTION
+# ==============================================================================
+
 async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
-    """
-    Beautifully updates the message to show the remaining waiting numbers.
-    If all numbers are received, it deletes the message and asks if they want another.
-    """
     if batch_key not in BATCH_MSGS: return
     batch = BATCH_MSGS[batch_key]
     
-    # 🌟 NEW LOGIC: When ALL numbers get OTPs
     if len(batch['received_for']) == len(batch['numbers']):
         try: await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
         except Exception: pass
@@ -729,43 +647,39 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
             [InlineKeyboardButton("🔄 Get Number Again", callback_data="change_num")],
             [InlineKeyboardButton("🔙 Main Menu", callback_data="go_main")]
         ]
-        try: 
-            await context.bot.send_message(chat_id=chat_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        try: await context.bot.send_message(chat_id=chat_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         except Exception: pass
-        
         BATCH_MSGS.pop(batch_key, None)
     
-    # 🌟 IF numbers are still waiting, keep showing them neatly
     else:
-        num_str = ""
-        symbols = ["❶", "❷"] 
-        for i, n in enumerate(batch['numbers']):
-            short_name = get_short_code(batch['country_name'])
-            if n in batch['received_for']:
-                num_str += f"{symbols[i % len(symbols)]} [{short_name}] <del>{n}</del> ✅\n"
-            else:
-                num_str += f"{symbols[i % len(symbols)]} [{short_name}] <code>{n}</code> ⏳\n"
-            
         txt = (
-            f"✅ <b>NUMBERS GENERATED</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🌍 <b>{batch['flag']} {batch['country_name']}</b>\n\n"
-            f"{num_str}\n"
-            f"⏳ <i>Waiting for SMS...</i>"
+            f"{batch['flag']} <b>{batch['country_name']} [{get_short_code(batch['country_name'])}] Numbers Assigned</b> ✅\n\n"
+            f"Number Generated <i>\n"
+            f"𒊹︎︎︎ <i> waiting For Otps 💥</i>"
         )
-        kb = [
-            [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
-            [InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), InlineKeyboardButton("🔙 Back", callback_data="go_main")]
-        ]
-        try: 
-            await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        
+        num_buttons = []
+        for n in batch['numbers']:
+            if n in batch['received_for']:
+                num_buttons.append(InlineKeyboardButton(f"✅ +{n}", callback_data="ignore"))
+            else:
+                num_buttons.append(InlineKeyboardButton(f"📋 +{n}", callback_data="ignore"))
+        
+        kb = []
+        if len(num_buttons) == 2: kb.append(num_buttons)
+        else: kb.append([num_buttons[0]])
+        
+        kb.append([InlineKeyboardButton("🔄 CHANGE NUMBER", callback_data="change_num"), InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")])
+        kb.append([InlineKeyboardButton("🔙 BACK TO MAIN MENU", callback_data="go_main")])
+        
+        try: await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         except Exception: pass
 
 # ==============================================================================
-# 🤖 AUTO RANGE FORWARDER JOB (Triple Server Parallel Processing)
+# 🤖 AUTO RANGE FORWARDER JOB
 # ==============================================================================
 
-async def process_console_logs(context, logs, server_name, bot_username):
+async def process_stex_mnit_logs(context, logs, server_name, server_id, bot_username):
     global SENT_RANGES
     allowed_apps = ['facebook', 'whatsapp']
     
@@ -788,11 +702,10 @@ async def process_console_logs(context, logs, server_name, bot_username):
                     
                     display_app = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else raw_app.title()
                     num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
-                    if num_in_msg:
-                        full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
+                    if num_in_msg: full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
                     
                     range_msg = (
-                        f"🔥 <b>New Range Found</b>\n"
+                        f"🔥 <b>New Range find</b>\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"🖥️ Server - <b>{server_name}</b>\n"
                         f"🎯 Range - <code>{r_val}</code>\n"
@@ -800,30 +713,77 @@ async def process_console_logs(context, logs, server_name, bot_username):
                         f"🌍 Country - {get_flag(c_name)} {c_name}\n"
                         f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
                     )
-                    kb = [[InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{bot_username}")]]
-                    # Non-blocking send
-                    asyncio.create_task(context.bot.send_message(
-                        chat_id=RANGE_GROUP_ID, text=range_msg,
-                        reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML
-                    ))
+                    kb = [
+                        [InlineKeyboardButton("🤖 Main Channel", url="https://t.me/EarnXtract"), 
+                         InlineKeyboardButton("📱 Get Number", url=f"https://t.me/{bot_username}?start=range_{server_id}_{r_val}")]
+                    ]
+                    try: await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                    except Exception: pass
+
+async def process_acchub_logs(context, logs, server_name, server_id, bot_username):
+    global SENT_RANGES
+    allowed_apps = ['facebook', 'whatsapp']
+    
+    for log in logs:
+        if isinstance(log, dict):
+            c_id = log.get('country_id')
+            op_id = log.get('operator_id')
+            if not c_id or not op_id: continue
+            
+            r_val = f"{c_id}|{op_id}" # Custom mapped range for Acchub
+            raw_app = str(log.get('provider', 'Unknown')).lower()
+            c_name = log.get('country_name', 'Unknown')
+            raw_msg = log.get('sms_text', '')
+            
+            if any(app in raw_app for app in allowed_apps) and r_val:
+                full_msg_text = clean_message_text(raw_msg)
+                code_sig = extract_code(raw_msg)
+                range_sig = f"{r_val}_{code_sig}_{str(raw_msg)[:20]}"
+                
+                if range_sig not in SENT_RANGES:
+                    SENT_RANGES.add(range_sig)
+                    if len(SENT_RANGES) > 10000: SENT_RANGES.clear()
+                    
+                    display_app = "PC Clone" if ('facebook' in raw_app and '•' in raw_msg) else raw_app.title()
+                    num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
+                    if num_in_msg: full_msg_text = full_msg_text.replace(num_in_msg.group(1), mask_number(num_in_msg.group(1)))
+                    
+                    range_msg = (
+                        f"🔥 <b>New Range find</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🖥️ Server - <b>{server_name}</b>\n"
+                        f"🎯 Range - <code>{r_val}</code>\n"
+                        f"🛒 Service - <i>{html.escape(display_app)}</i>\n"
+                        f"🌍 Country - {get_flag(c_name)} {c_name}\n"
+                        f"✉️ Message - <pre>{html.escape(full_msg_text)}</pre>"
+                    )
+                    kb = [
+                        [InlineKeyboardButton("🤖 Main Channel", url="https://t.me/EarnXtract"), 
+                         InlineKeyboardButton("📱 Get Number", url=f"https://t.me/{bot_username}?start=range_{server_id}_{r_val.replace('|', 'X')}")]
+                    ]
+                    try: await context.bot.send_message(chat_id=RANGE_GROUP_ID, text=range_msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+                    except Exception: pass
 
 async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     bot_username = context.bot.username
+
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
-    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
+    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20")
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+    
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
     
-    proc_tasks = []
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
-        proc_tasks.append(process_console_logs(context, results[0][1].get('data', {}).get('logs', [])[:20], "Server 1 ✨", bot_username))
-    if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
-        proc_tasks.append(process_console_logs(context, results[1][1].get('data', {}).get('logs', [])[:20], "Server 2 🚀", bot_username))
-    if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
-        proc_tasks.append(process_console_logs(context, results[2][1].get('data', {}).get('logs', [])[:20], "Server 3 🔥", bot_username))
-    if proc_tasks:
-        await asyncio.gather(*proc_tasks, return_exceptions=True)
+        logs = results[0][1].get('data', {}).get('logs', [])[:20]
+        await process_stex_mnit_logs(context, logs, "Server 1 ✨", 1, bot_username)
 
+    if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
+        logs = results[1][1].get('data', [])[:20]
+        await process_acchub_logs(context, logs, "Server 2 🚀", 2, bot_username)
+
+    if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
+        logs = results[2][1].get('data', {}).get('logs', [])[:20]
+        await process_stex_mnit_logs(context, logs, "Server 3 🔥", 3, bot_username)
 
 # ==============================================================================
 # 🚀 ULTRA-FAST OTP POLLER WITH MULTI-OTP SUPPORT
@@ -840,6 +800,10 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     full_num = user_data['full_num']
     batch_key = user_data['batch_key']
     range_val = user_data.get('range', 'Unknown')
+    server_id = user_data.get('server_id', 1)
+    
+    custom_service_name = user_data.get('service_name', svc_name)
+    if custom_service_name == 'Auto Matched': custom_service_name = str(svc_name).title()
     
     loop = asyncio.get_event_loop()
     otp_reward = SETTINGS_CACHE["otp_reward"]
@@ -851,44 +815,50 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     referrer_id = user_info.get("referrer_id")
     if referrer_id:
         await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, referrer_id, ref_reward)
-        try:
-            ref_msg = f"🎁 <b>Referral Bonus!</b>\nYour referral received an OTP. You got <b>+{ref_reward:.2f} Tk</b>!"
-            asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=ref_msg, parse_mode=ParseMode.HTML))
+        try: asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=f"🎁 <b>Referral Bonus!</b>\nYour referral received an OTP. You got <b>+{ref_reward:.2f} Tk</b>!", parse_mode=ParseMode.HTML))
         except Exception: pass
 
-    # UI updates: Mark the number as received and update dynamic UI
     if not is_multi and batch_key in BATCH_MSGS:
         BATCH_MSGS[batch_key]['received_for'].add(full_num)
         asyncio.create_task(update_dynamic_batch_message(context, chat_id, msg_id, batch_key))
 
-    header_text = "🔄 <b>MULTI OTP RECEIVED!</b>" if is_multi else "🎉 <b>OTP RECEIVED SUCCESSFULLY!</b>"
+    header_text = "🔄 <b>MULTI OTP RECEIVED!</b>" if is_multi else "🎉 <b>Otp rcv successfully</b>"
     
     user_msg = (
         f"{header_text} ✨\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 <b>Service :</b> <i>{html.escape(str(svc_name).upper())}</i>\n"
-        f"📞 <b>Number  :</b> <code>{full_num}</code>\n"
-        f"🔑 <b>Your OTP:</b> <code>{code_only}</code>\n"
+        f"🛒 <b>Service:</b> {html.escape(str(custom_service_name))}\n"
+        f"📱 <b>Number:</b> <code>{full_num}</code>\n"
         f"💰 <b>Balance Added:</b> +{otp_reward:.2f} Tk\n"
         f"💳 <b>Total Balance:</b> {new_balance:.2f} Tk\n"
         f"━━━━━━━━━━━━━━━━━━━━"
     )
+    user_kb = [[InlineKeyboardButton(f"📋 {code_only}", callback_data="ignore")]]
     
-    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, parse_mode=ParseMode.HTML))
+    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
     
     clean_raw_msg = clean_message_text(raw_msg) 
     masked_num = mask_number(full_num)
     
+    if server_id == 1: server_icon = "Server 1 ✨"
+    elif server_id == 2: server_icon = "Server 2 🚀"
+    else: server_icon = "Server 3 🔥"
+    
     group_msg = (
         f"🔔 <b>Otp Received</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🎯 Range - <code>{range_val}</code>\n"
+        f"🛒 Service - <pre>{html.escape(str(custom_service_name))}</pre>\n"
         f"📱 Number - <code>{masked_num}</code>\n"
-        f"🛒 Service - <pre>{html.escape(str(svc_name))}</pre>\n"
-        f"🔑 Code - <code>{code_only}</code>\n"
+        f"🖥️ Server - {server_icon}\n"
+        f"🎯 Range - <code>{range_val}</code>\n"
         f"✉️ Full sms - <pre>{html.escape(str(clean_raw_msg))}</pre>"
     )
-    group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
+    
+    bot_username = context.bot.username
+    group_kb = [
+        [InlineKeyboardButton(f"📋 {code_only}", callback_data="ignore")],
+        [InlineKeyboardButton("🤖 Owner", url="https://t.me/RTx2R"), InlineKeyboardButton("📱 Get Number", url=f"https://t.me/{bot_username}?start=range_{server_id}_{range_val.replace('|','X')}")]
+    ]
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
 
 async def check_inbox(context, server_res, last_text, text_var_name):
@@ -901,18 +871,22 @@ async def check_inbox(context, server_res, last_text, text_var_name):
 
         try:
             api_res = json.loads(text_data)
-            data_field = api_res.get('data', {})
-            items = data_field if isinstance(data_field, list) else (data_field.get('numbers') or data_field.get('list') or data_field.get('items') or data_field.get('otps') or [])
+            items = []
+            if text_var_name == "s2":
+                items = api_res.get('data', [])
+            else:
+                data_field = api_res.get('data', {})
+                items = data_field if isinstance(data_field, list) else (data_field.get('numbers') or data_field.get('list') or data_field.get('items') or data_field.get('otps') or [])
             
             for item in items:
                 if not isinstance(item, dict): continue
-                num_raw = get_number_from_item(item)
-                raw_msg = get_sms_from_item(item)
+                num_raw = str(item.get('phone_number') or item.get('number') or '').replace('+','')
+                raw_msg = item.get('sms_text') or item.get('otp') or item.get('message') or item.get('sms') or ''
                 if not num_raw or not raw_msg: continue
                 
                 hash_key, waiter = _find_waiter(num_raw)
                 if hash_key:
-                    svc_name = get_service_from_item(item)
+                    svc_name = item.get('provider') or item.get('app_name') or item.get('service_name') or "Service"
                     code_val = get_code_from_item(item, raw_msg)
                     
                     msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
@@ -948,7 +922,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
-    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
@@ -957,15 +931,25 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[1], LAST_INBOX_S2, "s2")
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
+# ==============================================================================
+# 🎯 HIGH-SPEED STAGGERED NUMBER GENERATION (PREVENTS 429 BLOCK)
+# ==============================================================================
 
-# ==============================================================================
-# 🎯 EXACTLY 2-NUMBER GENERATION SYSTEM (Triple Server Support)
-# ==============================================================================
+async def _fetch_number_s1(payload):
+    return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+
+async def _fetch_number_s2(payload, delay=0):
+    if delay > 0: await asyncio.sleep(delay)
+    return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
+
+async def _fetch_number_s3(payload, delay=0):
+    if delay > 0: await asyncio.sleep(delay)
+    return await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     
-    wait_txt = "⏳ <i>Connecting to secure server... Generating 2 Numbers...</i> 🚀"
+    wait_txt = "⏳ <i>Connecting to secure server... Generating Numbers...</i> 🚀"
     if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
@@ -975,97 +959,79 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
-    range_val = str(range_val).strip()
-    if not range_val.upper().endswith("XXX"): range_val += "XXX"
-        
     fetched_numbers = []
     country_name = context.user_data.get('country_name', 'Unknown')
-    
-    async def _fetch_s1():
-        payload = {"range": range_val, "is_national": False, "remove_plus": False}
-        return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+    tasks = []
 
-    async def _fetch_s2():
-        payload = {"range": range_val, "is_national": False, "remove_plus": True}
-        return await s2_api_request('POST', f"{S2_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-
-    async def _fetch_s3():
-        payload = {"range": range_val, "is_national": False, "remove_plus": True}
-        return await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-
-    def _parse(res, remove_plus=True):
-        if not isinstance(res, tuple) or res[0] != 200: return None, None
-        d = res[1]
-        if not isinstance(d, dict) or 'data' not in d: return None, None
-        num = str(d['data'].get('number', '')).replace('+', '')
-        cname = d['data'].get('country', None)
-        return (num or None), cname
-
+    # 🔥 DYNAMIC STAGGERING: Safely executes 2 requests lightning fast without getting CF blocked
     if server_id == 1:
-        # Server 1: parallel — fast, no CF issue
-        r1, r2 = await asyncio.gather(_fetch_s1(), _fetch_s1(), return_exceptions=True)
-        for r in [r1, r2]:
-            if isinstance(r, Exception): continue
-            num, cname = _parse(r)
-            if num and num not in fetched_numbers:
-                fetched_numbers.append(num)
-                if cname: country_name = cname
-
+        range_val = str(range_val).strip()
+        if not range_val.upper().endswith("XXX"): range_val += "XXX"
+        payload = {"range": range_val, "is_national": False, "remove_plus": False}
+        tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload)]
+        
     elif server_id == 2:
-        # Server 2: sequential 0.3s gap — CF safe
-        r1 = await _fetch_s2()
-        num, cname = _parse(r1)
-        if num: fetched_numbers.append(num)
-        if cname: country_name = cname
-        await asyncio.sleep(0.3)
-        r2 = await _fetch_s2()
-        num, cname = _parse(r2)
-        if num and num not in fetched_numbers: fetched_numbers.append(num)
-        if cname: country_name = cname
-
+        # Acchub uses country_id and operator_id as range format (e.g. "119|970" or "119X970")
+        rv = str(range_val).replace('X', '|')
+        parts = rv.split('|')
+        if len(parts) >= 2:
+            payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full"}
+            tasks = [_fetch_number_s2(payload, 0), _fetch_number_s2(payload, 0.15)]
+            
     elif server_id == 3:
-        # Server 3: sequential 0.3s gap — CF safe
-        r1 = await _fetch_s3()
-        num, cname = _parse(r1)
-        if num: fetched_numbers.append(num)
-        if cname: country_name = cname
-        await asyncio.sleep(0.3)
-        r2 = await _fetch_s3()
-        num, cname = _parse(r2)
-        if num and num not in fetched_numbers: fetched_numbers.append(num)
-        if cname: country_name = cname
+        range_val = str(range_val).strip()
+        if not range_val.upper().endswith("XXX"): range_val += "XXX"
+        payload = {"range": range_val, "is_national": False, "remove_plus": True}
+        tasks = [_fetch_number_s3(payload, 0), _fetch_number_s3(payload, 0.15)]
+
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for res in results:
+            if isinstance(res, tuple):
+                status, resp = res
+                if status in [200, 201] and isinstance(resp, dict):
+                    num = ""
+                    if server_id == 2 and resp.get('status') == 'success':
+                        num = str(resp['data']['phone_number'])
+                    elif 'data' in resp and resp['data'].get('number'):
+                        num = str(resp['data']['number'])
+                        country_name = resp['data'].get('country', country_name)
+                    
+                    if num: fetched_numbers.append(num.replace('+', ''))
             
     if fetched_numbers:
         flag = get_flag(country_name)
         short_name = get_short_code(country_name)
-        symbols = ["❶", "❷"]
-        num_str = ""
-        for i, n in enumerate(fetched_numbers):
-            num_str += f"{symbols[i]} [{short_name}] <code>{n}</code> ⏳\n"
-            
+        
         txt = (
-            f"✅ <b>NUMBERS GENERATED</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🌍 <b>{flag} {country_name}</b>\n\n"
-            f"{num_str}\n"
-            f"⏳ <i>Waiting for SMS...</i>"
+            f"{flag} <b>{country_name} [{short_name}] Numbers Assigned</b> ✅\n\n"
+            f"Number Generated <i>\n"
+            f"𒊹︎︎︎ <i> waiting For Otps 💥</i>"
         )
         
-        kb = [
-            [InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")],
-            [InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), InlineKeyboardButton("🔙 Menu", callback_data="go_main")]
-        ]
+        num_buttons = []
+        for n in fetched_numbers:
+            num_buttons.append(InlineKeyboardButton(f"📋 +{n}", callback_data="ignore"))
+        
+        kb = []
+        if len(num_buttons) == 2: kb.append(num_buttons)
+        else: kb.append([num_buttons[0]])
+        
+        kb.append([InlineKeyboardButton("🔄 CHANGE NUMBER", callback_data="change_num"), InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")])
+        kb.append([InlineKeyboardButton("🔙 BACK TO MAIN MENU", callback_data="go_main")])
         
         await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {'numbers': fetched_numbers.copy(), 'country_name': country_name, 'flag': flag, 'received_for': set()}
         
+        custom_svc = context.user_data.get('service_name', 'Auto Matched')
         for n in fetched_numbers:
             hash_key = get_hash_key(n)
             WAITING_OTPS[hash_key] = {
                 'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
-                'batch_key': batch_key, 'time': time.time(), 'received_codes': set(), 'range': range_val
+                'batch_key': batch_key, 'time': time.time(), 'received_codes': set(), 
+                'range': range_val, 'server_id': server_id, 'service_name': custom_svc
             }
             NUM_TO_HASH[clean_number(n)] = hash_key
             
@@ -1081,7 +1047,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         )
 
 # ==============================================================================
-# 📋 MENUS & UI WITH LIVE SUCCESS RATE
+# 📋 MENUS & UI WITH HIGH-SPEED PARALLEL SUCCESS RATE
 # ==============================================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1094,6 +1060,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: pass
         if referrer_id == user_id: referrer_id = None
         
+    # 🔥 EXACT SERVER DEEP LINK HANDLER 🔥
+    if context.args and context.args[0].startswith("range_"):
+        parts = context.args[0].split("_")
+        if len(parts) == 3:
+            srv_id = int(parts[1])
+            rng_val = parts[2].replace('X', '|')
+            context.user_data['service_name'] = "Auto Matched"
+            await process_number_generation(update, context, rng_val, srv_id, is_callback=False)
+            return
+
     await ensure_user_fast(user_id, referrer_id)
     context.user_data.clear()
     
@@ -1123,8 +1099,8 @@ async def show_main_menu(update_obj, context):
 
 async def show_server_selection(update_obj, context):
     kb = [
-        [InlineKeyboardButton("✨ Server 1", callback_data="srv_1"), InlineKeyboardButton("🚀 Server 2", callback_data="srv_2")],
-        [InlineKeyboardButton("🔥 Server 3", callback_data="srv_3")]
+        [InlineKeyboardButton("✨ Server 1 (STEX)", callback_data="srv_1"), InlineKeyboardButton("🚀 Server 2 (ACCHUB)", callback_data="srv_2")],
+        [InlineKeyboardButton("🔥 Server 3 (MNIT)", callback_data="srv_3")]
     ]
     txt = (
         "🌐 <b>SELECT SERVER</b> 🌐\n"
@@ -1157,30 +1133,46 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     category = query.data.split('_')[1].lower()
     server_id = context.user_data.get('server', 1)
     
+    context.user_data['service_name'] = category.title()
+    
     if category == 'custom':
         await query.edit_message_text(text="🎯 <b>CUSTOM RANGE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n✏️ <i>Type your custom range below.</i>\n💡 <b>Ex:</b> <code>88017XXX</code>", parse_mode=ParseMode.HTML)
         context.user_data['state'] = 'WAITING_FOR_RANGE'
         return
     
-    await query.edit_message_text(text="⚡ <i>Loading...</i>", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text="📡 <i>Connecting to Server... Calculating Success Rates!</i> ⏳", parse_mode=ParseMode.HTML)
     
-    country_stats = {}
-    status, data = 500, None
-
+    # 🔥 ULTRA-FAST PARALLEL CONSOLE FETCHING
+    tasks = []
     if server_id == 1:
-        status, data = await s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
+        await auth_s1(force=True)
+        tasks.append(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info"))
     elif server_id == 2:
-        status, data = await s2_api_request('GET', f"{S2_BASE_URL}/mdashboard/console/info")
+        await auth_s2(force=True)
+        tasks.append(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20"))
     elif server_id == 3:
-        status, data = await s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+        await auth_s3(force=True)
+        tasks.append(s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info"))
 
-    if status == 200 and isinstance(data, dict):
-        for log in data.get('data', {}).get('logs', []):
-            if isinstance(log, dict) and category in str(log.get('app_name', '')).lower():
-                c, r = log.get('country'), log.get('range')
-                if c and r:
-                    if c not in country_stats: country_stats[c] = {'range': r, 'count': 0}
-                    country_stats[c]['count'] += 1
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    country_stats = {}
+
+    for res in results:
+        if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
+            data_list = res[1].get('data', {}).get('logs', []) if server_id != 2 else res[1].get('data', [])
+            for log in data_list:
+                if isinstance(log, dict):
+                    # Acchub specific parsing
+                    if server_id == 2:
+                        c, r = log.get('country_name'), f"{log.get('country_id')}|{log.get('operator_id')}"
+                        app_name = str(log.get('provider', '')).lower()
+                    else:
+                        c, r = log.get('country'), log.get('range')
+                        app_name = str(log.get('app_name', '')).lower()
+
+                    if category in app_name and c and r and 'None' not in r:
+                        if c not in country_stats: country_stats[c] = {'range': r, 'count': 0}
+                        country_stats[c]['count'] += 1
 
     if not country_stats:
         await query.edit_message_text(
@@ -1372,7 +1364,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if code: 
                         out = f"✅ <b>2FA CODE GENERATED!</b>\n━━━━━━━━━━━━━━━━━━━━\n🔢 <b>Code:</b> <code>{code}</code>\n\n<i>⚠️ Auto-delete in 5 mins.</i>"
                         await msg.edit_text(out, parse_mode=ParseMode.HTML)
-                        # Deletes both Bot and User messages after 300 seconds (5 min)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
                     else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
                 else: await msg.edit_text("❌ <b>API Error!</b>", parse_mode=ParseMode.HTML)
@@ -1482,7 +1473,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    if data == "check_join":
+    if data == "ignore": 
+        return await query.answer()
+    
+    elif data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
             except: pass
@@ -1586,19 +1580,8 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 🌐 RENDER DUMMY WEB SERVER & MAIN LOOP
 # ==============================================================================
 
-RENDER_PING_URL = "https://rtxstexsms-t84t.onrender.com"
-
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V40 Enterprise — Running perfectly!")
-
-async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
-    """Ping own Render URL every 2 minutes to prevent sleep"""
-    try:
-        session = await get_session()
-        async with session.get(RENDER_PING_URL, timeout=aiohttp.ClientTimeout(total=10), ssl=False) as resp:
-            logger.info(f"🏓 Self-ping: {resp.status}")
-    except Exception as e:
-        logger.warning(f"Self-ping failed: {e}")
+    return web.Response(text="✅ Premium OTP Bot V45 Enterprise Edition — Running perfectly!")
 
 async def start_dummy_server():
     try:
@@ -1614,13 +1597,9 @@ async def start_dummy_server():
 
 async def post_init(app: Application):
     asyncio.create_task(start_dummy_server())
-    # All 3 servers auth in parallel at startup — instant ready
-    asyncio.create_task(asyncio.gather(
-        auth_s1(force=True),
-        auth_s2(force=True),
-        auth_s3(force=True),
-        return_exceptions=True
-    ))
+    asyncio.create_task(auth_s1(force=True))
+    asyncio.create_task(auth_s2(force=True))
+    asyncio.create_task(auth_s3(force=True))
 
 if __name__ == "__main__":
     init_db()
@@ -1628,17 +1607,16 @@ if __name__ == "__main__":
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
+    
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Fast OTP Check — every 2 seconds
-    app.job_queue.run_repeating(global_otp_checker_job,   interval=2,   first=2)
-    # Range forwarder — every 8 seconds
-    app.job_queue.run_repeating(auto_range_forwarder_job, interval=8,   first=5)
-    # Session refresh — every 6 hours
-    app.job_queue.run_repeating(auto_relogin_job,         interval=21600, first=21600)
-    # Self-ping Render — every 2 minutes to prevent sleep
-    app.job_queue.run_repeating(self_ping_job,            interval=120,  first=30)
+    # Fast OTP Check Interval
+    app.job_queue.run_repeating(global_otp_checker_job,  interval=2,   first=2)
+    # Range forwarder parallel check
+    app.job_queue.run_repeating(auto_range_forwarder_job, interval=10,  first=10)
+    # Session refresh
+    app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     
-    logger.info("✨ VERSION 40.0 ENTERPRISE FINAL STARTED ✨")
-    app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query"])
+    logger.info("✨ VERSION 45.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
+    app.run_polling(drop_pending_updates=True)
