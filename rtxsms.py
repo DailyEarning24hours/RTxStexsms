@@ -1767,14 +1767,14 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 🌐 RENDER DUMMY WEB SERVER & MAIN LOOP
 # ==============================================================================
 
-RENDER_PING_URL = "https://rtxstexsms-t84t.onrender.com"
+RENDER_PING_URL = "https://rtxstexsms-f4br.onrender.com"
 
 async def web_server_handler(request):
     """Health-check endpoint for Render and external uptime monitors."""
     uptime = datetime.datetime.now() - START_TIME
     uptime_str = str(uptime).split('.')[0]
     body = (
-        f"✅ Premium OTP Bot V41 Enterprise — Running perfectly!\n"
+        f"✅ Premium OTP Bot V42 Supabase Cloud — Running perfectly!\n"
         f"⏱ Uptime: {uptime_str}\n"
         f"👥 Cached Users: {len(USER_CACHE)}\n"
         f"📡 Active OTP Waiters: {len(WAITING_OTPS)}\n"
@@ -1804,21 +1804,29 @@ async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"⚠️ Self-ping failed (non-fatal): {e}")
 
 async def start_dummy_server():
+    """
+    Starts aiohttp web server IMMEDIATELY so Render detects an open port.
+    Render requires a port to be bound within ~60 seconds or it kills the process.
+    PORT env variable is automatically set by Render (usually 10000).
+    """
     try:
         app = web.Application()
         app.router.add_get('/', web_server_handler)
-        port = int(os.environ.get('PORT', 8080))
+        app.router.add_get('/health', web_server_handler)
+        port = int(os.environ.get('PORT', 10000))
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', port)
         await site.start()
-        logger.info(f"🌐 Web server running on port {port}")
-    except Exception as e: logger.warning(f"Web server error: {e}")
+        logger.info(f"🌐 Web server running on port {port} — Render port binding OK!")
+    except Exception as e:
+        logger.warning(f"Web server error: {e}")
 
 async def post_init(app: Application):
+    # 🌐 Start web server FIRST — Render needs port open before anything else
+    await start_dummy_server()
     # 🗄️ Initialize Supabase PostgreSQL pool and create tables
     await init_db()
-    asyncio.create_task(start_dummy_server())
     # All 3 servers auth in parallel at startup — instant ready
     asyncio.create_task(asyncio.gather(
         auth_s1(force=True),
