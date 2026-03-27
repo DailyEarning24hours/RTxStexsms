@@ -788,21 +788,21 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     bot_username = context.bot.username
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
-    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20")
+    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=50")
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
     
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
-        logs = results[0][1].get('data', {}).get('logs', [])[:20]
+        logs = results[0][1].get('data', {}).get('logs', [])[:50]
         await process_stex_mnit_logs(context, logs, "Server 1 ✨", 1, bot_username)
 
     if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
-        logs = results[1][1].get('data', [])[:20]
+        logs = results[1][1].get('data', [])[:50]
         await process_acchub_logs(context, logs, "Server 2 🚀", 2, bot_username)
 
     if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
-        logs = results[2][1].get('data', {}).get('logs', [])[:20]
+        logs = results[2][1].get('data', {}).get('logs', [])[:50]
         await process_stex_mnit_logs(context, logs, "Server 3 🔥", 3, bot_username)
 
 # ==============================================================================
@@ -902,7 +902,7 @@ async def check_inbox(context, server_res, last_text, text_var_name):
                     svc_name = get_service_from_item(item)
                     code_val = get_code_from_item(item, raw_msg)
                     
-                    msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
+                    msg_sig = f"{code_val}_{str(raw_msg)[:30]}"
                     rcv_set = waiter.setdefault('received_codes', set())
                     if msg_sig not in rcv_set:
                         rcv_set.add(msg_sig)
@@ -991,7 +991,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         parts = rv.split('|')
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [_fetch_number_s2(payload, 0), _fetch_number_s2(payload, 0.15)]
+            tasks = [_fetch_number_s2(payload, 0), _fetch_number_s2(payload, 0)]
             
     elif server_id == 3:
         range_val = str(range_val).strip()
@@ -1006,13 +1006,16 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 status, resp = res
                 if status in [200, 201] and isinstance(resp, dict):
                     num = ""
-                    if server_id == 2 and resp.get('status') in ['success', 200, True]:
+                    if server_id == 2:
                         data_obj = resp.get('data', {})
                         if isinstance(data_obj, dict):
-                            num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
+                            num = str(data_obj.get('phone_number') or data_obj.get('number') or data_obj.get('mobile') or '')
+                            _cname = data_obj.get('country_name') or data_obj.get('country') or ''
+                            if _cname and _cname != 'Unknown': country_name = str(_cname)
                         elif isinstance(data_obj, list) and len(data_obj) > 0:
-                            num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
-                            
+                            num = str(data_obj[0].get('phone_number') or data_obj[0].get('number') or '')
+                            _cname = data_obj[0].get('country_name') or data_obj[0].get('country') or ''
+                            if _cname and _cname != 'Unknown': country_name = str(_cname)
                     elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
                         num = str(resp['data']['number'])
                         country_name = resp['data'].get('country', country_name)
@@ -1225,7 +1228,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         indicator = "🟢" if display_rate >= 80 else ("🟡" if display_rate >= 60 else "🔴")
         btn_text = f"{get_flag(c_name)} {c_name} {display_rate}% {indicator}"
         
-        safe_c_name = str(c_name)[:10].replace(" ", "")
+        safe_c_name = str(c_name)[:15].replace(" ", "").replace("|", "").replace("_", "")
         kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{server_id}_{stats['range']}_{safe_c_name}")])
         
     kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data=f"srv_{server_id}")])
@@ -1625,18 +1628,30 @@ async def web_server_handler(request):
     return web.Response(text="✅ Premium OTP Bot V45 Enterprise Edition — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
-    """Ping own Render URL every 2 minutes to prevent sleep"""
+    """Ping own Render URL every 3 minutes to prevent sleep (Render free sleeps after 15min inactivity)"""
     try:
         session = await get_session()
+        # Primary self-ping
         async with session.get(RENDER_PING_URL, timeout=aiohttp.ClientTimeout(total=10), ssl=False) as resp:
-            logger.info(f"🏓 Self-ping: {resp.status}")
+            logger.info(f"🏓 Self-ping OK: {resp.status}")
+        # Secondary ping with different path to ensure activity
+        async with session.get(RENDER_PING_URL + "/health", timeout=aiohttp.ClientTimeout(total=8), ssl=False) as resp2:
+            pass
     except Exception as e:
         logger.warning(f"Self-ping failed: {e}")
+        # Try again immediately on failure
+        try:
+            session2 = await get_session()
+            async with session2.get(RENDER_PING_URL, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as r:
+                logger.info(f"🏓 Retry ping: {r.status}")
+        except Exception: pass
 
 async def start_dummy_server():
     try:
         app = web.Application()
         app.router.add_get('/', web_server_handler)
+        app.router.add_get('/health', web_server_handler)
+        app.router.add_get('/ping', web_server_handler)
         port = int(os.environ.get('PORT', 8080))
         runner = web.AppRunner(app)
         await runner.setup()
@@ -1664,7 +1679,7 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(global_otp_checker_job,  interval=2,   first=2)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=10,  first=10)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
-    app.job_queue.run_repeating(self_ping_job,            interval=120,  first=30)
+    app.job_queue.run_repeating(self_ping_job,            interval=180,  first=30)
     
     logger.info("✨ VERSION 45.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(drop_pending_updates=True)
