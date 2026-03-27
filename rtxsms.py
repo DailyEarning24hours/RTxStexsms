@@ -433,8 +433,7 @@ async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
         connector = aiohttp.TCPConnector(
-            limit=1000,                  # max concurrent connections
-            limit_per_host=200,          # per host
+            limit=500,
             keepalive_timeout=300,
             enable_cleanup_closed=True
         )
@@ -1589,9 +1588,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 RENDER_PING_URL = "https://rtxstexsms-t84t.onrender.com"
 
-# 20k user protection: limit concurrent heavy operations
-_REQUEST_SEMAPHORE = asyncio.Semaphore(200)  # max 200 concurrent API calls
-
 async def web_server_handler(request):
     return web.Response(text="✅ Premium OTP Bot V40 Enterprise — Running perfectly!")
 
@@ -1628,13 +1624,7 @@ async def post_init(app: Application):
 
 if __name__ == "__main__":
     init_db()
-    app = (
-        Application.builder()
-        .token(TOKEN)
-        .post_init(post_init)
-        .concurrent_updates(True)   # handle many users simultaneously
-        .build()
-    )
+    app = Application.builder().token(TOKEN).post_init(post_init).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
