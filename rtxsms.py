@@ -14,7 +14,10 @@ NEW UI & SPEED FEATURES:
 - Auto Delete 2FA: Deletes user's message as well.
 - OTP Group Update: Shows Range & Server beautifully.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
-FIXED & UPGRADED: 100% Working API Payloads, CF Bypass Chrome124, Missing Functions Added.
+FIXED & UPGRADED: 
+1. Fixed Unclosed <i> HTML tag causing Telegram BadRequest Silent Crashes.
+2. Added robust dict/list parsing for Server API responses (No KeyErrors).
+3. Stripped user text inputs to fix Keyboard mismatch bugs.
 ==============================================================================
 """
 
@@ -80,7 +83,6 @@ S3_PASSWORD = "Raja1234@#"
 S3_BASE_URL = "https://x.mnitnetwork.com/mapi/v1"
 
 # 🔥 CLOUDFLARE BYPASS HEADERS (Universal)
-# FIXED: Removed manual User-Agent override so curl_cffi can accurately mimic Chrome
 def get_cf_headers(origin_domain):
     return {
         "Accept": "application/json, text/plain, */*",
@@ -174,7 +176,7 @@ def get_short_code(country_name):
     return str(country_name)[:2].upper()
 
 # ==============================================================================
-# 🔧 UTILITY FUNCTIONS (Fixed Missing Functions)
+# 🔧 UTILITY FUNCTIONS 
 # ==============================================================================
 
 def clean_number(n: str) -> str:
@@ -221,7 +223,6 @@ def extract_code(message):
     fb = re.search(r'\b(\d{4,8})\b', msg)
     return fb.group(1) if fb else "See Msg"
 
-# FIXED: Added missing helper functions to prevent crashing in forwarder and checker
 def get_sms_from_item(item):
     return str(item.get('sms_text') or item.get('otp') or item.get('message') or item.get('sms') or '')
 
@@ -390,7 +391,7 @@ def sync_update_withdraw_status(wd_id, status):
         return True, user_id, amount
 
 # ==============================================================================
-# 🔐 AUTHENTICATION & API REQUESTS (3 SERVERS) - UPGRADED CF BYPASS
+# 🔐 AUTHENTICATION & API REQUESTS (3 SERVERS)
 # ==============================================================================
 
 async def get_session():
@@ -458,7 +459,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
         except Exception: pass
     return 500, None
 
-# --- SERVER 2: ACCHUB.IO (curl_cffi CF Bypass - Upgraded to Chrome124) ---
+# --- SERVER 2: ACCHUB.IO (curl_cffi CF Bypass) ---
 async def get_s2_session():
     global S2_SESSION
     if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome124")
@@ -516,7 +517,7 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
     return 500, None
 
 
-# --- SERVER 3: MNIT NETWORK (curl_cffi CF Bypass - Upgraded to Chrome124) ---
+# --- SERVER 3: MNIT NETWORK (curl_cffi CF Bypass) ---
 async def get_s3_session():
     global S3_SESSION
     if S3_SESSION is None: S3_SESSION = CurlAsyncSession(impersonate="chrome124")
@@ -650,9 +651,10 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
         BATCH_MSGS.pop(batch_key, None)
     
     else:
+        # FIXED: Removed unclosed <i> tags here that caused Telegram to crash silently
         txt = (
             f"{batch['flag']} <b>{batch['country_name']} [{get_short_code(batch['country_name'])}] Numbers Assigned</b> ✅\n\n"
-            f"Number Generated <i>\n"
+            f"Number Generated \n"
             f"𒊹︎︎︎ <i> waiting For Otps 💥</i>"
         )
         
@@ -674,7 +676,7 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
         except Exception: pass
 
 # ==============================================================================
-# 🤖 AUTO RANGE FORWARDER JOB (Fixed Service Name Passing)
+# 🤖 AUTO RANGE FORWARDER JOB
 # ==============================================================================
 
 async def process_stex_mnit_logs(context, logs, server_name, server_id, bot_username):
@@ -699,7 +701,6 @@ async def process_stex_mnit_logs(context, logs, server_name, server_id, bot_user
                     if len(SENT_RANGES) > 10000: SENT_RANGES.clear()
                     
                     display_app = "PC Clone" if ('facebook' in raw_app and '•' in msg_text) else raw_app.title()
-                    # FIXED: Added safe url component for service selection
                     safe_app_url = "facebook" if "facebook" in raw_app else "whatsapp"
                     
                     num_in_msg = re.search(r'\b(\d{7,15})\b', full_msg_text)
@@ -731,7 +732,7 @@ async def process_acchub_logs(context, logs, server_name, server_id, bot_usernam
             op_id = log.get('operator_id')
             if not c_id or not op_id: continue
             
-            r_val = f"{c_id}|{op_id}" # Custom mapped range for Acchub
+            r_val = f"{c_id}|{op_id}"
             raw_app = str(log.get('provider', 'Unknown')).lower()
             c_name = log.get('country_name', 'Unknown')
             raw_msg = log.get('sms_text', '')
@@ -847,7 +848,6 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     elif server_id == 2: server_icon = "Server 2 🚀"
     else: server_icon = "Server 3 🔥"
     
-    # Generate proper deep link for the OTP group forward
     safe_svc_url = "facebook" if "facebook" in str(custom_service_name).lower() else "whatsapp"
 
     group_msg = (
@@ -938,7 +938,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED STAGGERED NUMBER GENERATION (FIXED API PAYLOADS)
+# 🎯 HIGH-SPEED STAGGERED NUMBER GENERATION 
 # ==============================================================================
 
 async def _fetch_number_s1(payload):
@@ -969,31 +969,26 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     country_name = context.user_data.get('country_name', 'Unknown')
     tasks = []
 
-    # FIXED: Retrieve accurate service/app name for API Call
-    raw_svc = context.user_data.get('service_name', 'facebook').lower()
+    raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
     # 🔥 DYNAMIC STAGGERING: Safely executes 2 requests lightning fast without getting CF blocked
     if server_id == 1:
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
-        # FIXED: Added required 'app' parameter
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
         tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload)]
         
     elif server_id == 2:
-        # Acchub uses country_id and operator_id as range format (e.g. "119|970" or "119X970")
         rv = str(range_val).replace('X', '|')
         parts = rv.split('|')
         if len(parts) >= 2:
-            # FIXED: Added required 'app'/'service' parameter
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
             tasks = [_fetch_number_s2(payload, 0), _fetch_number_s2(payload, 0.15)]
             
     elif server_id == 3:
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
-        # FIXED: Added required 'app' parameter
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": True}
         tasks = [_fetch_number_s3(payload, 0), _fetch_number_s3(payload, 0.15)]
 
@@ -1004,21 +999,31 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 status, resp = res
                 if status in [200, 201] and isinstance(resp, dict):
                     num = ""
-                    if server_id == 2 and resp.get('status') == 'success':
-                        num = str(resp['data']['phone_number'])
-                    elif 'data' in resp and resp['data'].get('number'):
+                    # FIXED: Added safe extraction so it doesn't crash if Server returns unexpected list
+                    if server_id == 2 and resp.get('status') in ['success', 200, True]:
+                        data_obj = resp.get('data', {})
+                        if isinstance(data_obj, dict):
+                            num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
+                        elif isinstance(data_obj, list) and len(data_obj) > 0:
+                            num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
+                            
+                    elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
                         num = str(resp['data']['number'])
                         country_name = resp['data'].get('country', country_name)
                     
-                    if num: fetched_numbers.append(num.replace('+', ''))
+                    if num and num != "None": 
+                        fetched_numbers.append(num.replace('+', ''))
+            elif isinstance(res, Exception):
+                logger.error(f"API Error in parallel task: {res}")
             
     if fetched_numbers:
         flag = get_flag(country_name)
         short_name = get_short_code(country_name)
         
+        # FIXED: Removed unclosed <i> tags here that caused Telegram to crash silently
         txt = (
             f"{flag} <b>{country_name} [{short_name}] Numbers Assigned</b> ✅\n\n"
-            f"Number Generated <i>\n"
+            f"Number Generated \n"
             f"𒊹︎︎︎ <i> waiting For Otps 💥</i>"
         )
         
@@ -1033,7 +1038,12 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         kb.append([InlineKeyboardButton("🔄 CHANGE NUMBER", callback_data="change_num"), InlineKeyboardButton("💬 OTP GROUP", url="https://t.me/RTxOtpX")])
         kb.append([InlineKeyboardButton("🔙 BACK TO MAIN MENU", callback_data="go_main")])
         
-        await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        try:
+            await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        except Exception as e:
+            # Fallback if HTML fails for any unexpected reason
+            await msg.edit_text(text=f"✅ Assigned: {fetched_numbers[0]}\nWaiting for OTP...", reply_markup=InlineKeyboardMarkup(kb))
+            logger.error(f"Edit text crashed: {e}")
         
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {'numbers': fetched_numbers.copy(), 'country_name': country_name, 'flag': flag, 'received_for': set()}
@@ -1053,11 +1063,17 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
     else:
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
-        await msg.edit_text(
-            text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_main")]]), 
-            parse_mode=ParseMode.HTML
-        )
+        try:
+            await msg.edit_text(
+                text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", 
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_main")]]), 
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            await msg.edit_text(
+                text="📡 Server Optimizing. No numbers found right now. Please try again.", 
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_main")]])
+            )
 
 # ==============================================================================
 # 📋 MENUS & UI WITH HIGH-SPEED PARALLEL SUCCESS RATE
@@ -1073,13 +1089,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: pass
         if referrer_id == user_id: referrer_id = None
         
-    # 🔥 EXACT SERVER DEEP LINK HANDLER (Fixed to include service name)
     if context.args and context.args[0].startswith("range_"):
         parts = context.args[0].split("_")
         if len(parts) >= 3:
             srv_id = int(parts[1])
             rng_val = parts[2].replace('X', '|')
-            # extract service safely
             extracted_svc = parts[3] if len(parts) > 3 else "facebook"
             context.user_data['service_name'] = extracted_svc.title()
             await process_number_generation(update, context, rng_val, srv_id, is_callback=False)
@@ -1157,7 +1171,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     
     await query.edit_message_text(text="📡 <i>Connecting to Server... Calculating Success Rates!</i> ⏳", parse_mode=ParseMode.HTML)
     
-    # 🔥 ULTRA-FAST PARALLEL CONSOLE FETCHING
     tasks = []
     if server_id == 1:
         await auth_s1(force=True)
@@ -1177,7 +1190,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
             data_list = res[1].get('data', {}).get('logs', []) if server_id != 2 else res[1].get('data', [])
             for log in data_list:
                 if isinstance(log, dict):
-                    # Acchub specific parsing
                     if server_id == 2:
                         c, r = log.get('country_name', 'Unknown'), f"{log.get('country_id')}|{log.get('operator_id')}"
                         app_name = str(log.get('provider', '')).lower()
@@ -1206,7 +1218,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         indicator = "🟢" if display_rate >= 80 else ("🟡" if display_rate >= 60 else "🔴")
         btn_text = f"{get_flag(c_name)} {c_name} {display_rate}% {indicator}"
         
-        # FIXED: Telegram Callback data limit (64 bytes). Shortened country name safely.
         safe_c_name = str(c_name)[:10].replace(" ", "")
         kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{server_id}_{stats['range']}_{safe_c_name}")])
         
@@ -1221,7 +1232,10 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): return
     user_id = update.effective_user.id
-    text = update.message.text
+    raw_text = update.message.text
+    if not raw_text: return
+    text = raw_text.strip() # FIXED: Prevents bug where custom keyboard sends trailing space
+    
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
@@ -1430,7 +1444,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif state == 'WAITING_FOR_RANGE':
         user_data['state'] = None
         server_id = user_data.get('server', 1)
-        # Assuming facebook for custom range
         context.user_data['service_name'] = "Facebook"
         await process_number_generation(update, context, text, server_id, is_callback=False)
         
@@ -1630,11 +1643,8 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Fast OTP Check Interval
     app.job_queue.run_repeating(global_otp_checker_job,  interval=2,   first=2)
-    # Range forwarder parallel check
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=10,  first=10)
-    # Session refresh
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     
     logger.info("✨ VERSION 45.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
