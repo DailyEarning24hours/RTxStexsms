@@ -92,6 +92,36 @@ def get_cf_headers(origin_domain):
         "Referer": f"https://{origin_domain}/"
     }
 
+# 🔥 SERVER 3 (MNIT) — DEDICATED CLOUDFLARE BYPASS HEADERS
+# Exact Android Chrome fingerprint that MNIT Cloudflare accepts (from main.py — 100% working)
+MNIT_CF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.159 Mobile Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Content-Type": "application/json",
+    "Origin": "https://x.mnitnetwork.com",
+    "sec-ch-ua": '"Not:A-Brand";v="99", "Android WebView";v="145", "Chromium";v="145"',
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": '"Android"',
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+    "x-requested-with": "mark.via.gp",
+    "accept-encoding": "gzip, deflate, br",
+    "accept-language": "en-US,en-VI;q=0.9,en;q=0.8,bn-BD;q=0.7,bn;q=0.6",
+}
+
+def get_mnit_headers(referer: str = "https://x.mnitnetwork.com/mdashboard"):
+    """
+    🔥 FULL CLOUDFLARE-SAFE HEADERS — mauthtoken sent BOTH as header AND cookie.
+    Referer is passed per-call to match exact browser behaviour that bypasses CF.
+    """
+    return {
+        **MNIT_CF_HEADERS,
+        "mauthtoken": str(S3_TOKEN),
+        "Referer": referer,
+        "Cookie": f"mauthtoken={S3_TOKEN}",
+    }
+
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
@@ -549,30 +579,43 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
 # --- SERVER 3 (curl_cffi CF Bypass - Upgraded to Chrome124) ---
 async def get_s3_session():
     global S3_SESSION
-    if S3_SESSION is None: S3_SESSION = CurlAsyncSession(impersonate="chrome124")
+    if S3_SESSION is None:
+        # 🔥 chrome120 — exact TLS + HTTP/2 fingerprint that bypasses MNIT Cloudflare (from main.py)
+        S3_SESSION = CurlAsyncSession(impersonate="chrome120")
     return S3_SESSION
 
 async def auth_s3(force=False):
     global S3_TOKEN, LAST_AUTH_S3
     async with AUTH_LOCK_S3:
-        # CRITICAL FIX: Preserved 23h token caching logic to avoid IP rate limits from server.
         if not force and time.time() - LAST_AUTH_S3 < 82800 and S3_TOKEN: return True
         payload = {"email": S3_EMAIL, "password": S3_PASSWORD}
-        headers = get_cf_headers("x.mnitnetwork.com")
+        # 🔥 Use dedicated MNIT login headers (exact browser fingerprint from main.py)
+        login_headers = {
+            **MNIT_CF_HEADERS,
+            "Referer": "https://x.mnitnetwork.com/mauth/login",
+        }
         try:
             session = await get_s3_session()
-            response = await session.post(f"{S3_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=20)
+            response = await session.post(f"{S3_BASE_URL}/mauth/login", json=payload, headers=login_headers, timeout=20)
             if response.status_code == 200:
                 try: data = response.json()
                 except Exception: data = None
                 if data and str(data.get('meta', {}).get('code')) == '200':
                     S3_TOKEN = data['data']['token']
                     LAST_AUTH_S3 = time.time()
+                    logger.info("✅ Server 3 (MNIT) CF Bypass Auth successful (chrome120).")
                     return True
+            logger.warning(f"⚠️ MNIT login failed — HTTP {response.status_code}")
             return False
-        except Exception: return False
+        except Exception as e:
+            logger.error(f"S3 auth error: {e}")
+            return False
 
-async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
+async def s3_api_request(method: str, url: str, json_payload=None, return_text=False, referer: str = "https://x.mnitnetwork.com/mdashboard"):
+    """
+    🔥 curl_cffi powered S3/MNIT API request — Chrome TLS fingerprint bypass for Cloudflare.
+    Referer is passed per-call to match exact browser behaviour (ported from main.py).
+    """
     global S3_TOKEN
     for attempt in range(3):
         try:
@@ -581,32 +624,37 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
                     await asyncio.sleep(2)
                     continue
             session = await get_s3_session()
-            headers = get_cf_headers("x.mnitnetwork.com")
-            headers.update({"mauthtoken": str(S3_TOKEN), "Cookie": f"mauthtoken={S3_TOKEN}"})
-            
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
+            # 🔥 Use get_mnit_headers with specific referer — key to CF bypass (from main.py)
+            headers = get_mnit_headers(referer=referer)
+
+            if method.upper() == 'GET':
+                response = await session.get(url, headers=headers, timeout=20)
+            else:
+                response = await session.post(url, json=json_payload, headers=headers, timeout=20)
 
             status = response.status_code
-            if status in [401, 403]:
+            # 🔥 CF challenge or token expired — force re-login
+            if status in [401, 403, 429, 500, 502, 503]:
                 S3_TOKEN = None
+                await asyncio.sleep(2)
                 await auth_s3(force=True)
-                continue
-            if status in [429, 500, 502, 503]:
-                await asyncio.sleep(1)
                 continue
             if status == 200:
                 if return_text: return 200, response.text
                 try: data = response.json()
                 except Exception: data = None
                 if isinstance(data, dict):
-                    if str(data.get('meta', {}).get('code', '200')) in ['401', '403']:
+                    meta_code = str(data.get('meta', {}).get('code', '200'))
+                    if meta_code in ['401', '403']:
                         S3_TOKEN = None
                         await auth_s3(force=True)
                         continue
                 return 200, data
-            else: return status, None
-        except Exception: await asyncio.sleep(1)
+            else:
+                return status, None
+        except Exception as e:
+            logger.error(f"S3 API error (attempt {attempt+1}): {e}")
+            await asyncio.sleep(2)
     return 500, None
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
@@ -812,7 +860,7 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=100")
-    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info", referer="https://x.mnitnetwork.com/mdashboard/console")
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
     
@@ -965,7 +1013,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)
-    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True, referer="https://x.mnitnetwork.com/mdashboard/getnum")
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
 
@@ -986,7 +1034,12 @@ async def _fetch_number_s2(payload, delay=0):
 
 async def _fetch_number_s3(payload, delay=0):
     if delay > 0: await asyncio.sleep(delay)
-    return await s3_api_request('POST', f"{S3_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+    range_val_ref = payload.get('range', '')
+    return await s3_api_request(
+        'POST', f"{S3_BASE_URL}/mdashboard/getnum/number",
+        json_payload=payload,
+        referer=f"https://x.mnitnetwork.com/mdashboard/getnum?range={range_val_ref}"
+    )
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
@@ -1212,7 +1265,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
             res = await s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20")
             if res[0] == 200 and isinstance(res[1], dict): data_list = res[1].get('data', [])
         elif server_id == 3:
-            res = await s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info")
+            res = await s3_api_request('GET', f"{S3_BASE_URL}/mdashboard/console/info", referer="https://x.mnitnetwork.com/mdashboard/console")
             if res[0] == 200 and isinstance(res[1], dict): data_list = res[1].get('data', {}).get('logs', [])
 
     country_stats = {}
