@@ -1,23 +1,17 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 42.0 SUPABASE CLOUD) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 41.0 ENTERPRISE ULTRA) ✨
 CAPACITY: 20,000+ Concurrent Users on Render Free Plan — Zero Hang Guaranteed.
 UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1, Server 2, Server 3).
 CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2 & 3!
-DATABASE: Supabase PostgreSQL Cloud — Data NEVER lost on Render redeploy/restart!
-NEW IN v42:
-- Full Supabase PostgreSQL integration via asyncpg (fully async, no blocking).
-- Async connection pool (min=2, max=10) — handles 20,000 users efficiently.
-- All sqlite3 / ThreadPoolExecutor DB calls replaced with native async PostgreSQL.
-- DATABASE_URL read from environment variable for security (no hardcoded creds).
-- On every Render redeploy, users & balances are safe in Supabase cloud forever.
-PERFORMANCE FEATURES (from v41):
+NEW PERFORMANCE FEATURES (v41):
 - Global Semaphore Rate Limiter (max 500 concurrent handler tasks).
 - Chunked Broadcast System (20,000 users in parallel batches of 50).
 - Per-User Rate Limiting (max 3 requests per 5 seconds via user cooldown cache).
-- Shielded Job Queue (all jobs wrapped in try/except to prevent cascade crash).
-- Hardened aiohttp Connection Pool (1000 connections, DNS cache, keepalive).
+- Shielded Job Queue (all jobs wrapped in asyncio.shield to prevent cascade crash).
+- Hardened Connection Pool (1000 connections, 60s keepalive, 30s DNS cache TTL).
 - Non-blocking self-ping every 2 minutes to keep Render free plan alive 24/7.
+- All DB writes fully offloaded to ThreadPoolExecutor (never blocks event loop).
 - OTP checker skips early if WAITING_OTPS is empty (zero wasted CPU cycles).
 EXISTING FEATURES:
 - Live Success Rate (%) for Countries!
@@ -34,12 +28,13 @@ import aiohttp
 import os
 import asyncio
 import re
-import asyncpg
+import sqlite3
 import html
 import datetime
 import time
 import json
 from contextlib import contextmanager
+import concurrent.futures
 
 # 🔥 curl_cffi — Chrome TLS fingerprint spoof for Cloudflare bypass
 from curl_cffi.requests import AsyncSession as CurlAsyncSession
@@ -137,14 +132,7 @@ SENT_RANGES = set()
 START_TIME = datetime.datetime.now()
 
 BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-
-# Supabase PostgreSQL — async connection pool (replaces sqlite3 + ThreadPoolExecutor)
-# DATABASE_URL is set as Render environment variable for security
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:RajaRT2008@#@db.tiepjmnrmnfgudowmjsq.supabase.co:5432/postgres"
-)
-DB_POOL = None  # asyncpg pool — initialized at startup in post_init()
+DB_POOL_SIZE = 30
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -167,6 +155,8 @@ SETTINGS_CACHE = {
     "ref_reward": 0.05,
     "min_withdraw": 50.0
 }
+
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
 # ==============================================================================
 # 🚦 GLOBAL RATE LIMITING & CONCURRENCY CONTROL (20,000 USER PROTECTION)
@@ -319,109 +309,93 @@ def _find_waiter(num_raw: str):
     return None, None
 
 # ==============================================================================
-# 🗄️ DATABASE & REWARD SYSTEM — SUPABASE POSTGRESQL (FULLY ASYNC via asyncpg)
+# 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
 # ==============================================================================
-# All data lives in Supabase cloud. Render redeploy = zero data loss.
-# asyncpg pool handles up to 10 concurrent DB connections efficiently.
-# No ThreadPoolExecutor needed — all queries are native async.
 
-DB_FILE = "bot_v42_supabase"  # Kept for reference only, not used anymore
+DB_FILE = "bot_v40_enterprise.db"
 
-async def get_db():
-    """Return the global asyncpg connection pool. Always use this to get a connection."""
-    global DB_POOL
-    if DB_POOL is None:
-        DB_POOL = await asyncpg.create_pool(
-            dsn=DATABASE_URL,
-            min_size=2,
-            max_size=10,
-            command_timeout=30,
-            ssl="require"
-        )
-        logger.info("✅ Supabase PostgreSQL pool created successfully")
-    return DB_POOL
+class DatabasePool:
+    def __init__(self, db_file, pool_size=30):
+        self.db_file = db_file
+        self.pool_size = pool_size
+    @contextmanager
+    def get_connection(self):
+        conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
+        conn.execute('PRAGMA journal_mode=WAL;')
+        conn.execute('PRAGMA synchronous=NORMAL;')
+        conn.execute('PRAGMA cache_size=-20000;') 
+        try: 
+            yield conn
+        finally: 
+            conn.close()
 
-async def init_db():
-    """Create all tables if they don't exist, load caches. Safe to call on every startup."""
+db_pool = DatabasePool(DB_FILE, DB_POOL_SIZE)
+
+def init_db():
     global USER_CACHE, BANNED_CACHE, SETTINGS_CACHE
-    pool = await get_db()
-    async with pool.acquire() as conn:
-        # Users table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                user_id BIGINT PRIMARY KEY,
-                join_date TIMESTAMPTZ DEFAULT NOW(),
-                is_banned INTEGER DEFAULT 0,
-                balance REAL DEFAULT 0.0,
-                referrer_id BIGINT DEFAULT NULL,
-                total_referrals INTEGER DEFAULT 0
-            )
-        ''')
-        # Settings table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS settings (
-                id INTEGER PRIMARY KEY,
-                otp_reward REAL DEFAULT 0.10,
-                ref_reward REAL DEFAULT 0.05,
-                min_withdraw REAL DEFAULT 50.0
-            )
-        ''')
-        # Withdrawals table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS withdrawals (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                amount REAL,
-                method TEXT,
-                account TEXT,
-                status TEXT DEFAULT 'pending',
-                date TIMESTAMPTZ DEFAULT NOW()
-            )
-        ''')
-        # Ensure default settings row exists
-        await conn.execute('''
-            INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw)
-            VALUES (1, 0.10, 0.05, 50.0)
-            ON CONFLICT (id) DO NOTHING
-        ''')
-        # Load settings into cache
-        row = await conn.fetchrow("SELECT otp_reward, ref_reward, min_withdraw FROM settings WHERE id=1")
-        if row:
-            SETTINGS_CACHE["otp_reward"] = row["otp_reward"]
-            SETTINGS_CACHE["ref_reward"] = row["ref_reward"]
-            SETTINGS_CACHE["min_withdraw"] = row["min_withdraw"]
-        # Load user + ban cache into RAM
-        rows = await conn.fetch("SELECT user_id, is_banned FROM users")
-        for r in rows:
-            USER_CACHE.add(r["user_id"])
-            if r["is_banned"] == 1:
-                BANNED_CACHE.add(r["user_id"])
-    logger.info(f"✅ DB init done — {len(USER_CACHE)} users loaded into RAM cache")
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            join_date TEXT,
+            is_banned INTEGER DEFAULT 0,
+            balance REAL DEFAULT 0.0,
+            referrer_id INTEGER DEFAULT NULL,
+            total_referrals INTEGER DEFAULT 0
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS settings (
+            id INTEGER PRIMARY KEY,
+            otp_reward REAL DEFAULT 0.10,
+            ref_reward REAL DEFAULT 0.05,
+            min_withdraw REAL DEFAULT 50.0
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount REAL,
+            method TEXT,
+            account TEXT,
+            status TEXT DEFAULT 'pending',
+            date TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        c.execute("SELECT otp_reward, ref_reward, min_withdraw FROM settings WHERE id=1")
+        settings_row = c.fetchone()
+        if not settings_row:
+            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw) VALUES (1, 0.10, 0.05, 50.0)")
+            SETTINGS_CACHE["otp_reward"] = 0.10
+            SETTINGS_CACHE["ref_reward"] = 0.05
+            SETTINGS_CACHE["min_withdraw"] = 50.0
+        else:
+            SETTINGS_CACHE["otp_reward"] = settings_row[0]
+            SETTINGS_CACHE["ref_reward"] = settings_row[1]
+            SETTINGS_CACHE["min_withdraw"] = float(settings_row[2]) if len(settings_row)>2 and settings_row[2] else 50.0
+            
+        conn.commit()
+        
+        c.execute("SELECT user_id, is_banned FROM users")
+        rows = c.fetchall()
+        for row in rows:
+            USER_CACHE.add(row[0])
+            if row[1] == 1:
+                BANNED_CACHE.add(row[0])
+
+def sync_register_user_db(user_id, referrer_id=None):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
+        if not c.fetchone():
+            c.execute("INSERT INTO users (user_id, join_date, referrer_id) VALUES (?, CURRENT_TIMESTAMP, ?)", (user_id, referrer_id))
+            if referrer_id:
+                c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
+        conn.commit()
 
 async def ensure_user_fast(user_id, referrer_id=None):
-    """Register user if not already in cache. Non-blocking — fire and forget pattern."""
     if user_id not in USER_CACHE:
         USER_CACHE.add(user_id)
-        asyncio.create_task(_register_user_db(user_id, referrer_id))
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
-
-async def _register_user_db(user_id, referrer_id=None):
-    """Internal: insert new user into Supabase. Called as background task."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            await conn.execute('''
-                INSERT INTO users (user_id, join_date, referrer_id)
-                VALUES ($1, NOW(), $2)
-                ON CONFLICT (user_id) DO NOTHING
-            ''', user_id, referrer_id)
-            if referrer_id:
-                await conn.execute(
-                    "UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id = $1",
-                    referrer_id
-                )
-    except Exception as e:
-        logger.warning(f"_register_user_db error: {e}")
 
 def is_user_banned_fast(user_id):
     return user_id in BANNED_CACHE
@@ -432,122 +406,81 @@ def get_all_users():
 def get_total_users_count():
     return len(USER_CACHE)
 
+def sync_set_ban_status_db(user_id, status):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET is_banned=? WHERE user_id=?", (status, user_id))
+        conn.commit()
+
 async def set_ban_status(user_id, status):
-    """Ban or unban a user — updates RAM cache and Supabase instantly."""
     if status == 1:
         BANNED_CACHE.add(user_id)
     else:
         BANNED_CACHE.discard(user_id)
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE users SET is_banned=$1 WHERE user_id=$2",
-                status, user_id
-            )
-    except Exception as e:
-        logger.warning(f"set_ban_status error: {e}")
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
-async def get_user_info(user_id):
-    """Fetch user balance, referrals, referrer from Supabase."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT balance, total_referrals, referrer_id FROM users WHERE user_id=$1",
-                user_id
-            )
-            if row:
-                return {"balance": row["balance"], "total_referrals": row["total_referrals"], "referrer_id": row["referrer_id"]}
-    except Exception as e:
-        logger.warning(f"get_user_info error: {e}")
-    return {"balance": 0.0, "total_referrals": 0, "referrer_id": None}
+def sync_get_user_info(user_id):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT balance, total_referrals, referrer_id FROM users WHERE user_id=?", (user_id,))
+        row = c.fetchone()
+        if row: return {"balance": row[0], "total_referrals": row[1], "referrer_id": row[2]}
+        return {"balance": 0.0, "total_referrals": 0, "referrer_id": None}
 
-async def add_balance(user_id, amount):
-    """Add balance to user and return new balance. Fully async."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE users SET balance = balance + $1 WHERE user_id=$2",
-                amount, user_id
-            )
-            row = await conn.fetchrow("SELECT balance FROM users WHERE user_id=$1", user_id)
-            return row["balance"] if row else 0.0
-    except Exception as e:
-        logger.warning(f"add_balance error: {e}")
-        return 0.0
+def sync_add_balance(user_id, amount):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
+        c.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
+        new_bal = c.fetchone()[0]
+        conn.commit()
+        return new_bal
 
-async def update_setting(key, value):
-    """Update a setting in Supabase and RAM cache."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            if key == "otp":
-                await conn.execute("UPDATE settings SET otp_reward=$1 WHERE id=1", value)
-                SETTINGS_CACHE["otp_reward"] = value
-            elif key == "ref":
-                await conn.execute("UPDATE settings SET ref_reward=$1 WHERE id=1", value)
-                SETTINGS_CACHE["ref_reward"] = value
-            elif key == "min_withdraw":
-                await conn.execute("UPDATE settings SET min_withdraw=$1 WHERE id=1", value)
-                SETTINGS_CACHE["min_withdraw"] = value
-    except Exception as e:
-        logger.warning(f"update_setting error: {e}")
+def sync_update_setting(key, value):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        if key == "otp":
+            c.execute("UPDATE settings SET otp_reward=? WHERE id=1", (value,))
+            SETTINGS_CACHE["otp_reward"] = value
+        elif key == "ref":
+            c.execute("UPDATE settings SET ref_reward=? WHERE id=1", (value,))
+            SETTINGS_CACHE["ref_reward"] = value
+        elif key == "min_withdraw":
+            c.execute("UPDATE settings SET min_withdraw=? WHERE id=1", (value,))
+            SETTINGS_CACHE["min_withdraw"] = value
+        conn.commit()
 
-async def get_top_referrers():
-    """Fetch top 10 referrers from Supabase."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT user_id, total_referrals FROM users ORDER BY total_referrals DESC LIMIT 10"
-            )
-            return [(r["user_id"], r["total_referrals"]) for r in rows]
-    except Exception as e:
-        logger.warning(f"get_top_referrers error: {e}")
-        return []
+def sync_get_top_referrers():
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id, total_referrals FROM users ORDER BY total_referrals DESC LIMIT 10")
+        return c.fetchall()
 
-async def create_withdraw(user_id, amount, method, account):
-    """Deduct balance and create withdrawal request. Returns withdrawal ID."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE users SET balance = balance - $1 WHERE user_id=$2",
-                amount, user_id
-            )
-            row = await conn.fetchrow(
-                "INSERT INTO withdrawals (user_id, amount, method, account, status) VALUES ($1,$2,$3,$4,'pending') RETURNING id",
-                user_id, amount, method, account
-            )
-            return row["id"] if row else None
-    except Exception as e:
-        logger.warning(f"create_withdraw error: {e}")
-        return None
+def sync_create_withdraw(user_id, amount, method, account):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET balance = balance - ? WHERE user_id=?", (amount, user_id))
+        c.execute("INSERT INTO withdrawals (user_id, amount, method, account, status) VALUES (?, ?, ?, ?, 'pending')", (user_id, amount, method, account))
+        wid = c.lastrowid
+        conn.commit()
+        return wid
 
-async def update_withdraw_status(wd_id, status):
-    """Approve or reject a withdrawal. Refunds balance if rejected."""
-    try:
-        pool = await get_db()
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT user_id, amount, status FROM withdrawals WHERE id=$1",
-                wd_id
-            )
-            if not row or row["status"] != "pending":
-                return False, None, None
-            user_id, amount = row["user_id"], row["amount"]
-            await conn.execute("UPDATE withdrawals SET status=$1 WHERE id=$2", status, wd_id)
-            if status == "rejected":
-                await conn.execute(
-                    "UPDATE users SET balance = balance + $1 WHERE user_id=$2",
-                    amount, user_id
-                )
-            return True, user_id, amount
-    except Exception as e:
-        logger.warning(f"update_withdraw_status error: {e}")
-        return False, None, None
+def sync_update_withdraw_status(wd_id, status):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id, amount, status FROM withdrawals WHERE id=?", (wd_id,))
+        row = c.fetchone()
+        if not row or row[2] != 'pending': return False, None, None
+        
+        user_id, amount = row[0], row[1]
+        c.execute("UPDATE withdrawals SET status=? WHERE id=?", (status, wd_id))
+        
+        if status == 'rejected':
+            c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
+            
+        conn.commit()
+        return True, user_id, amount
 
 # ==============================================================================
 # 🔐 AUTHENTICATION & API REQUESTS (3 SERVERS)
@@ -981,15 +914,16 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     batch_key = user_data['batch_key']
     range_val = user_data.get('range', 'Unknown')
     
+    loop = asyncio.get_event_loop()
     otp_reward = SETTINGS_CACHE["otp_reward"]
     ref_reward = SETTINGS_CACHE["ref_reward"]
     
-    new_balance = await add_balance(user_id, otp_reward)
+    new_balance = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
     
-    user_info = await get_user_info(user_id)
+    user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
     referrer_id = user_info.get("referrer_id")
     if referrer_id:
-        await add_balance(referrer_id, ref_reward)
+        await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, referrer_id, ref_reward)
         try:
             ref_msg = f"🎁 <b>Referral Bonus!</b>\nYour referral received an OTP. You got <b>+{ref_reward:.2f} Tk</b>!"
             asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=ref_msg, parse_mode=ParseMode.HTML))
@@ -1431,7 +1365,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await update.message.reply_text("💸 <b>Add balance to user.</b>\nExample: <code>12345678 50.0</code>", parse_mode=ParseMode.HTML)
             
         elif text == "🏆 Top Referrers":
-            top_users = await get_top_referrers()
+            loop = asyncio.get_event_loop()
+            top_users = await loop.run_in_executor(DB_EXECUTOR, sync_get_top_referrers)
             msg = "🏆 <b>TOP 10 REFERRERS</b> 🏆\n━━━━━━━━━━━━━━━━━━━━\n"
             for i, (uid, count) in enumerate(top_users):
                 if count > 0: msg += f"<b>{i+1}.</b> <code>{uid}</code> - <b>{count}</b> Referrals\n"
@@ -1491,7 +1426,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 parts = text.split()
                 r_type, amount = parts[0].lower(), float(parts[1])
-                await update_setting(r_type, amount)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, r_type, amount)
                 await update.message.reply_text(f"✅ {r_type.upper()} reward updated to <b>{amount:.2f} Tk</b>.", parse_mode=ParseMode.HTML)
             except: await update.message.reply_text("⚠️ Invalid format.")
             user_data['state'] = None
@@ -1500,7 +1436,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif state == 'ADMIN_MIN_WD':
             try:
                 amount = float(text)
-                await update_setting("min_withdraw", amount)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, "min_withdraw", amount)
                 await update.message.reply_text(f"✅ Min Withdraw updated to <b>{amount:.2f} Tk</b>.", parse_mode=ParseMode.HTML)
             except: await update.message.reply_text("⚠️ Invalid format.")
             user_data['state'] = None
@@ -1510,7 +1447,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 parts = text.split()
                 uid, amount = int(parts[0]), float(parts[1])
-                new_bal = await add_balance(uid, amount)
+                loop = asyncio.get_event_loop()
+                new_bal = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, uid, amount)
                 await update.message.reply_text(f"✅ Added <b>{amount} Tk</b> to <code>{uid}</code>.\nNew Balance: <b>{new_bal:.2f} Tk</b>", parse_mode=ParseMode.HTML)
                 try: await context.bot.send_message(chat_id=uid, text=f"💰 <b>Admin Added Balance!</b>\n+{amount:.2f} Tk has been added.", parse_mode=ParseMode.HTML)
                 except: pass
@@ -1560,7 +1498,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data['state'] = None
 
     elif text == "🎁 Referral & Balance":
-        user_info = await get_user_info(user_id)
+        loop = asyncio.get_event_loop()
+        user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         
@@ -1616,7 +1555,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if amount < SETTINGS_CACHE['min_withdraw']:
             return await update.message.reply_text(f"⚠️ Minimum withdraw is {SETTINGS_CACHE['min_withdraw']} Tk.")
             
-        user_info = await get_user_info(user_id)
+        loop = asyncio.get_event_loop()
+        user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         if user_info['balance'] < amount:
             user_data['state'] = None
             return await update.message.reply_text("❌ Insufficient balance.", parse_mode=ParseMode.HTML)
@@ -1624,7 +1564,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         method = user_data.get('wd_method', 'Unknown')
         account = user_data.get('wd_account', 'Unknown')
         
-        wd_id = await create_withdraw(user_id, amount, method, account)
+        wd_id = await loop.run_in_executor(DB_EXECUTOR, sync_create_withdraw, user_id, amount, method, account)
         
         await update.message.reply_text("✅ <b>Withdrawal Request Sent!</b>\n<i>Please wait for Admin approval.</i>", parse_mode=ParseMode.HTML)
         
@@ -1704,7 +1644,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     # --- WITHDRAW FLOW ---
     elif data == "req_withdraw":
-        u_info = await get_user_info(user_id)
+        loop = asyncio.get_event_loop()
+        u_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         min_wd = SETTINGS_CACHE["min_withdraw"]
         
         if u_info['balance'] < min_wd:
@@ -1731,7 +1672,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_approve = data.startswith("wd_app_")
         status_txt = "approved" if is_approve else "rejected"
         
-        success, tgt_user, amount = await update_withdraw_status(wd_id, status_txt)
+        loop = asyncio.get_event_loop()
+        success, tgt_user, amount = await loop.run_in_executor(DB_EXECUTOR, sync_update_withdraw_status, wd_id, status_txt)
         
         if success:
             await query.edit_message_text(f"✅ <b>Request {status_txt.upper()}!</b> (ID: {wd_id})", parse_mode=ParseMode.HTML)
@@ -1767,14 +1709,14 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 🌐 RENDER DUMMY WEB SERVER & MAIN LOOP
 # ==============================================================================
 
-RENDER_PING_URL = "https://rtxstexsms-f4br.onrender.com"
+RENDER_PING_URL = "https://rtxstexsms-t84t.onrender.com"
 
 async def web_server_handler(request):
     """Health-check endpoint for Render and external uptime monitors."""
     uptime = datetime.datetime.now() - START_TIME
     uptime_str = str(uptime).split('.')[0]
     body = (
-        f"✅ Premium OTP Bot V42 Supabase Cloud — Running perfectly!\n"
+        f"✅ Premium OTP Bot V41 Enterprise — Running perfectly!\n"
         f"⏱ Uptime: {uptime_str}\n"
         f"👥 Cached Users: {len(USER_CACHE)}\n"
         f"📡 Active OTP Waiters: {len(WAITING_OTPS)}\n"
@@ -1804,29 +1746,19 @@ async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"⚠️ Self-ping failed (non-fatal): {e}")
 
 async def start_dummy_server():
-    """
-    Starts aiohttp web server IMMEDIATELY so Render detects an open port.
-    Render requires a port to be bound within ~60 seconds or it kills the process.
-    PORT env variable is automatically set by Render (usually 10000).
-    """
     try:
         app = web.Application()
         app.router.add_get('/', web_server_handler)
-        app.router.add_get('/health', web_server_handler)
-        port = int(os.environ.get('PORT', 10000))
+        port = int(os.environ.get('PORT', 8080))
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', port)
         await site.start()
-        logger.info(f"🌐 Web server running on port {port} — Render port binding OK!")
-    except Exception as e:
-        logger.warning(f"Web server error: {e}")
+        logger.info(f"🌐 Web server running on port {port}")
+    except Exception as e: logger.warning(f"Web server error: {e}")
 
 async def post_init(app: Application):
-    # 🌐 Start web server FIRST — Render needs port open before anything else
-    await start_dummy_server()
-    # 🗄️ Initialize Supabase PostgreSQL pool and create tables
-    await init_db()
+    asyncio.create_task(start_dummy_server())
     # All 3 servers auth in parallel at startup — instant ready
     asyncio.create_task(asyncio.gather(
         auth_s1(force=True),
@@ -1836,8 +1768,7 @@ async def post_init(app: Application):
     ))
 
 if __name__ == "__main__":
-    # DB init is now handled in post_init() via asyncpg (fully async)
-    # No sync sqlite3 init needed anymore
+    init_db()
     app = Application.builder().token(TOKEN).post_init(post_init).build()
     
     app.add_handler(CommandHandler("start", start))
@@ -1854,8 +1785,7 @@ if __name__ == "__main__":
     # 🏓 Self-ping Render — every 2 minutes — keeps Render free plan alive 24/7
     app.job_queue.run_repeating(self_ping_job,            interval=120,   first=30)
     
-    logger.info("✨ VERSION 42.0 SUPABASE CLOUD STARTED ✨")
-    logger.info(f"🗄️  Database: Supabase PostgreSQL — data safe on redeploy forever")
+    logger.info("✨ VERSION 41.0 ENTERPRISE ULTRA STARTED ✨")
     logger.info(f"🚦 Rate Limit: {USER_RATE_LIMIT_MAX} requests per {USER_RATE_LIMIT_SECONDS}s per user")
     logger.info(f"🔒 Global Semaphore: max 500 concurrent handlers")
     logger.info(f"🏓 Self-ping URL: {RENDER_PING_URL} (every 2 minutes)")
