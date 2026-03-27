@@ -1,26 +1,3 @@
-"""
-==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 45.0 ENTERPRISE FINAL) ✨
-CAPACITY: 30,000+ Users on Render Free Plan (RAM Caching & Text Diff Algorithm).
-UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1: STEX, Server 2: ACCHUB, Server 3: MNIT).
-CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2 & 3!
-NEW UI & SPEED FEATURES:
-- High-Speed % Calculation: Parallel execution makes loading blink-of-an-eye fast!
-- Ultra-Fast Staggered Generation: 0ms delay for Stex, 0.1s offset for CF servers (100% Safe).
-- Acchub API Integrated: Custom mapping for country_id & operator_id as ranges.
-- Persistent Numbers: Numbers don't disappear on OTP, they get a ✅ mark!
-- Auto Delete 2FA: Deletes user's message as well.
-FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
-FIXED & RESTORED (AS PER REQUEST): 
-1. Range Group "Get Number" button strictly OPENS THE BOT ONLY (No auto generation).
-2. Restored V40.0 Classic Number Display System (❶ [BD] 17XXXXXXXX ⏳).
-3. Restored V40.0 Classic OTP Receive System UI.
-4. Restored V40.0 Classic OTP Group UI.
-5. Range Channel strictly contains ONLY the "Get Number" button.
-6. All underlying API payload and Cloudflare Chrome124 bypass fixes retained.
-==============================================================================
-"""
-
 import logging
 import aiohttp
 import os
@@ -1122,8 +1099,8 @@ async def show_main_menu(update_obj, context):
 
 async def show_server_selection(update_obj, context):
     kb = [
-        [InlineKeyboardButton("✨ Server 1 (STEX)", callback_data="srv_1"), InlineKeyboardButton("🚀 Server 2 (ACCHUB)", callback_data="srv_2")],
-        [InlineKeyboardButton("🔥 Server 3 (MNIT)", callback_data="srv_3")]
+        [InlineKeyboardButton("✨ Server 1", callback_data="srv_1"), InlineKeyboardButton("🚀 Server 2", callback_data="srv_2")],
+        [InlineKeyboardButton("🔥 Server 3", callback_data="srv_3")]
     ]
     txt = (
         "🌐 <b>SELECT SERVER</b> 🌐\n"
