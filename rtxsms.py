@@ -526,9 +526,13 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
 
 
 # --- SERVER 3: MNIT NETWORK (curl_cffi CF Bypass - Upgraded to Chrome124) ---
-async def get_s3_session():
+async def get_s3_session(reset=False):
     global S3_SESSION
-    if S3_SESSION is None: S3_SESSION = CurlAsyncSession(impersonate="chrome124")
+    if reset or S3_SESSION is None:
+        try:
+            if S3_SESSION: await S3_SESSION.close()
+        except Exception: pass
+        S3_SESSION = CurlAsyncSession(impersonate="chrome131")
     return S3_SESSION
 
 async def auth_s3(force=False):
@@ -536,40 +540,80 @@ async def auth_s3(force=False):
     async with AUTH_LOCK_S3:
         if not force and time.time() - LAST_AUTH_S3 < 300 and S3_TOKEN: return True
         payload = {"email": S3_EMAIL, "password": S3_PASSWORD}
-        headers = get_cf_headers("x.mnitnetwork.com")
-        try:
-            session = await get_s3_session()
-            response = await session.post(f"{S3_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=20)
-            if response.status_code == 200:
-                try: data = response.json()
-                except Exception: data = None
-                if data and str(data.get('meta', {}).get('code')) == '200':
-                    S3_TOKEN = data['data']['token']
-                    LAST_AUTH_S3 = time.time()
-                    return True
-            return False
-        except Exception: return False
+        cf_headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Content-Type": "application/json",
+            "Origin": "https://x.mnitnetwork.com",
+            "Referer": "https://x.mnitnetwork.com/",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "Connection": "keep-alive",
+        }
+        # Try up to 3 times with session reset on CF challenge
+        for attempt in range(3):
+            try:
+                session = await get_s3_session(reset=(attempt > 0))
+                response = await session.post(f"{S3_BASE_URL}/mauth/login", json=payload, headers=cf_headers, timeout=25)
+                if response.status_code == 200:
+                    try: data = response.json()
+                    except Exception: data = None
+                    if data and str(data.get('meta', {}).get('code')) == '200':
+                        S3_TOKEN = data['data']['token']
+                        LAST_AUTH_S3 = time.time()
+                        return True
+                elif response.status_code in [403, 429, 503]:
+                    # CF blocked - wait and retry with fresh session
+                    await asyncio.sleep(3 * (attempt + 1))
+                    continue
+                return False
+            except Exception as e:
+                logger.warning(f"S3 auth attempt {attempt+1} failed: {e}")
+                await asyncio.sleep(2)
+        return False
 
 async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S3_TOKEN
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             if not S3_TOKEN:
                 if not await auth_s3():
                     await asyncio.sleep(2)
                     continue
-            session = await get_s3_session()
-            headers = get_cf_headers("x.mnitnetwork.com")
-            headers.update({"mauthtoken": str(S3_TOKEN), "Cookie": f"mauthtoken={S3_TOKEN}"})
+            session = await get_s3_session(reset=(attempt > 1))
+            headers = {
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Content-Type": "application/json",
+                "Origin": "https://x.mnitnetwork.com",
+                "Referer": "https://x.mnitnetwork.com/",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+                "mauthtoken": str(S3_TOKEN),
+                "Cookie": f"mauthtoken={S3_TOKEN}",
+            }
             
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=25)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=25)
 
             status = response.status_code
-            if status in [401, 403, 429, 500, 502, 503]:
+            if status in [401, 403]:
                 S3_TOKEN = None
-                await asyncio.sleep(1)
+                await asyncio.sleep(2 * (attempt + 1))
                 await auth_s3(force=True)
+                continue
+            if status in [429, 503]:
+                # CF rate limit - longer wait + fresh session
+                S3_TOKEN = None
+                await asyncio.sleep(5 * (attempt + 1))
+                await auth_s3(force=True)
+                continue
+            if status in [500, 502]:
+                await asyncio.sleep(2)
                 continue
             if status == 200:
                 if return_text: return 200, response.text
@@ -582,7 +626,9 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
                         continue
                 return 200, data
             else: return status, None
-        except Exception: await asyncio.sleep(1)
+        except Exception as e:
+            logger.warning(f"S3 request attempt {attempt+1} error: {e}")
+            await asyncio.sleep(1)
     return 500, None
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
@@ -1102,12 +1148,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args and context.args[0].startswith("range_"):
         parts = context.args[0].split("_")
         if len(parts) >= 3:
-            srv_id = int(parts[1])
-            rng_val = parts[2].replace('X', '|')
-            extracted_svc = parts[3] if len(parts) > 3 else "facebook"
-            context.user_data['service_name'] = extracted_svc.title()
-            await process_number_generation(update, context, rng_val, srv_id, is_callback=False)
-            return
+            try:
+                srv_id = int(parts[1])
+                rng_val = parts[2].replace('X', '|')
+                extracted_svc = parts[3] if len(parts) > 3 else "facebook"
+                # Store range info but DO NOT auto-generate — just show main menu
+                context.user_data['service_name'] = extracted_svc.title()
+                context.user_data['range'] = rng_val
+                context.user_data['server'] = srv_id
+            except Exception: pass
+        await ensure_user_fast(user_id, referrer_id)
+        if not await check_subscription(user_id, context.bot):
+            await send_join_prompt(update, context)
+        else:
+            await show_main_menu(update, context)
+        return
 
     await ensure_user_fast(user_id, referrer_id)
     context.user_data.clear()
