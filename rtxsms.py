@@ -1,18 +1,16 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 70.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 75.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (Thread-Pool & O(1) RAM Hash-Map).
 UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1: STEX, Server 2: ACCHUB, Server 3: CRACKERJACK).
 CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2. Server 3 is direct.
 NEW UI & EXTREME SCALABILITY FEATURES:
 - Dynamic Admin S3 Range Control: Add custom Carrier IDs directly from Admin Panel!
-- S3 CrackerJack Integration: Multipart form-data login and exact URL payload encoding.
-- Zero Loading Architecture: "Connecting..." & "Calculating..." show up but finish in a blink (0.01s)!
-- Direct Category Menu: "Get Number" directly opens Categories. Server selection completely hidden.
-- Intelligent Routing: Stex (No Suffix), Acchub (XRT), CrackerJack (XR). Sorted beautifully.
-- Restored Change Number: "Change Number" button correctly restored in generation UI.
-- Range Hidden: Range digits completely removed from OTP Group and Update Group.
-- Restored Short Codes: Numbers display exact ISO codes again (e.g. ❶ [BD] 17XXXXXXXX ⏳).
+- S3 CrackerJack Fix: URL Encoded Carrier ID (e.g. Mytel - Arrakis 0316) fully supported!
+- Clean Admin Panel: Implemented "Next" button pagination to avoid cluttered UI.
+- Zero Loading Architecture: "Connecting..." & "Calculating..." finish in a blink (0.01s)!
+- Direct Category Menu: "Get Number" directly opens Categories.
+- Category Navigation: "Back to Category" button safely added below the country list.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
@@ -173,7 +171,7 @@ COUNTRY_FLAGS = {
 }
 
 COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "📡", "Hong Kong":"🇭🇰", "Macau":"🇲🇴", "Puerto Rico":"🇵🇷"
 }
 
 def get_flag(country_name):
@@ -272,7 +270,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
 # ==============================================================================
 
-DB_FILE = "bot_v70_enterprise.db"
+DB_FILE = "bot_v75_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=50):
@@ -605,7 +603,7 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
     return 500, None
 
 
-# --- SERVER 3 (CRACKERJACK SMS - No CF, pure aiohttp for max speed) ---
+# --- SERVER 3 (CRACKERJACK SMS - MULTIPART FORM DATA NO CF) ---
 async def auth_s3(force=False):
     global S3_TOKEN, LAST_AUTH_S3
     async with AUTH_LOCK_S3:
@@ -726,7 +724,7 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=
         except Exception: pass
 
 # ==============================================================================
-# 🌟 ADVANCED SCREENSHOT UI UPDATE FUNCTION
+# 🌟 ADVANCED SCREENSHOT UI UPDATE FUNCTION (RESTORED TO CLASSIC TEXT STYLE)
 # ==============================================================================
 
 async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
@@ -800,7 +798,7 @@ async def process_console_logs_for_forwarder(context, logs, server_id, bot_usern
                 raw_msg = log.get('sms_text', '')
             else:
                 r_val = log.get('range', log.get('carrier_id'))
-                raw_app = str(log.get('app_name', str(log.get('service_name', 'Unknown')))).lower()
+                raw_app = str(log.get('app_name', str(log.get('user_name', str(log.get('service_name', 'Unknown')))))).lower()
                 c_name = log.get('country', log.get('country_name', 'Unknown'))
                 raw_msg = get_sms_from_item(log)
 
@@ -840,8 +838,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=100")
-    
-    # S3 CrackerJack doesn't have a public console endpoint, but we can poll inbox just for forwards
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=30")
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
@@ -856,7 +852,6 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
         CONSOLE_CACHE[2] = logs
         await process_console_logs_for_forwarder(context, logs, 2, bot_username)
 
-    # S3 returns standard items
     if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
         logs = results[2][1].get('data', [])
         await process_console_logs_for_forwarder(context, logs, 3, bot_username)
@@ -996,7 +991,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION 
+# 🎯 ZERO-LOADING NUMBER GENERATION 
 # ==============================================================================
 
 async def _fetch_number_s1(payload):
@@ -1006,27 +1001,25 @@ async def _fetch_number_s2(payload):
     return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
 
 async def _fetch_number_s3(range_val):
-    # For CrackerJack S3, GET req with encoded range
-    encoded = urllib.parse.quote(range_val)
+    # CRACKERJACK URL Encoding Fix (Handles spaces and special chars perfectly)
+    encoded = urllib.parse.quote(range_val.strip())
     url = f"{S3_BASE_URL}/api/sms/?carrier={encoded}&auth-token={S3_TOKEN}"
     return await s3_api_request('GET', url)
 
-async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
+async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     
     wait_txt = "⏳ <i>Connecting to secure server... Generating Numbers...</i> 🚀"
-    if is_callback:
+    if update.callback_query:
+        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
-        # Send connecting msg first for blink-of-an-eye UI effect
-        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
     else:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
-    # 0.01s sleep so the 'Connecting...' shows up just before the real edit
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(0.01) # Instant blink effect
     
     fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
@@ -1035,6 +1028,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
+    # 🔥 PARALLEL FETCHING
     if server_id == 1:
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
@@ -1049,7 +1043,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload)]
             
     elif server_id == 3:
-        # For CrackerJack SMS
+        # Request encoded safely
         tasks = [_fetch_number_s3(range_val), _fetch_number_s3(range_val)]
 
     if tasks:
@@ -1066,6 +1060,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                         elif isinstance(data_obj, list) and len(data_obj) > 0:
                             num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
                     
+                    # S3 CrackerJack Success Parser
                     elif server_id == 3 and resp.get('meta') == 200:
                         data_obj = resp.get('data', {})
                         num = str(data_obj.get('did', '')).replace('+', '')
@@ -1108,11 +1103,8 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             [InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")]
         ]
         
-        try:
-            await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-        except Exception as e:
-            await msg.edit_text(text=f"✅ Assigned: +{fetched_numbers[0]}\nWaiting for OTP...", reply_markup=InlineKeyboardMarkup(kb))
-            logger.error(f"Edit text crashed: {e}")
+        try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        except Exception: pass
         
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {'numbers': fetched_numbers.copy(), 'country_name': display_country_name, 'flag': flag, 'received_for': set()}
@@ -1132,17 +1124,8 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
     else:
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
-        try:
-            await msg.edit_text(
-                text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", 
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]]), 
-                parse_mode=ParseMode.HTML
-            )
-        except Exception:
-            await msg.edit_text(
-                text="📡 Server Optimizing. No numbers found right now. Please try again.", 
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]])
-            )
+        try: await msg.edit_text(text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]]), parse_mode=ParseMode.HTML)
+        except Exception: pass
 
 # ==============================================================================
 # 📋 MENUS & UI WITH MERGED PANELS
@@ -1164,7 +1147,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_subscription(user_id, context.bot): 
         await send_join_prompt(update, context)
     else: 
-        # 🔥 /start will just send a welcome message directly!
         await show_main_menu(update, context)
 
 async def show_main_menu(update_obj, context):
@@ -1252,7 +1234,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     if not country_stats:
         await query.edit_message_text(
             text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found for {category.title()}. Please try again in a moment.</i>", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
         )
         return
         
@@ -1281,12 +1263,13 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         safe_c_name = str(c_name)[:15].replace(" ", "")
         kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}")])
         
-    kb.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="go_main")])
+    # Put Category back button strictly below the country list
+    kb.append([InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")])
     
     await query.edit_message_text(text=f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
-# 🎮 TEXT HANDLER & ADMIN / WITHDRAW LOGIC (BUG FREE & EMOJI-SAFE)
+# 🎮 TEXT HANDLER & ADMIN LOGIC (BUG FREE & EMOJI-SAFE)
 # ==============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1370,7 +1353,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         elif "Add S3 Range" in text:
             user_data['state'] = 'ADMIN_ADD_S3_CAT'
-            return await update.message.reply_text("➕ <b>Add New Range for Server 3</b>\n\n💬 <b>Step 1:</b> Enter the Category Name.\n<i>(Example: Facebook, Whatsapp, Instagram)</i>", parse_mode=ParseMode.HTML)
+            return await update.message.reply_text("➕ <b>Add New Range for Server 3</b>\n\n💬 <b>Step 1:</b> Enter the Category Name.\n<i>(Example: Facebook, Whatsapp)</i>", parse_mode=ParseMode.HTML)
 
         elif "Del S3 Range" in text:
             loop = asyncio.get_event_loop()
@@ -1665,6 +1648,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_category_click(update, context)
         
     elif data.startswith("r_"):
+        # Max length of callback data is 64 bytes. Reconstruct safely.
         parts = data.split("_")
         server_id = int(parts[1])
         range_val = parts[2]
@@ -1696,6 +1680,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_del_s3_range, r_id)
         await query.edit_message_text(f"✅ <b>Successfully Deleted S3 Range ID {r_id}</b>", parse_mode=ParseMode.HTML)
+
+    # Admin Panel Pagination
+    elif data == "admin_page_1":
+        kb = [
+            ["📊 Bot Status", "👥 Total Users"],
+            ["📢 Broadcast", "🚫 Ban / Unban"],
+            ["💰 Set Rewards", "💳 Set Min Withdraw"],
+            ["💸 Add Balance", "🏆 Top Referrers"],
+            ["➡️ Next"]
+        ]
+        await query.message.reply_text("🔐 <b>ADVANCED ADMIN PANEL (Page 1)</b>", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
+        await query.answer()
+
+    elif data == "admin_page_2":
+        kb = [
+            ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
+            ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
+            ["➕ Add S3 Range", "➖ Del S3 Range"],
+            ["⬅️ Back", "🔙 Main Menu"]
+        ]
+        await query.message.reply_text("⚙️ <b>SERVER SETTINGS (Page 2)</b>", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
+        await query.answer()
 
     # --- WITHDRAW FLOW ---
     elif data == "req_withdraw":
@@ -1742,31 +1748,46 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"⚠️ Request already processed or not found. (ID: {wd_id})", parse_mode=ParseMode.HTML)
 
 # ==============================================================================
-# 👑 FULLY FUNCTIONAL ADMIN KEYBOARD
+# 👑 FULLY FUNCTIONAL ADMIN KEYBOARD (CLEANED UP)
 # ==============================================================================
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
     context.user_data['admin_reply_target'] = None
     context.user_data['state'] = None
-    kb = [
-        ["📊 Bot Status", "👥 Total Users"],
-        ["📢 Broadcast", "🚫 Ban / Unban"],
-        ["💰 Set Rewards", "💳 Set Min Withdraw"],
-        ["💸 Add Balance", "🏆 Top Referrers"],
-        ["✏️ Set Suffix S1", "✏️ Set Suffix S2", "✏️ Set Suffix S3"],
-        ["➕ Add S3 Range", "➖ Del S3 Range"],
-        ["🌐 Set Ping URL", "🔙 Main Menu"]
-    ]
-    txt = "🔐 <b>ADVANCED ADMIN PANEL</b> 🔐\n━━━━━━━━━━━━━━━━━━━━\n<i>Use the keyboard below to manage the bot:</i>"
+    
+    # 🌟 CLEAN PAGINATION FOR ADMIN PANEL
+    if update.message and update.message.text == "➡️ Next":
+        kb = [
+            ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
+            ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
+            ["➕ Add S3 Range", "➖ Del S3 Range"],
+            ["⬅️ Back", "🔙 Main Menu"]
+        ]
+        txt = "⚙️ <b>SERVER SETTINGS (Page 2)</b>\n━━━━━━━━━━━━━━━━━━━━"
+    else:
+        kb = [
+            ["📊 Bot Status", "👥 Total Users"],
+            ["📢 Broadcast", "🚫 Ban / Unban"],
+            ["💰 Set Rewards", "💳 Set Min Withdraw"],
+            ["💸 Add Balance", "🏆 Top Referrers"],
+            ["➡️ Next"]
+        ]
+        txt = "🔐 <b>ADVANCED ADMIN PANEL (Page 1)</b>\n━━━━━━━━━━━━━━━━━━━━"
+        
     await update.message.reply_text(txt, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
+
+# Add listener for "Back" button in Admin Panel
+async def admin_back_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id in ADMIN_IDS and update.message.text == "⬅️ Back":
+        await admin_panel(update, context)
 
 # ==============================================================================
 # 🌐 RENDER DUMMY WEB SERVER & MAIN LOOP
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V70 Enterprise Edition — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V75 Enterprise Edition — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
@@ -1818,6 +1839,9 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     
+    # Catch pagination buttons
+    app.add_handler(MessageHandler(filters.Regex(re.compile(r'^(➡️ Next|⬅️ Back)$')), admin_panel))
+    
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
@@ -1827,5 +1851,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=30)
     
-    logger.info("✨ VERSION 70.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
+    logger.info("✨ VERSION 75.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(drop_pending_updates=True)
