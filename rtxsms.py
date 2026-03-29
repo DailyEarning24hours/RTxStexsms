@@ -1,18 +1,17 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 90.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 70.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (Thread-Pool & O(1) RAM Hash-Map).
 UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1: STEX, Server 2: ACCHUB, Server 3: CRACKERJACK).
 CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2. Server 3 is direct.
 NEW UI & EXTREME SCALABILITY FEATURES:
-- NUMBER GENERATION BUG FIXED: Decodes callback short-IDs accurately into real API ranges.
-- Server 3 Fully Restored: CrackerJack API with URL-encoded dynamic ranges fully active!
-- Callback Limit Bug Fixed FOREVER: Implemented Temp RAM Hash-Mapping for callback_data.
-- Zero Loading Architecture: "Connecting..." finishes in a blink (0.01s)!
+- Dynamic Admin S3 Range Control: Add custom Carrier IDs directly from Admin Panel!
+- S3 CrackerJack Integration: Multipart form-data login and exact URL payload encoding.
+- Zero Loading Architecture: "Connecting..." & "Calculating..." show up but finish in a blink (0.01s)!
 - Direct Category Menu: "Get Number" directly opens Categories. Server selection completely hidden.
-- Intelligent Routing: Stex (No Suffix), Acchub (XRT), CrackerJack (XR).
-- Category Navigation: "Back to Category" button safely added below the country list.
-- Clean Admin Panel: "Next" button pagination implemented to avoid cluttered UI.
+- Intelligent Routing: Stex (No Suffix), Acchub (XRT), CrackerJack (XR). Sorted beautifully.
+- Restored Change Number: "Change Number" button correctly restored in generation UI.
+- Range Hidden: Range digits completely removed from OTP Group and Update Group.
 - Restored Short Codes: Numbers display exact ISO codes again (e.g. ❶ [BD] 17XXXXXXXX ⏳).
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
@@ -32,7 +31,7 @@ import urllib.parse
 from contextlib import contextmanager
 import concurrent.futures
 
-# 🔥 curl_cffi — Chrome TLS fingerprint spoof for Cloudflare bypass (Server 2)
+# 🔥 curl_cffi — Chrome TLS fingerprint spoof for Cloudflare bypass (Only needed for Server 2 now)
 from curl_cffi.requests import AsyncSession as CurlAsyncSession
 
 from telegram import (
@@ -145,10 +144,6 @@ NUM_TO_HASH = {}
 BATCH_MSGS = {} 
 OTP_TIMEOUT_SECONDS = 1200  
 
-# 🌟 CRITICAL FIX: Temporary RAM cache for Callback Data to bypass Telegram 64-byte limits.
-CALLBACK_TEMP_MAP = {}
-CALLBACK_ID_COUNTER = 0
-
 USER_CACHE = set()
 BANNED_CACHE = set()
 
@@ -178,7 +173,7 @@ COUNTRY_FLAGS = {
 }
 
 COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Timor-Leste":"TL", "Togo":"TG", "Tonga":"TO", "Trinidad and Tobago":"TT", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Tuvalu":"TV", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
 }
 
 def get_flag(country_name):
@@ -277,7 +272,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
 # ==============================================================================
 
-DB_FILE = "bot_v90_enterprise.db"
+DB_FILE = "bot_v70_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=50):
@@ -550,7 +545,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
         except Exception: pass
     return 500, None
 
-# --- SERVER 2 (ACCHUB - CF BYPASS) ---
+# --- SERVER 2 (ACCHUB) ---
 async def get_s2_session():
     global S2_SESSION
     if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome124")
@@ -609,12 +604,14 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
         except Exception: await asyncio.sleep(1)
     return 500, None
 
-# --- SERVER 3 (CRACKERJACK SMS - NO CF MULTIPART) ---
+
+# --- SERVER 3 (CRACKERJACK SMS - No CF, pure aiohttp for max speed) ---
 async def auth_s3(force=False):
     global S3_TOKEN, LAST_AUTH_S3
     async with AUTH_LOCK_S3:
         if not force and time.time() - LAST_AUTH_S3 < 82800 and S3_TOKEN: return True
         
+        # S3 expects multipart/form-data
         data = aiohttp.FormData()
         data.add_field('email', S3_EMAIL)
         data.add_field('auth-token', S3_PASSWORD)
@@ -677,7 +674,6 @@ async def s3_api_request(method: str, url: str, return_text=False):
         except Exception: await asyncio.sleep(1)
     return 500, None
 
-
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("🔄 Refreshing All Server Sessions in parallel...")
     await asyncio.gather(
@@ -730,7 +726,7 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=
         except Exception: pass
 
 # ==============================================================================
-# 🌟 ADVANCED SCREENSHOT UI UPDATE FUNCTION (RESTORED TO CLASSIC TEXT STYLE)
+# 🌟 ADVANCED SCREENSHOT UI UPDATE FUNCTION
 # ==============================================================================
 
 async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
@@ -755,7 +751,6 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
         BATCH_MSGS.pop(batch_key, None)
     
     else:
-        # V40 CLASSIC STYLE RESTORED WITH SHORT CODES
         num_str = ""
         symbols = ["❶", "❷", "❸", "❹", "❺"] 
         for i, n in enumerate(batch['numbers']):
@@ -803,15 +798,10 @@ async def process_console_logs_for_forwarder(context, logs, server_id, bot_usern
                 raw_app = str(log.get('provider', 'Unknown')).lower()
                 c_name = log.get('country_name', 'Unknown')
                 raw_msg = log.get('sms_text', '')
-            elif server_id == 3:
-                r_val = log.get('carrier_id', '')
-                raw_app = str(log.get('app_name', str(log.get('service_name', 'Unknown')))).lower()
-                c_name = log.get('country_name', 'Unknown')
-                raw_msg = log.get('otp', '')
             else:
-                r_val = log.get('range')
+                r_val = log.get('range', log.get('carrier_id'))
                 raw_app = str(log.get('app_name', str(log.get('service_name', 'Unknown')))).lower()
-                c_name = log.get('country', 'Unknown')
+                c_name = log.get('country', log.get('country_name', 'Unknown'))
                 raw_msg = get_sms_from_item(log)
 
             if not r_val: continue
@@ -850,6 +840,8 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=100")
+    
+    # S3 CrackerJack doesn't have a public console endpoint, but we can poll inbox just for forwards
     s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=30")
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
@@ -863,13 +855,14 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
         logs = results[1][1].get('data', [])
         CONSOLE_CACHE[2] = logs
         await process_console_logs_for_forwarder(context, logs, 2, bot_username)
-        
+
+    # S3 returns standard items
     if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
         logs = results[2][1].get('data', [])
         await process_console_logs_for_forwarder(context, logs, 3, bot_username)
 
 # ==============================================================================
-# 🚀 ULTRA-FAST OTP POLLER WITH MULTI-OTP SUPPORT (RESTORED CLASSIC OTP UI)
+# 🚀 ULTRA-FAST OTP POLLER
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg, is_multi=False):
@@ -943,23 +936,8 @@ async def check_inbox(context, server_res, last_text, text_var_name):
         try:
             api_res = json.loads(text_data) if isinstance(text_data, str) else text_data
             items = []
-            if text_var_name == "s2":
+            if text_var_name in ["s2", "s3"]:
                 items = api_res.get('data', [])
-            elif text_var_name == "s3":
-                raw_items = api_res.get('data', [])
-                # S3 uses 'did' as phone number and 'otp' as message
-                items = []
-                for it in (raw_items if isinstance(raw_items, list) else []):
-                    if isinstance(it, dict):
-                        # Normalize S3 item to standard format
-                        normalized = dict(it)
-                        if 'did' in it and 'number' not in it:
-                            normalized['number'] = str(it['did']).replace('+','')
-                        if 'otp' in it and 'full_sms' not in it:
-                            normalized['full_sms'] = str(it['otp'])
-                        if 'app_name' not in it and 'service_name' in it:
-                            normalized['app_name'] = it['service_name']
-                        items.append(normalized)
             else:
                 data_field = api_res.get('data', {})
                 items = data_field if isinstance(data_field, list) else (data_field.get('numbers') or data_field.get('list') or data_field.get('items') or data_field.get('otps') or [])
@@ -1009,7 +987,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)
-    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=50", return_text=True)
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=30", return_text=True)
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
 
@@ -1018,7 +996,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 ZERO-LOADING NUMBER GENERATION 
+# 🎯 HIGH-SPEED NUMBER GENERATION 
 # ==============================================================================
 
 async def _fetch_number_s1(payload):
@@ -1028,36 +1006,27 @@ async def _fetch_number_s2(payload):
     return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
 
 async def _fetch_number_s3(range_val):
-    # CRACKERJACK URL Encoding Fix (Handles spaces and special chars perfectly)
-    global S3_TOKEN
-    # Ensure token is valid before embedding in URL
-    if not S3_TOKEN:
-        await auth_s3(force=True)
-    if not S3_TOKEN:
-        return 500, None
-    encoded = urllib.parse.quote(range_val.strip())
+    # For CrackerJack S3, GET req with encoded range
+    encoded = urllib.parse.quote(range_val)
     url = f"{S3_BASE_URL}/api/sms/?carrier={encoded}&auth-token={S3_TOKEN}"
     return await s3_api_request('GET', url)
 
-async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id):
+async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     
-    # 🌟 CRITICAL FIX: Convert Short-ID to Real Range
-    global CALLBACK_TEMP_MAP
-    if str(range_val) in CALLBACK_TEMP_MAP:
-        range_val = CALLBACK_TEMP_MAP[str(range_val)]
-
     wait_txt = "⏳ <i>Connecting to secure server... Generating Numbers...</i> 🚀"
-    if update.callback_query:
-        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
+    if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
+        # Send connecting msg first for blink-of-an-eye UI effect
+        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
     else:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
-    await asyncio.sleep(0.01) # Instant blink effect
+    # 0.01s sleep so the 'Connecting...' shows up just before the real edit
+    await asyncio.sleep(0.01)
     
     fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
@@ -1066,27 +1035,25 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
-    # 🔥 PARALLEL FETCHING
     if server_id == 1:
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload), _fetch_number_s1(payload)]
+        tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload)]
         
     elif server_id == 2:
         rv = str(range_val).replace('X', '|')
         parts = rv.split('|')
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload), _fetch_number_s2(payload)]
+            tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload)]
             
     elif server_id == 3:
         # For CrackerJack SMS
-        tasks = [_fetch_number_s3(range_val), _fetch_number_s3(range_val), _fetch_number_s3(range_val)]
+        tasks = [_fetch_number_s3(range_val), _fetch_number_s3(range_val)]
 
     if tasks:
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        seen_numbers = set()
         for res in results:
             if isinstance(res, tuple):
                 status, resp = res
@@ -1099,23 +1066,17 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                         elif isinstance(data_obj, list) and len(data_obj) > 0:
                             num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
                     
-                    # S3 CrackerJack Success Parser
                     elif server_id == 3 and resp.get('meta') == 200:
                         data_obj = resp.get('data', {})
-                        num = str(data_obj.get('did', '') or data_obj.get('number', '') or data_obj.get('phone', '')).replace('+', '')
+                        num = str(data_obj.get('did', '')).replace('+', '')
                             
-                    elif 'data' in resp and isinstance(resp['data'], dict):
-                        data_obj = resp['data']
-                        num = str(data_obj.get('number') or data_obj.get('phone_number') or data_obj.get('did') or '')
+                    elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
+                        num = str(resp['data']['number'])
                         if country_name == "Unknown":
-                            country_name = data_obj.get('country', country_name)
-                    elif server_id == 1 and resp.get('data') and isinstance(resp.get('data'), list) and len(resp['data']) > 0:
-                        num = str(resp['data'][0].get('number') or resp['data'][0].get('phone_number') or '')
+                            country_name = resp['data'].get('country', country_name)
                     
-                    clean_num = num.replace('+', '').strip()
-                    if clean_num and clean_num != "None" and clean_num not in seen_numbers: 
-                        seen_numbers.add(clean_num)
-                        fetched_numbers.append(clean_num)
+                    if num and num != "None": 
+                        fetched_numbers.append(num.replace('+', ''))
             elif isinstance(res, Exception):
                 logger.error(f"API Error in parallel task: {res}")
             
@@ -1129,7 +1090,6 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         flag = get_flag(country_name)
         short_name = get_short_code(country_name)
         
-        # V40 CLASSIC UI RESTORED (Number clearly displayed in regular text body WITH SHORT CODES)
         symbols = ["❶", "❷", "❸", "❹", "❺"]
         num_str = ""
         for i, n in enumerate(fetched_numbers):
@@ -1148,8 +1108,11 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             [InlineKeyboardButton("🔄 Change Number", callback_data="change_num"), InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")]
         ]
         
-        try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-        except Exception: pass
+        try:
+            await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await msg.edit_text(text=f"✅ Assigned: +{fetched_numbers[0]}\nWaiting for OTP...", reply_markup=InlineKeyboardMarkup(kb))
+            logger.error(f"Edit text crashed: {e}")
         
         batch_key = f"{chat_id}_{msg.message_id}"
         BATCH_MSGS[batch_key] = {'numbers': fetched_numbers.copy(), 'country_name': display_country_name, 'flag': flag, 'received_for': set()}
@@ -1169,8 +1132,17 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
     else:
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
-        try: await msg.edit_text(text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]]), parse_mode=ParseMode.HTML)
-        except Exception: pass
+        try:
+            await msg.edit_text(
+                text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again or select another category.", 
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]]), 
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            await msg.edit_text(
+                text="📡 Server Optimizing. No numbers found right now. Please try again.", 
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]])
+            )
 
 # ==============================================================================
 # 📋 MENUS & UI WITH MERGED PANELS
@@ -1192,6 +1164,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_subscription(user_id, context.bot): 
         await send_join_prompt(update, context)
     else: 
+        # 🔥 /start will just send a welcome message directly!
         await show_main_menu(update, context)
 
 async def show_main_menu(update_obj, context):
@@ -1227,7 +1200,7 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global CONSOLE_CACHE, CALLBACK_TEMP_MAP, CALLBACK_ID_COUNTER
+    global CONSOLE_CACHE
     query = update.callback_query
     category = query.data.split('_')[1].lower()
     context.user_data['service_name'] = category.title()
@@ -1236,16 +1209,13 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(text="⚡ <i>Calculating Live Success Rate...</i>", parse_mode=ParseMode.HTML)
     await asyncio.sleep(0.01)
     
-    # Always do fresh parallel fetch for latest data
-    s1_res, s2_res = await asyncio.gather(
-        s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info"),
-        s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=100"),
-        return_exceptions=True
-    )
-    if isinstance(s1_res, tuple) and s1_res[0] == 200 and isinstance(s1_res[1], dict):
-        CONSOLE_CACHE[1] = s1_res[1].get('data', {}).get('logs', [])
-    if isinstance(s2_res, tuple) and s2_res[0] == 200 and isinstance(s2_res[1], dict):
-        CONSOLE_CACHE[2] = s2_res[1].get('data', [])
+    # Pre-fetch cache if empty
+    if not CONSOLE_CACHE[1]:
+        res = await s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
+        if res[0] == 200 and isinstance(res[1], dict): CONSOLE_CACHE[1] = res[1].get('data', {}).get('logs', [])
+    if not CONSOLE_CACHE[2]:
+        res = await s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20")
+        if res[0] == 200 and isinstance(res[1], dict): CONSOLE_CACHE[2] = res[1].get('data', [])
 
     country_stats = {}
     
@@ -1282,7 +1252,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     if not country_stats:
         await query.edit_message_text(
             text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found for {category.title()}. Please try again in a moment.</i>", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
         )
         return
         
@@ -1308,21 +1278,10 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         elif srv_id == 3: display_name += s3_suffix
             
         btn_text = f"{get_flag(c_name)} {display_name} {display_rate}% {indicator}"
+        safe_c_name = str(c_name)[:15].replace(" ", "")
+        kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}")])
         
-        # 🔥 CRITICAL FIX: Limit bypass using RAM hash-map
-        CALLBACK_ID_COUNTER += 1
-        short_id = f"c_{CALLBACK_ID_COUNTER}"
-        CALLBACK_TEMP_MAP[short_id] = stats['range']
-        
-        safe_c_name = str(c_name)[:12].replace(" ", "")
-        
-        kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{short_id}_{safe_c_name}")])
-        
-    # Keep dictionary small
-    if len(CALLBACK_TEMP_MAP) > 5000:
-        CALLBACK_TEMP_MAP.clear()
-        
-    kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")])
+    kb.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="go_main")])
     
     await query.edit_message_text(text=f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -1341,7 +1300,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await ensure_user_fast(user_id)
     
     is_main_menu_action = any(btn in text for btn in ["Get Number", "Get 2FA", "Support", "See Activity", "Referral & Balance"])
-    is_admin_action = any(btn in text for btn in ["Bot Status", "Total Users", "Broadcast", "Ban / Unban", "Set Rewards", "Set Min Withdraw", "Add Balance", "Top Referrers", "Set Ping URL", "Set Suffix S1", "Set Suffix S2", "Set Suffix S3", "Add S3 Range", "Del S3 Range", "Main Menu", "Next", "Back"])
+    is_admin_action = any(btn in text for btn in ["Bot Status", "Total Users", "Broadcast", "Ban / Unban", "Set Rewards", "Set Min Withdraw", "Add Balance", "Top Referrers", "Set Ping URL", "Set Suffix S1", "Set Suffix S2", "Set Suffix S3", "Add S3 Range", "Del S3 Range", "Main Menu"])
     
     if is_main_menu_action or is_admin_action:
         user_data['state'] = None
@@ -1411,7 +1370,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         elif "Add S3 Range" in text:
             user_data['state'] = 'ADMIN_ADD_S3_CAT'
-            return await update.message.reply_text("➕ <b>Add New Range for Server 3</b>\n\n💬 <b>Step 1:</b> Enter the Category Name.\n<i>(Example: Facebook, Whatsapp)</i>", parse_mode=ParseMode.HTML)
+            return await update.message.reply_text("➕ <b>Add New Range for Server 3</b>\n\n💬 <b>Step 1:</b> Enter the Category Name.\n<i>(Example: Facebook, Whatsapp, Instagram)</i>", parse_mode=ParseMode.HTML)
 
         elif "Del S3 Range" in text:
             loop = asyncio.get_event_loop()
@@ -1432,6 +1391,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if count > 0: msg += f"<b>{i+1}.</b> <code>{uid}</code> - <b>{count}</b> Referrals\n"
             if "1." not in msg: msg += "<i>No active referrers yet.</i>"
             return await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+            
+        elif "Main Menu" in text:
+            await show_main_menu(update, context)
+            return
 
         state = user_data.get('state')
         if state == 'ADMIN_BROADCAST':
@@ -1682,7 +1645,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global CALLBACK_TEMP_MAP
     if await check_ban_middleware(update, context): return
     query = update.callback_query
     user_id = query.from_user.id
@@ -1705,18 +1667,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("r_"):
         parts = data.split("_")
         server_id = int(parts[1])
-        short_id = parts[2]
-        
+        range_val = parts[2]
         if len(parts) > 3: context.user_data['real_country_name'] = parts[3]
-            
-        # Extract the real range from the temp RAM Hash-Map
-        if short_id in CALLBACK_TEMP_MAP:
-            real_range = CALLBACK_TEMP_MAP[short_id]
-        else:
-            # Fallback if map cleared (e.g., bot restarted)
-            real_range = short_id
-            
-        await process_number_generation(update, context, real_range, server_id, is_callback=True)
+        await process_number_generation(update, context, range_val, server_id, is_callback=True)
         
     elif data == "change_num":
         if context.user_data.get('range'):
@@ -1743,28 +1696,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_del_s3_range, r_id)
         await query.edit_message_text(f"✅ <b>Successfully Deleted S3 Range ID {r_id}</b>", parse_mode=ParseMode.HTML)
-
-    # Admin Panel Pagination
-    elif data == "admin_page_1":
-        kb = [
-            ["📊 Bot Status", "👥 Total Users"],
-            ["📢 Broadcast", "🚫 Ban / Unban"],
-            ["💰 Set Rewards", "💳 Set Min Withdraw"],
-            ["💸 Add Balance", "🏆 Top Referrers"],
-            ["➡️ Next"]
-        ]
-        await query.message.reply_text("🔐 <b>ADVANCED ADMIN PANEL (Page 1)</b>", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
-        await query.answer()
-
-    elif data == "admin_page_2":
-        kb = [
-            ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
-            ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
-            ["➕ Add S3 Range", "➖ Del S3 Range"],
-            ["⬅️ Back", "🔙 Main Menu"]
-        ]
-        await query.message.reply_text("⚙️ <b>SERVER SETTINGS (Page 2)</b>", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
-        await query.answer()
 
     # --- WITHDRAW FLOW ---
     elif data == "req_withdraw":
@@ -1811,33 +1742,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"⚠️ Request already processed or not found. (ID: {wd_id})", parse_mode=ParseMode.HTML)
 
 # ==============================================================================
-# 👑 FULLY FUNCTIONAL ADMIN KEYBOARD (PAGINATED)
+# 👑 FULLY FUNCTIONAL ADMIN KEYBOARD
 # ==============================================================================
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
     context.user_data['admin_reply_target'] = None
     context.user_data['state'] = None
-    
-    # 🌟 CLEAN PAGINATION FOR ADMIN PANEL
-    if update.message and "Next" in update.message.text:
-        kb = [
-            ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
-            ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
-            ["➕ Add S3 Range", "➖ Del S3 Range"],
-            ["⬅️ Back", "🔙 Main Menu"]
-        ]
-        txt = "⚙️ <b>SERVER SETTINGS (Page 2)</b>\n━━━━━━━━━━━━━━━━━━━━"
-    else:
-        kb = [
-            ["📊 Bot Status", "👥 Total Users"],
-            ["📢 Broadcast", "🚫 Ban / Unban"],
-            ["💰 Set Rewards", "💳 Set Min Withdraw"],
-            ["💸 Add Balance", "🏆 Top Referrers"],
-            ["➡️ Next"]
-        ]
-        txt = "🔐 <b>ADVANCED ADMIN PANEL (Page 1)</b>\n━━━━━━━━━━━━━━━━━━━━"
-        
+    kb = [
+        ["📊 Bot Status", "👥 Total Users"],
+        ["📢 Broadcast", "🚫 Ban / Unban"],
+        ["💰 Set Rewards", "💳 Set Min Withdraw"],
+        ["💸 Add Balance", "🏆 Top Referrers"],
+        ["✏️ Set Suffix S1", "✏️ Set Suffix S2", "✏️ Set Suffix S3"],
+        ["➕ Add S3 Range", "➖ Del S3 Range"],
+        ["🌐 Set Ping URL", "🔙 Main Menu"]
+    ]
+    txt = "🔐 <b>ADVANCED ADMIN PANEL</b> 🔐\n━━━━━━━━━━━━━━━━━━━━\n<i>Use the keyboard below to manage the bot:</i>"
     await update.message.reply_text(txt, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
@@ -1845,7 +1766,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V90 Enterprise Edition — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V70 Enterprise Edition — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
@@ -1897,9 +1818,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     
-    # Catch pagination buttons safely
-    app.add_handler(MessageHandler(filters.Regex(re.compile(r'^(➡️ Next|⬅️ Back)$')), admin_panel))
-    
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
@@ -1909,5 +1827,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=30)
     
-    logger.info("✨ VERSION 90.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
+    logger.info("✨ VERSION 70.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(drop_pending_updates=True)
