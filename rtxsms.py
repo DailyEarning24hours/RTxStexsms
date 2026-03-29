@@ -178,7 +178,7 @@ COUNTRY_FLAGS = {
 }
 
 COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Timor-Leste":"TL", "Togo":"TG", "Tonga":"TO", "Trinidad and Tobago":"TT", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Tuvalu":"TV", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
 }
 
 def get_flag(country_name):
@@ -943,8 +943,23 @@ async def check_inbox(context, server_res, last_text, text_var_name):
         try:
             api_res = json.loads(text_data) if isinstance(text_data, str) else text_data
             items = []
-            if text_var_name in ["s2", "s3"]:
+            if text_var_name == "s2":
                 items = api_res.get('data', [])
+            elif text_var_name == "s3":
+                raw_items = api_res.get('data', [])
+                # S3 uses 'did' as phone number and 'otp' as message
+                items = []
+                for it in (raw_items if isinstance(raw_items, list) else []):
+                    if isinstance(it, dict):
+                        # Normalize S3 item to standard format
+                        normalized = dict(it)
+                        if 'did' in it and 'number' not in it:
+                            normalized['number'] = str(it['did']).replace('+','')
+                        if 'otp' in it and 'full_sms' not in it:
+                            normalized['full_sms'] = str(it['otp'])
+                        if 'app_name' not in it and 'service_name' in it:
+                            normalized['app_name'] = it['service_name']
+                        items.append(normalized)
             else:
                 data_field = api_res.get('data', {})
                 items = data_field if isinstance(data_field, list) else (data_field.get('numbers') or data_field.get('list') or data_field.get('items') or data_field.get('otps') or [])
@@ -994,7 +1009,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)
-    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=30", return_text=True)
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=50", return_text=True)
     
     results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
 
@@ -1014,6 +1029,12 @@ async def _fetch_number_s2(payload):
 
 async def _fetch_number_s3(range_val):
     # CRACKERJACK URL Encoding Fix (Handles spaces and special chars perfectly)
+    global S3_TOKEN
+    # Ensure token is valid before embedding in URL
+    if not S3_TOKEN:
+        await auth_s3(force=True)
+    if not S3_TOKEN:
+        return 500, None
     encoded = urllib.parse.quote(range_val.strip())
     url = f"{S3_BASE_URL}/api/sms/?carrier={encoded}&auth-token={S3_TOKEN}"
     return await s3_api_request('GET', url)
@@ -1050,21 +1071,22 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload)]
+        tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload), _fetch_number_s1(payload)]
         
     elif server_id == 2:
         rv = str(range_val).replace('X', '|')
         parts = rv.split('|')
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload)]
+            tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload), _fetch_number_s2(payload)]
             
     elif server_id == 3:
         # For CrackerJack SMS
-        tasks = [_fetch_number_s3(range_val), _fetch_number_s3(range_val)]
+        tasks = [_fetch_number_s3(range_val), _fetch_number_s3(range_val), _fetch_number_s3(range_val)]
 
     if tasks:
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        seen_numbers = set()
         for res in results:
             if isinstance(res, tuple):
                 status, resp = res
@@ -1080,15 +1102,20 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                     # S3 CrackerJack Success Parser
                     elif server_id == 3 and resp.get('meta') == 200:
                         data_obj = resp.get('data', {})
-                        num = str(data_obj.get('did', '')).replace('+', '')
+                        num = str(data_obj.get('did', '') or data_obj.get('number', '') or data_obj.get('phone', '')).replace('+', '')
                             
-                    elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
-                        num = str(resp['data']['number'])
+                    elif 'data' in resp and isinstance(resp['data'], dict):
+                        data_obj = resp['data']
+                        num = str(data_obj.get('number') or data_obj.get('phone_number') or data_obj.get('did') or '')
                         if country_name == "Unknown":
-                            country_name = resp['data'].get('country', country_name)
+                            country_name = data_obj.get('country', country_name)
+                    elif server_id == 1 and resp.get('data') and isinstance(resp.get('data'), list) and len(resp['data']) > 0:
+                        num = str(resp['data'][0].get('number') or resp['data'][0].get('phone_number') or '')
                     
-                    if num and num != "None": 
-                        fetched_numbers.append(num.replace('+', ''))
+                    clean_num = num.replace('+', '').strip()
+                    if clean_num and clean_num != "None" and clean_num not in seen_numbers: 
+                        seen_numbers.add(clean_num)
+                        fetched_numbers.append(clean_num)
             elif isinstance(res, Exception):
                 logger.error(f"API Error in parallel task: {res}")
             
@@ -1209,13 +1236,16 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(text="⚡ <i>Calculating Live Success Rate...</i>", parse_mode=ParseMode.HTML)
     await asyncio.sleep(0.01)
     
-    # Pre-fetch cache if empty
-    if not CONSOLE_CACHE[1]:
-        res = await s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
-        if res[0] == 200 and isinstance(res[1], dict): CONSOLE_CACHE[1] = res[1].get('data', {}).get('logs', [])
-    if not CONSOLE_CACHE[2]:
-        res = await s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=20")
-        if res[0] == 200 and isinstance(res[1], dict): CONSOLE_CACHE[2] = res[1].get('data', [])
+    # Always do fresh parallel fetch for latest data
+    s1_res, s2_res = await asyncio.gather(
+        s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info"),
+        s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=100"),
+        return_exceptions=True
+    )
+    if isinstance(s1_res, tuple) and s1_res[0] == 200 and isinstance(s1_res[1], dict):
+        CONSOLE_CACHE[1] = s1_res[1].get('data', {}).get('logs', [])
+    if isinstance(s2_res, tuple) and s2_res[0] == 200 and isinstance(s2_res[1], dict):
+        CONSOLE_CACHE[2] = s2_res[1].get('data', [])
 
     country_stats = {}
     
