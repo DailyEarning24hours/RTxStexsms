@@ -1,14 +1,16 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 85.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 90.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (Thread-Pool & O(1) RAM Hash-Map).
-UPDATES: DUAL SERVER ARCHITECTURE (Server 1: STEX, Server 2: ACCHUB).
-CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2.
+UPDATES: TRIPLE SERVER ARCHITECTURE (Server 1: STEX, Server 2: ACCHUB, Server 3: CRACKERJACK).
+CLOUDFLARE BYPASS: curl_cffi impersonates Chrome TLS fingerprint for Server 2. Server 3 is direct.
 NEW UI & EXTREME SCALABILITY FEATURES:
-- Callback Limit Bug Fixed FOREVER: Implemented Temp RAM Hash-Mapping for callback_data. Buttons will NEVER become unresponsive!
+- NUMBER GENERATION BUG FIXED: Decodes callback short-IDs accurately into real API ranges.
+- Server 3 Fully Restored: CrackerJack API with URL-encoded dynamic ranges fully active!
+- Callback Limit Bug Fixed FOREVER: Implemented Temp RAM Hash-Mapping for callback_data.
 - Zero Loading Architecture: "Connecting..." finishes in a blink (0.01s)!
 - Direct Category Menu: "Get Number" directly opens Categories. Server selection completely hidden.
-- Intelligent Routing: Stex (No Suffix) and Acchub (XRT). Sorted beautifully S1 -> S2.
+- Intelligent Routing: Stex (No Suffix), Acchub (XRT), CrackerJack (XR).
 - Category Navigation: "Back to Category" button safely added below the country list.
 - Clean Admin Panel: "Next" button pagination implemented to avoid cluttered UI.
 - Restored Short Codes: Numbers display exact ISO codes again (e.g. ❶ [BD] 17XXXXXXXX ⏳).
@@ -26,6 +28,7 @@ import html
 import datetime
 import time
 import json
+import urllib.parse
 from contextlib import contextmanager
 import concurrent.futures
 
@@ -72,6 +75,11 @@ S2_EMAIL = "rtxraja01@gmail.com"
 S2_PASSWORD = "Raja1234"
 S2_BASE_URL = "https://sms.acchub.io"
 
+# 🔥 SERVER 3 CREDENTIALS (CRACKERJACK SMS - NO CF)
+S3_EMAIL = "mdrajaislam469@gmail.com"
+S3_PASSWORD = "ed49e203-6618-45ec-980d-21aaab1cfe45" # Used as auth-token
+S3_BASE_URL = "https://crackerjacksms.com"
+
 # 🔥 CLOUDFLARE BYPASS HEADERS for Server 2
 def get_cf_headers(origin_domain):
     return {
@@ -99,18 +107,22 @@ API_2FA = "https://2fa.cn/codes/{}"
 
 S1_TOKEN = None
 S2_TOKEN = None
+S3_TOKEN = None
 
 GLOBAL_SESSION = None 
 S2_SESSION = None
 
 AUTH_LOCK_S1 = asyncio.Lock() 
 AUTH_LOCK_S2 = asyncio.Lock()
+AUTH_LOCK_S3 = asyncio.Lock()
 
 LAST_AUTH_S1 = 0
 LAST_AUTH_S2 = 0
+LAST_AUTH_S3 = 0
 
 LAST_INBOX_S1 = ""
 LAST_INBOX_S2 = ""
+LAST_INBOX_S3 = ""
 
 SENT_RANGES = set()
 START_TIME = datetime.datetime.now()
@@ -153,7 +165,8 @@ SETTINGS_CACHE = {
     "min_withdraw": 50.0,
     "ping_url": "https://rtxstexsms-dhno.onrender.com",
     "s1_suffix": "",
-    "s2_suffix": " XRT"
+    "s2_suffix": " XRT",
+    "s3_suffix": " XR"
 }
 
 # ==============================================================================
@@ -165,11 +178,11 @@ COUNTRY_FLAGS = {
 }
 
 COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Antigua and Barbuda":"AG", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia and Herzegovina":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cabo Verde":"CV", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominica":"DM", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Ivory Coast":"CI", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kiribati":"KI", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Liechtenstein":"LI", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Marshall Islands":"MH", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Micronesia":"FM", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nauru":"NR", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "North Macedonia":"MK", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Papua New Guinea":"PG", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saint Kitts and Nevis":"KN", "Saint Lucia":"LC", "Saint Vincent":"VC", "Samoa":"WS", "San Marino":"SM", "Sao Tome and Principe":"ST", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Solomon Islands":"SB", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Timor-Leste":"🇹🇱", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "PostPaid": "PP", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
 }
 
 def get_flag(country_name):
-    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").strip()
+    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "").strip()
     if clean_name in COUNTRY_FLAGS: 
         return COUNTRY_FLAGS[clean_name]
     for name, flag in COUNTRY_FLAGS.items():
@@ -178,7 +191,7 @@ def get_flag(country_name):
     return "🚩"
 
 def get_short_code(country_name):
-    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").strip()
+    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "").strip()
     if clean_name in COUNTRY_CODES:
         return COUNTRY_CODES[clean_name]
     for name, code in COUNTRY_CODES.items():
@@ -264,7 +277,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
 # ==============================================================================
 
-DB_FILE = "bot_v85_enterprise.db"
+DB_FILE = "bot_v90_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=50):
@@ -294,7 +307,14 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY, otp_reward REAL DEFAULT 0.10, ref_reward REAL DEFAULT 0.05, min_withdraw REAL DEFAULT 50.0, 
             ping_url TEXT DEFAULT 'https://rtxstexsms-dhno.onrender.com',
-            s1_suffix TEXT DEFAULT '', s2_suffix TEXT DEFAULT ' XRT'
+            s1_suffix TEXT DEFAULT '', s2_suffix TEXT DEFAULT ' XRT', s3_suffix TEXT DEFAULT ' XR'
+        )''')
+        
+        c.execute('''CREATE TABLE IF NOT EXISTS s3_ranges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT,
+            carrier_id TEXT,
+            country_name TEXT
         )''')
 
         try: c.execute("ALTER TABLE settings ADD COLUMN ping_url TEXT DEFAULT 'https://rtxstexsms-dhno.onrender.com'")
@@ -303,16 +323,18 @@ def init_db():
         except sqlite3.OperationalError: pass
         try: c.execute("ALTER TABLE settings ADD COLUMN s2_suffix TEXT DEFAULT ' XRT'")
         except sqlite3.OperationalError: pass
+        try: c.execute("ALTER TABLE settings ADD COLUMN s3_suffix TEXT DEFAULT ' XR'")
+        except sqlite3.OperationalError: pass
 
         c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL,
             method TEXT, account TEXT, status TEXT DEFAULT 'pending', date TEXT DEFAULT CURRENT_TIMESTAMP
         )''')
         
-        c.execute("SELECT otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix FROM settings WHERE id=1")
+        c.execute("SELECT otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix FROM settings WHERE id=1")
         settings_row = c.fetchone()
         if not settings_row:
-            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix) VALUES (1, 0.10, 0.05, 50.0, 'https://rtxstexsms-dhno.onrender.com', '', ' XRT')")
+            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix) VALUES (1, 0.10, 0.05, 50.0, 'https://rtxstexsms-dhno.onrender.com', '', ' XRT', ' XR')")
             SETTINGS_CACHE["ping_url"] = "https://rtxstexsms-dhno.onrender.com"
         else:
             SETTINGS_CACHE["otp_reward"] = settings_row[0]
@@ -321,6 +343,7 @@ def init_db():
             SETTINGS_CACHE["ping_url"] = settings_row[3] if len(settings_row)>3 and settings_row[3] else "https://rtxstexsms-dhno.onrender.com"
             SETTINGS_CACHE["s1_suffix"] = settings_row[4] if len(settings_row)>4 and settings_row[4] is not None else ""
             SETTINGS_CACHE["s2_suffix"] = settings_row[5] if len(settings_row)>5 and settings_row[5] is not None else " XRT"
+            SETTINGS_CACHE["s3_suffix"] = settings_row[6] if len(settings_row)>6 and settings_row[6] is not None else " XR"
             
         conn.commit()
         
@@ -328,6 +351,30 @@ def init_db():
         for row in c.fetchall():
             USER_CACHE.add(row[0])
             if row[1] == 1: BANNED_CACHE.add(row[0])
+
+def sync_get_s3_ranges(category):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT carrier_id, country_name, id FROM s3_ranges WHERE LOWER(category)=?", (category.lower(),))
+        return c.fetchall()
+
+def sync_get_all_s3_ranges():
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges")
+        return c.fetchall()
+
+def sync_add_s3_range(category, carrier_id, country_name):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO s3_ranges (category, carrier_id, country_name) VALUES (?, ?, ?)", (category, carrier_id, country_name))
+        conn.commit()
+
+def sync_del_s3_range(range_id):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM s3_ranges WHERE id=?", (range_id,))
+        conn.commit()
 
 def sync_register_user_db(user_id, referrer_id=None):
     with db_pool.get_connection() as conn:
@@ -399,6 +446,9 @@ def sync_update_setting(key, value):
         elif key == "s2_suffix":
             c.execute("UPDATE settings SET s2_suffix=? WHERE id=1", (value,))
             SETTINGS_CACHE["s2_suffix"] = value
+        elif key == "s3_suffix":
+            c.execute("UPDATE settings SET s3_suffix=? WHERE id=1", (value,))
+            SETTINGS_CACHE["s3_suffix"] = value
         conn.commit()
 
 def sync_get_top_referrers():
@@ -432,7 +482,7 @@ def sync_update_withdraw_status(wd_id, status):
         return True, user_id, amount
 
 # ==============================================================================
-# 🔐 AUTHENTICATION & API REQUESTS (DUAL SERVERS)
+# 🔐 AUTHENTICATION & API REQUESTS (3 SERVERS)
 # ==============================================================================
 
 async def get_session():
@@ -559,11 +609,81 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
         except Exception: await asyncio.sleep(1)
     return 500, None
 
+# --- SERVER 3 (CRACKERJACK SMS - NO CF MULTIPART) ---
+async def auth_s3(force=False):
+    global S3_TOKEN, LAST_AUTH_S3
+    async with AUTH_LOCK_S3:
+        if not force and time.time() - LAST_AUTH_S3 < 82800 and S3_TOKEN: return True
+        
+        data = aiohttp.FormData()
+        data.add_field('email', S3_EMAIL)
+        data.add_field('auth-token', S3_PASSWORD)
+        
+        headers = {
+            "User-Agent": BASE_USER_AGENT,
+            "Accept": "*/*",
+            "Origin": S3_BASE_URL,
+            "Referer": f"{S3_BASE_URL}/"
+        }
+        try:
+            session = await get_session()
+            async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=15, ssl=False) as response:
+                if response.status == 200:
+                    res = await parse_response_safely(response)
+                    if res and res.get('meta') == 200:
+                        S3_TOKEN = res['data']['authToken']
+                        LAST_AUTH_S3 = time.time()
+                        return True
+                return False
+        except Exception: return False
+
+async def s3_api_request(method: str, url: str, return_text=False):
+    global S3_TOKEN
+    for attempt in range(3):
+        try:
+            if not S3_TOKEN:
+                if not await auth_s3():
+                    await asyncio.sleep(1)
+                    continue
+            session = await get_session()
+            
+            headers = {
+                "User-Agent": BASE_USER_AGENT,
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "auth-token": str(S3_TOKEN),
+                "Cookie": f"authToken={S3_TOKEN}; authRole=Pro",
+                "Referer": f"{S3_BASE_URL}/"
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=15)
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
+            else: response = await session.post(url, headers=headers, timeout=timeout, ssl=False)
+
+            status = response.status
+            if status in [401, 403]:
+                S3_TOKEN = None
+                await auth_s3(force=True)
+                continue
+            if status in [500, 502, 503]:
+                await asyncio.sleep(1)
+                continue
+            if status == 200:
+                text_response = await response.text()
+                if return_text: return 200, text_response
+                try: data = json.loads(text_response)
+                except: data = None
+                return 200, data
+            else: return status, None
+        except Exception: await asyncio.sleep(1)
+    return 500, None
+
+
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("🔄 Refreshing All Server Sessions in parallel...")
     await asyncio.gather(
         auth_s1(force=True),
         auth_s2(force=True),
+        auth_s3(force=True),
         return_exceptions=True
     )
 
@@ -635,6 +755,7 @@ async def update_dynamic_batch_message(context, chat_id, msg_id, batch_key):
         BATCH_MSGS.pop(batch_key, None)
     
     else:
+        # V40 CLASSIC STYLE RESTORED WITH SHORT CODES
         num_str = ""
         symbols = ["❶", "❷", "❸", "❹", "❺"] 
         for i, n in enumerate(batch['numbers']):
@@ -670,6 +791,7 @@ async def process_console_logs_for_forwarder(context, logs, server_id, bot_usern
     s_suffix = ""
     if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
     elif server_id == 2: s_suffix = SETTINGS_CACHE['s2_suffix']
+    elif server_id == 3: s_suffix = SETTINGS_CACHE['s3_suffix']
     
     for log in logs[:20]:
         if isinstance(log, dict):
@@ -681,6 +803,11 @@ async def process_console_logs_for_forwarder(context, logs, server_id, bot_usern
                 raw_app = str(log.get('provider', 'Unknown')).lower()
                 c_name = log.get('country_name', 'Unknown')
                 raw_msg = log.get('sms_text', '')
+            elif server_id == 3:
+                r_val = log.get('carrier_id', '')
+                raw_app = str(log.get('app_name', str(log.get('service_name', 'Unknown')))).lower()
+                c_name = log.get('country_name', 'Unknown')
+                raw_msg = log.get('otp', '')
             else:
                 r_val = log.get('range')
                 raw_app = str(log.get('app_name', str(log.get('service_name', 'Unknown')))).lower()
@@ -723,8 +850,9 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info")
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page=1&limit=100")
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=30")
     
-    results = await asyncio.gather(s1_task, s2_task, return_exceptions=True)
+    results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
     
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
         logs = results[0][1].get('data', {}).get('logs', [])
@@ -735,9 +863,13 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
         logs = results[1][1].get('data', [])
         CONSOLE_CACHE[2] = logs
         await process_console_logs_for_forwarder(context, logs, 2, bot_username)
+        
+    if isinstance(results[2], tuple) and results[2][0] == 200 and isinstance(results[2][1], dict):
+        logs = results[2][1].get('data', [])
+        await process_console_logs_for_forwarder(context, logs, 3, bot_username)
 
 # ==============================================================================
-# 🚀 ULTRA-FAST OTP POLLER
+# 🚀 ULTRA-FAST OTP POLLER WITH MULTI-OTP SUPPORT (RESTORED CLASSIC OTP UI)
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg, is_multi=False):
@@ -801,16 +933,17 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
 
 async def check_inbox(context, server_res, last_text, text_var_name):
-    global LAST_INBOX_S1, LAST_INBOX_S2
+    global LAST_INBOX_S1, LAST_INBOX_S2, LAST_INBOX_S3
     if isinstance(server_res, tuple) and server_res[0] == 200 and server_res[1] and server_res[1] != last_text:
         text_data = server_res[1]
         if text_var_name == "s1": LAST_INBOX_S1 = text_data
         elif text_var_name == "s2": LAST_INBOX_S2 = text_data
+        elif text_var_name == "s3": LAST_INBOX_S3 = text_data
 
         try:
             api_res = json.loads(text_data) if isinstance(text_data, str) else text_data
             items = []
-            if text_var_name == "s2":
+            if text_var_name in ["s2", "s3"]:
                 items = api_res.get('data', [])
             else:
                 data_field = api_res.get('data', {})
@@ -861,11 +994,13 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
     s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
     s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)
+    s3_task = s3_api_request('GET', f"{S3_BASE_URL}/api/?page_no=1&filter[0][name]=status&filter[0][value]=All&filter[1][name]=length&filter[1][value]=30", return_text=True)
     
-    results = await asyncio.gather(s1_task, s2_task, return_exceptions=True)
+    results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
 
     await check_inbox(context, results[0], LAST_INBOX_S1, "s1")
     await check_inbox(context, results[1], LAST_INBOX_S2, "s2")
+    await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
 # 🎯 ZERO-LOADING NUMBER GENERATION 
@@ -877,20 +1012,25 @@ async def _fetch_number_s1(payload):
 async def _fetch_number_s2(payload):
     return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
 
-async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
+async def _fetch_number_s3(range_val):
+    # CRACKERJACK URL Encoding Fix (Handles spaces and special chars perfectly)
+    encoded = urllib.parse.quote(range_val.strip())
+    url = f"{S3_BASE_URL}/api/sms/?carrier={encoded}&auth-token={S3_TOKEN}"
+    return await s3_api_request('GET', url)
+
+async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
     
-    # Check if range is cached using our temp map (For S2 bypassing Telegram Limit)
+    # 🌟 CRITICAL FIX: Convert Short-ID to Real Range
     global CALLBACK_TEMP_MAP
     if str(range_val) in CALLBACK_TEMP_MAP:
         range_val = CALLBACK_TEMP_MAP[str(range_val)]
 
     wait_txt = "⏳ <i>Connecting to secure server... Generating Numbers...</i> 🚀"
-    if is_callback:
+    if update.callback_query:
+        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
-        # Send connecting msg first for blink-of-an-eye UI effect
-        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
     else:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
@@ -918,6 +1058,10 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
             tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload)]
+            
+    elif server_id == 3:
+        # For CrackerJack SMS
+        tasks = [_fetch_number_s3(range_val), _fetch_number_s3(range_val)]
 
     if tasks:
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -932,6 +1076,11 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                             num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
                         elif isinstance(data_obj, list) and len(data_obj) > 0:
                             num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
+                    
+                    # S3 CrackerJack Success Parser
+                    elif server_id == 3 and resp.get('meta') == 200:
+                        data_obj = resp.get('data', {})
+                        num = str(data_obj.get('did', '')).replace('+', '')
                             
                     elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
                         num = str(resp['data']['number'])
@@ -947,6 +1096,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         s_suffix = ""
         if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
         elif server_id == 2: s_suffix = SETTINGS_CACHE['s2_suffix']
+        elif server_id == 3: s_suffix = SETTINGS_CACHE['s3_suffix']
         
         display_country_name = f"{country_name}{s_suffix}"
         flag = get_flag(country_name)
@@ -1090,10 +1240,19 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     process_logs(CONSOLE_CACHE[1], 1)
     process_logs(CONSOLE_CACHE[2], 2)
 
+    # Add S3 custom ranges directly from DB matching this category
+    loop = asyncio.get_event_loop()
+    s3_ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, category)
+    for row in s3_ranges:
+        carrier_id, c_name, _id = row
+        key = (3, c_name)
+        if key not in country_stats:
+            country_stats[key] = {'range': carrier_id, 'count': 100, 'c_name': c_name} # Mock high count for 99%
+
     if not country_stats:
         await query.edit_message_text(
             text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found for {category.title()}. Please try again in a moment.</i>", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
         )
         return
         
@@ -1103,6 +1262,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     kb = []
     s1_suffix = SETTINGS_CACHE['s1_suffix']
     s2_suffix = SETTINGS_CACHE['s2_suffix']
+    s3_suffix = SETTINGS_CACHE['s3_suffix']
     
     for key in sorted_keys:
         srv_id, c_name = key
@@ -1115,6 +1275,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         display_name = c_name
         if srv_id == 1: display_name += s1_suffix
         elif srv_id == 2: display_name += s2_suffix
+        elif srv_id == 3: display_name += s3_suffix
             
         btn_text = f"{get_flag(c_name)} {display_name} {display_rate}% {indicator}"
         
@@ -1131,7 +1292,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     if len(CALLBACK_TEMP_MAP) > 5000:
         CALLBACK_TEMP_MAP.clear()
         
-    kb.append([InlineKeyboardButton("🔙 Back to Category", callback_data="go_cat")])
+    kb.append([InlineKeyboardButton("🔙 Back to Categories", callback_data="go_cat")])
     
     await query.edit_message_text(text=f"🌍 <b>SELECT A COUNTRY ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -1150,7 +1311,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await ensure_user_fast(user_id)
     
     is_main_menu_action = any(btn in text for btn in ["Get Number", "Get 2FA", "Support", "See Activity", "Referral & Balance"])
-    is_admin_action = any(btn in text for btn in ["Bot Status", "Total Users", "Broadcast", "Ban / Unban", "Set Rewards", "Set Min Withdraw", "Add Balance", "Top Referrers", "Set Ping URL", "Set Suffix S1", "Set Suffix S2", "Main Menu", "Next", "Back"])
+    is_admin_action = any(btn in text for btn in ["Bot Status", "Total Users", "Broadcast", "Ban / Unban", "Set Rewards", "Set Min Withdraw", "Add Balance", "Top Referrers", "Set Ping URL", "Set Suffix S1", "Set Suffix S2", "Set Suffix S3", "Add S3 Range", "Del S3 Range", "Main Menu", "Next", "Back"])
     
     if is_main_menu_action or is_admin_action:
         user_data['state'] = None
@@ -1173,8 +1334,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💳 <b>Min Withdraw:</b> {SETTINGS_CACHE['min_withdraw']} Tk\n"
                 f"🏷 <b>S1 Suffix:</b> '{SETTINGS_CACHE['s1_suffix']}'\n"
                 f"🏷 <b>S2 Suffix:</b> '{SETTINGS_CACHE['s2_suffix']}'\n"
+                f"🏷 <b>S3 Suffix:</b> '{SETTINGS_CACHE['s3_suffix']}'\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"✅ <i>DUAL Servers Running Perfectly</i>"
+                f"✅ <i>TRIPLE Servers Running Perfectly</i>"
             )
             return await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
             
@@ -1213,6 +1375,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_data['state'] = 'ADMIN_SET_S2_SUFFIX'
             return await update.message.reply_text("✏️ <b>Send suffix for Server 2.</b>\n(Example: ` XRT`)", parse_mode=ParseMode.HTML)
             
+        elif "Set Suffix S3" in text:
+            user_data['state'] = 'ADMIN_SET_S3_SUFFIX'
+            return await update.message.reply_text("✏️ <b>Send suffix for Server 3.</b>\n(Example: ` XR`)", parse_mode=ParseMode.HTML)
+            
+        elif "Add S3 Range" in text:
+            user_data['state'] = 'ADMIN_ADD_S3_CAT'
+            return await update.message.reply_text("➕ <b>Add New Range for Server 3</b>\n\n💬 <b>Step 1:</b> Enter the Category Name.\n<i>(Example: Facebook, Whatsapp)</i>", parse_mode=ParseMode.HTML)
+
+        elif "Del S3 Range" in text:
+            loop = asyncio.get_event_loop()
+            ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_all_s3_ranges)
+            if not ranges:
+                return await update.message.reply_text("❌ No S3 ranges found in DB.")
+            kb = []
+            for row in ranges:
+                r_id, r_cat, r_carr, r_cname = row
+                kb.append([InlineKeyboardButton(f"❌ {r_cname} - {r_carr} ({r_cat})", callback_data=f"dels3_{r_id}")])
+            return await update.message.reply_text("➖ <b>Click a range to delete it:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
         elif "Top Referrers" in text:
             loop = asyncio.get_event_loop()
             top_users = await loop.run_in_executor(DB_EXECUTOR, sync_get_top_referrers)
@@ -1221,10 +1402,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if count > 0: msg += f"<b>{i+1}.</b> <code>{uid}</code> - <b>{count}</b> Referrals\n"
             if "1." not in msg: msg += "<i>No active referrers yet.</i>"
             return await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
-            
-        elif "Main Menu" in text:
-            await show_main_menu(update, context)
-            return
 
         state = user_data.get('state')
         if state == 'ADMIN_BROADCAST':
@@ -1309,6 +1486,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, "s2_suffix", val)
             await update.message.reply_text(f"✅ <b>S2 Suffix updated to:</b> '{val}'", parse_mode=ParseMode.HTML)
+            user_data['state'] = None
+            return
+            
+        elif state == 'ADMIN_SET_S3_SUFFIX':
+            val = text if text != "-" else ""
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, "s3_suffix", val)
+            await update.message.reply_text(f"✅ <b>S3 Suffix updated to:</b> '{val}'", parse_mode=ParseMode.HTML)
+            user_data['state'] = None
+            return
+
+        elif state == 'ADMIN_ADD_S3_CAT':
+            user_data['s3_new_cat'] = text.strip()
+            user_data['state'] = 'ADMIN_ADD_S3_CARR'
+            return await update.message.reply_text(f"✅ <b>Category Saved:</b> {text}\n\n💬 <b>Step 2:</b> Enter the Carrier/Range.\n<i>(Example: Mytel - Arrakis 0316)</i>", parse_mode=ParseMode.HTML)
+
+        elif state == 'ADMIN_ADD_S3_CARR':
+            user_data['s3_new_carr'] = text.strip()
+            user_data['state'] = 'ADMIN_ADD_S3_CNAME'
+            return await update.message.reply_text(f"✅ <b>Carrier Saved:</b> {text}\n\n💬 <b>Step 3:</b> Enter the Country Name.\n<i>(Example: Myanmar)</i>", parse_mode=ParseMode.HTML)
+
+        elif state == 'ADMIN_ADD_S3_CNAME':
+            cname = text.strip()
+            cat = user_data.get('s3_new_cat')
+            carr = user_data.get('s3_new_carr')
+            
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(DB_EXECUTOR, sync_add_s3_range, cat, carr, cname)
+            
+            await update.message.reply_text(f"✅ <b>Successfully Added S3 Range!</b>\n\n📌 <b>Category:</b> {cat}\n📡 <b>Carrier:</b> {carr}\n🌍 <b>Country:</b> {cname}", parse_mode=ParseMode.HTML)
             user_data['state'] = None
             return
 
@@ -1445,6 +1652,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global CALLBACK_TEMP_MAP
     if await check_ban_middleware(update, context): return
     query = update.callback_query
     user_id = query.from_user.id
@@ -1467,9 +1675,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("r_"):
         parts = data.split("_")
         server_id = int(parts[1])
-        range_val = parts[2]
+        short_id = parts[2]
+        
         if len(parts) > 3: context.user_data['real_country_name'] = parts[3]
-        await process_number_generation(update, context, range_val, server_id, is_callback=True)
+            
+        # Extract the real range from the temp RAM Hash-Map
+        if short_id in CALLBACK_TEMP_MAP:
+            real_range = CALLBACK_TEMP_MAP[short_id]
+        else:
+            # Fallback if map cleared (e.g., bot restarted)
+            real_range = short_id
+            
+        await process_number_generation(update, context, real_range, server_id, is_callback=True)
         
     elif data == "change_num":
         if context.user_data.get('range'):
@@ -1489,8 +1706,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['admin_reply_target'] = target_user_id
         await query.message.reply_text(f"✍️ <b>Type reply for:</b> <code>{target_user_id}</code>\n<i>(Type message normally)</i>", parse_mode=ParseMode.HTML)
         await query.answer()
+        
+    elif data.startswith("dels3_"):
+        if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
+        r_id = int(data.split("_")[1])
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(DB_EXECUTOR, sync_del_s3_range, r_id)
+        await query.edit_message_text(f"✅ <b>Successfully Deleted S3 Range ID {r_id}</b>", parse_mode=ParseMode.HTML)
 
-    # --- ADMIN PANEL PAGINATION ---
+    # Admin Panel Pagination
     elif data == "admin_page_1":
         kb = [
             ["📊 Bot Status", "👥 Total Users"],
@@ -1505,12 +1729,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "admin_page_2":
         kb = [
             ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
-            ["🌐 Set Ping URL", "⬅️ Back"],
-            ["🔙 Main Menu"]
+            ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
+            ["➕ Add S3 Range", "➖ Del S3 Range"],
+            ["⬅️ Back", "🔙 Main Menu"]
         ]
         await query.message.reply_text("⚙️ <b>SERVER SETTINGS (Page 2)</b>", reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
         await query.answer()
-        
+
     # --- WITHDRAW FLOW ---
     elif data == "req_withdraw":
         loop = asyncio.get_event_loop()
@@ -1568,8 +1793,9 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message and "Next" in update.message.text:
         kb = [
             ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
-            ["🌐 Set Ping URL", "⬅️ Back"],
-            ["🔙 Main Menu"]
+            ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
+            ["➕ Add S3 Range", "➖ Del S3 Range"],
+            ["⬅️ Back", "🔙 Main Menu"]
         ]
         txt = "⚙️ <b>SERVER SETTINGS (Page 2)</b>\n━━━━━━━━━━━━━━━━━━━━"
     else:
@@ -1589,7 +1815,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V85 Enterprise Edition — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V90 Enterprise Edition — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
@@ -1632,6 +1858,7 @@ async def post_init(app: Application):
     asyncio.create_task(start_dummy_server())
     asyncio.create_task(auth_s1(force=True))
     asyncio.create_task(auth_s2(force=True))
+    asyncio.create_task(auth_s3(force=True))
 
 if __name__ == "__main__":
     init_db()
@@ -1652,5 +1879,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=30)
     
-    logger.info("✨ VERSION 85.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
+    logger.info("✨ VERSION 90.0 ENTERPRISE FINAL STARTED SUCCESSFULLY ✨")
     app.run_polling(drop_pending_updates=True)
