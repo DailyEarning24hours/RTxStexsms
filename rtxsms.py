@@ -168,8 +168,10 @@ def get_flag(country_name):
     clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").strip()
     if clean_name in COUNTRY_FLAGS: 
         return COUNTRY_FLAGS[clean_name]
+    clean_no_space = clean_name.replace(" ", "").lower()
     for name, flag in COUNTRY_FLAGS.items():
-        if name.lower() in clean_name.lower() or clean_name.lower() in name.lower(): 
+        name_no_space = name.replace(" ", "").lower()
+        if name.lower() in clean_name.lower() or clean_name.lower() in name.lower() or name_no_space in clean_no_space or clean_no_space in name_no_space: 
             return flag
     return "🚩"
 
@@ -177,8 +179,10 @@ def get_short_code(country_name):
     clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").strip()
     if clean_name in COUNTRY_CODES:
         return COUNTRY_CODES[clean_name]
+    clean_no_space = clean_name.replace(" ", "").lower()
     for name, code in COUNTRY_CODES.items():
-        if name.lower() in clean_name.lower() or clean_name.lower() in name.lower(): 
+        name_no_space = name.replace(" ", "").lower()
+        if name.lower() in clean_name.lower() or clean_name.lower() in name.lower() or name_no_space in clean_no_space or clean_no_space in name_no_space: 
             return code
     return str(clean_name)[:2].upper()
 
