@@ -1,13 +1,13 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 71.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 73.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (Thread-Pool & O(1) RAM Hash-Map).
-UPDATES: TRIPLE SERVER ARCHITECTURE (S1: STEX, S2: ACCHUB, S3: CRACKERJACK).
+UPDATES: TRIPLE SERVER ARCHITECTURE (S1, S2, S3) + AUTO CLOUD BACKUP SYSTEM.
 NEW UI & EXTREME SCALABILITY FEATURES:
-- S3 Admin Range Management: Manually add S3 Carrier IDs and Country names.
-- 3-Page Deep Analysis: Categories now scan 3 pages for extreme % accuracy!
-- Expanded OTP Group Logs: Now clearly shows Country Name + Flag.
-- Zero Loading Architecture: 0.01s UI transitions.
+- Telegram Cloud DB Backup: /backup and /restore added to protect against Render Free Tier wipes.
+- Auto-Backup: Sends DB to Admin every 12 hours.
+- Background 3-Page Cache: Category % calculation loads instantly (0.01s).
+- Advanced OTP Forwarding Format.
 FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
 ==============================================================================
 """
@@ -53,7 +53,7 @@ from aiohttp import web
 # ==============================================================================
 
 TOKEN = "8784714590:AAGW1bthOSIh2HUl2vPCYS_zv13zEz7BOsg"
-ADMIN_IDS = [6031032502, 6941366213] 
+ADMIN_IDS = [6031032502] 
 CHANNELS = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
 
 RANGE_GROUP_ID = -1003627708272
@@ -267,10 +267,10 @@ def _find_waiter(num_raw: str):
     return None, None
 
 # ==============================================================================
-# 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
+# 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT (SQLite with Backup/Restore)
 # ==============================================================================
 
-DB_FILE = "bot_v71_enterprise.db"
+DB_FILE = "bot_v73_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=50):
@@ -338,6 +338,8 @@ def init_db():
         conn.commit()
         
         c.execute("SELECT user_id, is_banned FROM users")
+        USER_CACHE.clear()
+        BANNED_CACHE.clear()
         for row in c.fetchall():
             USER_CACHE.add(row[0])
             if row[1] == 1: BANNED_CACHE.add(row[0])
@@ -825,12 +827,12 @@ async def auto_range_forwarder_job(context: ContextTypes.DEFAULT_TYPE):
     
     if isinstance(results[0], tuple) and results[0][0] == 200 and isinstance(results[0][1], dict):
         logs = results[0][1].get('data', {}).get('logs', [])
-        CONSOLE_CACHE[1] = logs
+        if logs: CONSOLE_CACHE[1] = logs
         await process_console_logs_for_forwarder(context, logs, 1, bot_username)
 
     if isinstance(results[1], tuple) and results[1][0] == 200 and isinstance(results[1][1], dict):
         logs = results[1][1].get('data', [])
-        CONSOLE_CACHE[2] = logs
+        if logs: CONSOLE_CACHE[2] = logs
         await process_console_logs_for_forwarder(context, logs, 2, bot_username)
 
 # ==============================================================================
@@ -885,15 +887,17 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     
     clean_raw_msg = clean_message_text(raw_msg) 
     masked_num = mask_number(full_num)
+    flag = get_flag(c_name)
     
+    # 🌟 NEW UPGRADED EXACT OTP GROUP FORMAT 🌟
     group_msg = (
-        f"🔔 <b>Otp Received</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌍 Country - {get_flag(c_name)} {c_name}\n"
-        f"📱 Number - <code>{masked_num}</code>\n"
-        f"🛒 Service - <pre>{html.escape(str(custom_service_name))}</pre>\n"
-        f"🔑 Code - <code>{code_only}</code>\n"
-        f"✉️ Full sms - <pre>{html.escape(str(clean_raw_msg))}</pre>"
+        f"✅ {flag} {c_name} {html.escape(str(custom_service_name))} OTP Code Received Successfully. 🎉\n\n"
+        f"📱 Number: <code>{masked_num}</code>\n"
+        f"🔢 OTP Code: <code>{code_only}</code>\n"
+        f"🛠 Service: {html.escape(str(custom_service_name))}\n"
+        f"🌍 Country: {flag} {c_name}\n\n"
+        f"📨 Message:\n"
+        f"<pre>{html.escape(str(clean_raw_msg))}</pre>"
     )
     
     group_kb = [[InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/RTx2R")]]
@@ -1177,17 +1181,14 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global CONSOLE_CACHE
     query = update.callback_query
     category = query.data.split('_')[1].lower()
     context.user_data['service_name'] = category.title()
     
-    await query.edit_message_text(text="⚡ <i>Analyzing 3-Page Deep Network Logs...</i>", parse_mode=ParseMode.HTML)
-    
-    # Deep 3-Page Fetch for S1 & S2
-    s1_tasks = [s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info?page={i}") for i in range(1, 4)]
-    s2_tasks = [s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page={i}&limit=50") for i in range(1, 4)]
-    
-    results = await asyncio.gather(*s1_tasks, *s2_tasks, return_exceptions=True)
+    # 0.01s instant feedback - it doesn't block, reads from RAM cache!
+    await query.edit_message_text(text="⚡ <i>Calculating Live Success Rate...</i>", parse_mode=ParseMode.HTML)
+    await asyncio.sleep(0.01)
     
     country_stats = {}
     
@@ -1210,13 +1211,9 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
                         country_stats[key] = {'range': r, 'count': 0, 'c_name': c}
                     country_stats[key]['count'] += 1
 
-    for res in results[:3]: 
-        if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
-            process_logs(res[1].get('data', {}).get('logs', []), 1)
-            
-    for res in results[3:]: 
-        if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
-            process_logs(res[1].get('data', []), 2)
+    # Read instantly from automated background cache!
+    process_logs(CONSOLE_CACHE[1], 1)
+    process_logs(CONSOLE_CACHE[2], 2)
 
     max_count = max([v['count'] for v in country_stats.values()]) if country_stats else 100
 
@@ -1745,11 +1742,91 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(txt, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
+# ☁️ TELEGRAM CLOUD BACKUP & RESTORE SYSTEM (RENDER FREE FIX)
+# ==============================================================================
+
+async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    try:
+        if os.path.exists(DB_FILE):
+            await update.message.reply_document(document=open(DB_FILE, 'rb'), filename=DB_FILE, caption="☁️ <b>Manual Database Backup</b>\n\n<i>To restore, reply to this file with /restore</i>", parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text("⚠️ No database file found yet.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Backup failed: {e}")
+
+async def cmd_restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in ADMIN_IDS: return
+    if not update.message.reply_to_message or not update.message.reply_to_message.document:
+        return await update.message.reply_text("⚠️ <b>Please reply to a .db backup file with /restore</b>", parse_mode=ParseMode.HTML)
+        
+    doc = update.message.reply_to_message.document
+    if not doc.file_name.endswith('.db'):
+        return await update.message.reply_text("⚠️ <b>Invalid file format. Must be a .db file.</b>", parse_mode=ParseMode.HTML)
+        
+    msg = await update.message.reply_text("⏳ <i>Downloading and restoring database...</i>", parse_mode=ParseMode.HTML)
+    
+    try:
+        # Delete WAL and SHM temp files if they exist to prevent corruption
+        if os.path.exists(f"{DB_FILE}-wal"): os.remove(f"{DB_FILE}-wal")
+        if os.path.exists(f"{DB_FILE}-shm"): os.remove(f"{DB_FILE}-shm")
+        
+        file = await context.bot.get_file(doc.file_id)
+        await file.download_to_drive(DB_FILE)
+        
+        # Reload memory cache instantly
+        init_db()
+        
+        await msg.edit_text("✅ <b>Database Restored Successfully!</b>\n<i>All user balances and data have been completely recovered.</i>", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await msg.edit_text(f"❌ <b>Restore failed:</b> {e}", parse_mode=ParseMode.HTML)
+
+async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
+    if not os.path.exists(DB_FILE): return
+    try:
+        main_admin = ADMIN_IDS[0] 
+        await context.bot.send_document(
+            chat_id=main_admin, 
+            document=open(DB_FILE, 'rb'), 
+            filename=f"Auto_Backup_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.db",
+            caption="☁️ <b>Automatic Database Backup</b>\n\n<i>Render safe-guard. To restore, reply to this file with /restore</i>",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e: logger.error(f"Auto Backup Failed: {e}")
+
+# ==============================================================================
+# 🌐 BACKGROUND CACHE UPDATER (Zero-Delay 3-Page Fetcher)
+# ==============================================================================
+
+async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
+    global CONSOLE_CACHE
+    try:
+        s1_tasks = [s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info?page={i}") for i in range(1, 4)]
+        s2_tasks = [s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page={i}&limit=50") for i in range(1, 4)]
+        
+        results = await asyncio.gather(*s1_tasks, *s2_tasks, return_exceptions=True)
+        
+        s1_logs = []
+        for res in results[:3]:
+            if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
+                s1_logs.extend(res[1].get('data', {}).get('logs', []))
+        
+        s2_logs = []
+        for res in results[3:]:
+            if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
+                s2_logs.extend(res[1].get('data', []))
+                
+        if s1_logs: CONSOLE_CACHE[1] = s1_logs
+        if s2_logs: CONSOLE_CACHE[2] = s2_logs
+    except Exception:
+        pass
+
+# ==============================================================================
 # 🌐 RENDER DUMMY WEB SERVER & MAIN LOOP
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V71 Enterprise Edition (S1+S2+S3) — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V73 Enterprise Edition (S1+S2+S3) + Cloud Backup — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
@@ -1786,13 +1863,21 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     
+    # NEW CLOUD BACKUP COMMANDS
+    app.add_handler(CommandHandler("backup", cmd_backup))
+    app.add_handler(CommandHandler("restore", cmd_restore))
+    
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     app.job_queue.run_repeating(global_otp_checker_job,  interval=2,   first=2)
     app.job_queue.run_repeating(auto_range_forwarder_job, interval=10,  first=10)
+    app.job_queue.run_repeating(update_cache_job,         interval=10,  first=2)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120, first=30)
     
-    logger.info("✨ VERSION 71.0 ENTERPRISE FINAL (S1+S2+S3) STARTED SUCCESSFULLY ✨")
+    # Auto Cloud Backup to Telegram Every 12 Hours (43200 seconds)
+    app.job_queue.run_repeating(auto_backup_job,          interval=43200, first=3600)
+    
+    logger.info("✨ VERSION 73.0 ENTERPRISE FINAL (S1+S2+S3) + CLOUD BACKUP STARTED ✨")
     app.run_polling(drop_pending_updates=True)
