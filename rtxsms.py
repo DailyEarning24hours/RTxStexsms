@@ -1,9 +1,10 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 73.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 74.0 ENTERPRISE FINAL) ✨
 CAPACITY: 30,000+ Users on Render Free Plan (Thread-Pool & O(1) RAM Hash-Map).
 UPDATES: TRIPLE SERVER ARCHITECTURE (S1, S2, S3) + AUTO CLOUD BACKUP SYSTEM.
 NEW UI & EXTREME SCALABILITY FEATURES:
+- Staggered Multi-Fetch: Guaranteed 2 numbers every time you click "Change Number".
 - Telegram Cloud DB Backup: /backup and /restore added to protect against Render Free Tier wipes.
 - Auto-Backup: Sends DB to Admin every 12 hours.
 - Background 3-Page Cache: Category % calculation loads instantly (0.01s).
@@ -270,7 +271,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT (SQLite with Backup/Restore)
 # ==============================================================================
 
-DB_FILE = "bot_v73_enterprise.db"
+DB_FILE = "bot_v74_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=50):
@@ -983,7 +984,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION 
+# 🎯 HIGH-SPEED NUMBER GENERATION (Staggered Fetch for Guaranteed Multi-Numbers)
 # ==============================================================================
 
 async def _fetch_number_s1(payload):
@@ -994,6 +995,10 @@ async def _fetch_number_s2(payload):
 
 async def _fetch_number_s3(url):
     return await s3_api_request('GET', url)
+
+async def safe_delayed_fetch(delay, func, *args, **kwargs):
+    if delay > 0: await asyncio.sleep(delay)
+    return await func(*args, **kwargs)
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, BATCH_MSGS, NUM_TO_HASH
@@ -1017,22 +1022,32 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
+    # 🌟 Staggered Tasks to bypass API spam filters & guarantee 2 unique numbers!
     if server_id == 1:
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        tasks = [_fetch_number_s1(payload), _fetch_number_s1(payload)]
+        tasks = [
+            safe_delayed_fetch(0.0, _fetch_number_s1, payload), 
+            safe_delayed_fetch(0.3, _fetch_number_s1, payload)
+        ]
         
     elif server_id == 2:
         rv = str(range_val).replace('X', '|')
         parts = rv.split('|')
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [_fetch_number_s2(payload), _fetch_number_s2(payload)]
+            tasks = [
+                safe_delayed_fetch(0.0, _fetch_number_s2, payload), 
+                safe_delayed_fetch(0.3, _fetch_number_s2, payload)
+            ]
 
     elif server_id == 3:
         url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-        tasks = [_fetch_number_s3(url), _fetch_number_s3(url)]
+        tasks = [
+            safe_delayed_fetch(0.0, _fetch_number_s3, url), 
+            safe_delayed_fetch(0.3, _fetch_number_s3, url)
+        ]
 
     if tasks:
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1059,7 +1074,9 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                             country_name = resp['data'].get('country', country_name)
                     
                     if num and num != "None": 
-                        fetched_numbers.append(num.replace('+', ''))
+                        clean_n = num.replace('+', '')
+                        if clean_n not in fetched_numbers:
+                            fetched_numbers.append(clean_n)
             elif isinstance(res, Exception):
                 logger.error(f"API Error in parallel task: {res}")
             
@@ -1767,14 +1784,12 @@ async def cmd_restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = await update.message.reply_text("⏳ <i>Downloading and restoring database...</i>", parse_mode=ParseMode.HTML)
     
     try:
-        # Delete WAL and SHM temp files if they exist to prevent corruption
         if os.path.exists(f"{DB_FILE}-wal"): os.remove(f"{DB_FILE}-wal")
         if os.path.exists(f"{DB_FILE}-shm"): os.remove(f"{DB_FILE}-shm")
         
         file = await context.bot.get_file(doc.file_id)
         await file.download_to_drive(DB_FILE)
         
-        # Reload memory cache instantly
         init_db()
         
         await msg.edit_text("✅ <b>Database Restored Successfully!</b>\n<i>All user balances and data have been completely recovered.</i>", parse_mode=ParseMode.HTML)
@@ -1826,7 +1841,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V73 Enterprise Edition (S1+S2+S3) + Cloud Backup — Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V74 Enterprise Edition (S1+S2+S3) + Cloud Backup — Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
@@ -1863,7 +1878,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
     
-    # NEW CLOUD BACKUP COMMANDS
+    # CLOUD BACKUP COMMANDS
     app.add_handler(CommandHandler("backup", cmd_backup))
     app.add_handler(CommandHandler("restore", cmd_restore))
     
@@ -1879,5 +1894,5 @@ if __name__ == "__main__":
     # Auto Cloud Backup to Telegram Every 12 Hours (43200 seconds)
     app.job_queue.run_repeating(auto_backup_job,          interval=43200, first=3600)
     
-    logger.info("✨ VERSION 73.0 ENTERPRISE FINAL (S1+S2+S3) + CLOUD BACKUP STARTED ✨")
+    logger.info("✨ VERSION 74.0 ENTERPRISE FINAL (S1+S2+S3) + CLOUD BACKUP STARTED ✨")
     app.run_polling(drop_pending_updates=True)
