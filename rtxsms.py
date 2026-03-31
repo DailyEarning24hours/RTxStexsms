@@ -1,20 +1,3 @@
-==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 82.0 ENTERPRISE FINAL) ✨
-CAPACITY: 50,000+ Users on Render Free Plan (RAM-First DB Cache & uvloop).
-UPDATES: TRIPLE SERVER ARCHITECTURE (S1, S2, S3) + RENDER LONG-POLL ANTI-SLEEP.
-NEW UI & EXTREME SCALABILITY FEATURES:
-- RAM-First User Cache: Balance & Referrals load from memory! 95% DB read load eliminated.
-- SQLite Memory Mapped Tuning: PRAGMA temp_store=MEMORY for ultra-fast I/O.
-- Render Anti-Sleep Long Polling: Bot pings itself every 2 mins and holds connection for 60s!
-- S3 Inline Range Deletion: Click a button to delete S3 ranges instantly.
-- Anonymous Join Buttons: Jᴏɪɴ 1 / Jᴏɪɴ 2 formats instead of channel names.
-- Exact Custom OTP Inbox Format: 𒊹︎︎︎ Cᴏᴅᴇ Rᴇᴄᴇɪᴠᴇᴅ 🖲️ (Fully Matched).
-- S3 Serial Fetching: Guaranteed 2 unique numbers on Change Number.
-- Invisible Cloud Backup: Silently sends DB to Admin every 15 mins. No spam!
-FORMATTING: Fully Expanded, No Shortcuts, Maximum Stability & Beauty.
-==============================================================================
-"""
-
 import logging
 import aiohttp
 import os
