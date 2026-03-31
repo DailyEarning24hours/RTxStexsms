@@ -1,12 +1,12 @@
 """
 ==============================================================================
-PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 79.0 ENTERPRISE FINAL) ✨
+PROJECT: ✨ PREMIUM OTP BOT (Ultimate Update - Version 80.0 ENTERPRISE FINAL) ✨
 CAPACITY: 50,000+ Users on Render Free Plan (Optimized RAM & Garbage Collection).
 UPDATES: TRIPLE SERVER ARCHITECTURE (S1, S2, S3) + OOM CRASH PERMANENT FIX.
 NEW UI & EXTREME SCALABILITY FEATURES:
 - Exact Range Channel Format: 📢 Nᴇᴡ Aᴄᴛɪᴠᴇ Rᴀɴɢᴇ Fɪɴᴅ 🟢 with Custom Fonts.
-- Exact Custom OTP Inbox Format: 𒊹︎︎︎ Cᴏᴅᴇ Rᴇᴄᴇɪᴠᴇᴅ 🖲️
-- S3 Serial Fetching: Guaranteed 2 unique numbers on Change Number (1.5s queue delay).
+- Exact Custom OTP Inbox Format: 𒊹︎︎︎ Cᴏᴅᴇ Rᴇᴄᴇɪᴠᴇᴅ 🖲️ (Fully Matched).
+- S3 Serial Fetching: Guaranteed 2 unique numbers on Change Number.
 - RAM Garbage Collector: Aggressively clears memory to prevent Render from wiping DB.
 - Invisible Cloud Backup: Silently sends DB to Admin every 15 mins. No spam!
 - Background 3-Page Cache: Category % calculation loads instantly (0.01s).
@@ -279,7 +279,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT (SQLite Standard Mode for Crash-Safety)
 # ==============================================================================
 
-DB_FILE = "bot_v79_enterprise.db"
+DB_FILE = "bot_v80_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -1873,7 +1873,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def web_server_handler(request):
-    return web.Response(text="✅ Premium OTP Bot V79 Enterprise Final — RAM Optimized & Running perfectly!")
+    return web.Response(text="✅ Premium OTP Bot V80 Enterprise Final — RAM Optimized & Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
@@ -1926,5 +1926,5 @@ if __name__ == "__main__":
     # Silent Cloud Backup to Telegram Every 15 Minutes (900 seconds)
     app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 79.0 ENTERPRISE FINAL STARTED ✨")
+    logger.info("✨ VERSION 80.0 ENTERPRISE FINAL STARTED ✨")
     app.run_polling(drop_pending_updates=True)
