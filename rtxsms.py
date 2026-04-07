@@ -138,22 +138,13 @@ SETTINGS_CACHE = {
     "s3_suffix": " CJ"
 }
 
-COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Bolivia":"🇧🇴", "Brazil":"🇧🇷", "Bulgaria":"🇧🇬", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Estonia":"🇪🇪", "Ethiopia":"🇪🇹", "Finland":"🇫🇮", "France":"🇫🇷", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Guatemala":"🇬🇹", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Libya":"🇱🇾", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Mexico":"🇲🇽", "Moldova":"🇲🇩", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Myanmar":"🇲🇲", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
-}
+# ==============================================================================
+# 🌍 DYNAMIC COUNTRY FLAGS & ISO DICTIONARY
+# ==============================================================================
 
 COUNTRY_CODES = {
     "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahrain":"BH", "Bangladesh":"BD", "Belarus":"BY", "Belgium":"BE", "Bolivia":"BO", "Brazil":"BR", "Bulgaria":"BG", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Chile":"CL", "China":"CN", "Colombia":"CO", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Estonia":"EE", "Ethiopia":"ET", "Finland":"FI", "France":"FR", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Guatemala":"GT", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mexico":"MX", "Moldova":"MD", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Myanmar":"MM", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW"
 }
-
-def get_flag(country_name):
-    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "").strip()
-    if clean_name in COUNTRY_FLAGS: return COUNTRY_FLAGS[clean_name]
-    clean_no_space = clean_name.replace(" ", "").lower()
-    for name, flag in COUNTRY_FLAGS.items():
-        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
-            return flag
-    return "🚩"
 
 def get_short_code(country_name):
     clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "").strip()
@@ -164,18 +155,24 @@ def get_short_code(country_name):
             return code
     return str(clean_name)[:2].upper()
 
+def get_flag(country_name):
+    short_code = get_short_code(country_name)
+    if len(short_code) == 2 and short_code.isalpha():
+        # Dynamic Unicode Flag Generation (Never misses any country)
+        return chr(ord(short_code[0].upper()) + 127397) + chr(ord(short_code[1].upper()) + 127397)
+    return "🏳️"
+
+# ==============================================================================
+# 🔧 UTILITY FUNCTIONS
+# ==============================================================================
+
 def clean_number(n: str) -> str:
     return re.sub(r'\D', '', str(n))
 
 def mask_number(number: str) -> str:
     digits = clean_number(number)
-    if len(digits) < 7: return number
-    first, last = digits[:6], digits[-3:]
-    middle = '•' * (len(digits) - 9)
-    if len(digits) <= 9:
-        first, last = digits[:4], digits[-3:]
-        middle = '•' * (len(digits) - 7)
-    return first + middle + last
+    if len(digits) < 4: return number
+    return "XXXX" + digits[-4:]
 
 def clean_message_text(raw_text):
     if not raw_text or str(raw_text).strip() == "": return "No Message Provided"
@@ -223,7 +220,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE
 # ==============================================================================
 
-DB_FILE = "bot_v83_enterprise.db"
+DB_FILE = "bot_v84_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -652,25 +649,27 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     flag = get_flag(c_name)
     short_name = get_short_code(c_name)
     svc_short = "Fb" if "facebook" in custom_service_name.lower() else ("Ws" if "whatsapp" in custom_service_name.lower() else custom_service_name[:3].title())
+    svc_emoji = "📘" if "facebook" in custom_service_name.lower() else ("💬" if "whatsapp" in custom_service_name.lower() else "📱")
     
-    # 🌟 SEPARATE MESSAGE FOR OTP (USER CHAT) 🌟
-    user_msg = f"<b>{flag} {short_name} | {svc_short} | +{full_num}</b>"
-    user_kb = [[InlineKeyboardButton(text=f"🔑 {code_only}", copy_text=CopyTextButton(text=code_only))]]
-    
-    # Sends a NEW message below the waiting UI
-    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
-    
+    spaced_otp = " ".join(list(code_only))
     masked_num = mask_number(full_num)
     
-    # 🌟 MASSIVE PREMIUM OTP GROUP FORMAT 🌟
+    # 🌟 SEPARATE MESSAGE FOR OTP (USER CHAT)
+    user_msg = f"{flag} {short_name} | {custom_service_name} | <code>+{full_num}</code>"
+    user_kb = [[InlineKeyboardButton(text=f"🔑 {spaced_otp}", copy_text=CopyTextButton(text=code_only))]]
+    
+    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
+    
+    # 🌟 GROUP MESSAGE EXACTLY LIKE SCREENSHOT
     group_msg = (
-        f"<b>{flag} | {svc_short} | {masked_num}</b>\n\n"
-        f"<blockquote><b><pre>{code_only}</pre></b></blockquote>\n"
+        f"╭─────────────────╮\n"
+        f"│  {flag} #{short_name} {svc_emoji} {masked_num}\n"
+        f"╰─────────────────╯"
     )
     
     group_kb = [
-        [InlineKeyboardButton(text=f"{code_only}", copy_text=CopyTextButton(text=code_only))],
-        [InlineKeyboardButton("📢 𝗠𝗮𝗶𝗻 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url="https://t.me/EarnXtract"), InlineKeyboardButton("👨‍💻 𝗢𝘄𝗻𝗲𝗿", url="https://t.me/RTx2R")]
+        [InlineKeyboardButton(text=f"🔑 📋 {spaced_otp}", copy_text=CopyTextButton(text=code_only))],
+        [InlineKeyboardButton("🤖 𝗡𝘂𝗺𝗯𝗲𝗿 𝗕𝗼𝘁", url=f"https://t.me/{context.bot.username}"), InlineKeyboardButton("📞 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url="https://t.me/EarnXtract")]
     ]
     
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
@@ -755,10 +754,6 @@ async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_B
 async def _fetch_number_s2(payload): return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
 async def _fetch_number_s3(url): return await s3_api_request('GET', url)
 
-async def safe_delayed_fetch(delay, func, *args, **kwargs):
-    if delay > 0: await asyncio.sleep(delay)
-    return await func(*args, **kwargs)
-
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, NUM_TO_HASH
     
@@ -772,8 +767,6 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
-    await asyncio.sleep(0.01)
-    
     fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
     
@@ -785,24 +778,21 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        tasks = [safe_delayed_fetch(0.0, _fetch_number_s1, payload), safe_delayed_fetch(0.3, _fetch_number_s1, payload)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        res = await _fetch_number_s1(payload)
+        results.append(res)
         
     elif server_id == 2:
         rv = str(range_val).replace('X', '|')
         parts = rv.split('|')
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [safe_delayed_fetch(0.0, _fetch_number_s2, payload), safe_delayed_fetch(0.3, _fetch_number_s2, payload)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            res = await _fetch_number_s2(payload)
+            results.append(res)
 
     elif server_id == 3:
         url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
         r1 = await _fetch_number_s3(url)
         results.append(r1)
-        await asyncio.sleep(1.0)
-        r2 = await _fetch_number_s3(url)
-        results.append(r2)
 
     if results:
         for res in results:
@@ -838,7 +828,8 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         flag = get_flag(country_name)
         custom_svc = context.user_data.get('service_name', api_svc.title())
         
-        # 🌟 EXACT ASSIGNED TEXT FORMAT 🌟
+        n = fetched_numbers[0]
+        
         txt = (
             f"{flag} <b>{display_country_name} 𝗡𝘂𝗺𝗯𝗲𝗿 𝗔𝘀𝘀𝗶𝗴𝗻𝗲𝗱:</b>\n"
             f"╭─────────────────╮\n"
@@ -846,26 +837,23 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             f"╰─────────────────╯"
         )
         
-        num_kb = []
-        # Display fetched numbers as inline buttons (up to 2)
-        for n in fetched_numbers[:2]:
-            num_kb.append([InlineKeyboardButton(text=f"📋 +{n}", copy_text=CopyTextButton(text=n))])
-            
-        num_kb.append([InlineKeyboardButton("🔄 𝗖𝗵𝗮𝗻𝗴𝗲 𝗡𝘂𝗺𝗯𝗲𝗿", callback_data="change_num")])
-        num_kb.append([InlineKeyboardButton("💬 𝗢𝗧𝗣 𝗚𝗥𝗢𝗨𝗣", url="https://t.me/RTxOtpX")])
-        num_kb.append([InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")])
+        num_kb = [
+            [InlineKeyboardButton(text=f"📋 +{n}", copy_text=CopyTextButton(text=n))],
+            [InlineKeyboardButton("🔄 𝗖𝗵𝗮𝗻𝗴𝗲 𝗡𝘂𝗺𝗯𝗲𝗿", callback_data="change_num")],
+            [InlineKeyboardButton("💬 𝗢𝗧𝗣 𝗚𝗥𝗢𝗨𝗣", url="https://t.me/RTxOtpX")],
+            [InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")]
+        ]
         
         try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
         except Exception: await msg.edit_text(text=f"{flag} {display_country_name} Number Assigned:\nWaiting for OTP...", reply_markup=InlineKeyboardMarkup(num_kb))
         
-        for n in fetched_numbers[:2]:
-            hash_key = get_hash_key(n)
-            WAITING_OTPS[hash_key] = {
-                'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
-                'time': time.time(), 'received_codes': set(), 
-                'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
-            }
-            NUM_TO_HASH[clean_number(n)] = hash_key
+        hash_key = get_hash_key(n)
+        WAITING_OTPS[hash_key] = {
+            'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
+            'time': time.time(), 'received_codes': set(), 
+            'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
+        }
+        NUM_TO_HASH[clean_number(n)] = hash_key
             
         context.user_data['range'] = range_val 
         context.user_data['server'] = server_id
@@ -918,7 +906,6 @@ async def show_main_menu(update_obj, context):
         await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
 
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # 🌟 NEW CATEGORY VERTICAL LAYOUT 🌟
     kb = [
         [InlineKeyboardButton("📘 𝗙𝗮𝗰𝗲𝗯𝗼𝗼𝗸", callback_data="cat_facebook")],
         [InlineKeyboardButton("💬 𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽", callback_data="cat_whatsapp")],
@@ -938,9 +925,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     category = query.data.split('_')[1].lower()
     context.user_data['service_name'] = category.title()
     
-    await query.edit_message_text(text="⚡ <i>𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</i>", parse_mode=ParseMode.HTML)
-    await asyncio.sleep(0.01)
-    
+    # ⚡ No artificial delays, perfectly optimized UI loading!
     country_stats = {}
     
     def process_logs(logs, srv_id):
@@ -1258,15 +1243,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         
+        # 🌟 Cleaned up Minimal Referral Layout 🌟
         msg = (
             f"🎁 <b>𝗥𝗘𝗙𝗘𝗥𝗥𝗔𝗟 & 𝗕𝗔𝗟𝗔𝗡𝗖𝗘</b> 🎁\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>𝗬𝗼𝘂𝗿 𝗕𝗮𝗹𝗮𝗻𝗰𝗲:</b> {user_info['balance']:.2f} ৳\n"
-            f"👥 <b>𝗧𝗼𝘁𝗮𝗹 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹𝘀:</b> {user_info['total_referrals']}\n\n"
-            f"⚡ <b>𝗘𝗮𝗿𝗻 𝗣𝗲𝗿 𝗢𝗧𝗣:</b> {SETTINGS_CACHE['otp_reward']:.2f} ৳\n"
-            f"🔗 <b>𝗘𝗮𝗿𝗻 𝗣𝗲𝗿 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 𝗢𝗧𝗣:</b> {SETTINGS_CACHE['ref_reward']:.2f} ৳\n\n"
-            f"🚀 <b>𝗬𝗼𝘂𝗿 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 𝗟𝗶𝗻𝗸:</b>\n<code>{ref_link}</code>\n\n"
-            f"<i>Share this link with friends. When they receive an OTP, you get a bonus!</i>"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💰 <b>𝗕𝗮𝗹𝗮𝗻𝗰𝗲:</b> {user_info['balance']:.2f} ৳\n"
+            f"👥 <b>𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹𝘀:</b> {user_info['total_referrals']}\n\n"
+            f"🔗 <b>𝗟𝗶𝗻𝗸:</b> <code>{ref_link}</code>"
         )
         kb = [[InlineKeyboardButton("💳 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", callback_data="req_withdraw")]]
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
@@ -1488,6 +1471,7 @@ async def cmd_restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text("✅ <b>𝗗𝗮𝘁𝗮𝗯𝗮𝘀𝗲 𝗥𝗲𝘀𝘁𝗼𝗿𝗲𝗱 𝗦𝘂𝗰𝗰𝗲𝘀𝘀𝗳𝘂𝗹𝗹𝘆!</b>\n<i>All user balances and data have been completely recovered.</i>", parse_mode=ParseMode.HTML)
     except Exception as e: await msg.edit_text(f"❌ <b>𝗥𝗲𝘀𝘁𝗼𝗿𝗲 𝗳𝗮𝗶𝗹𝗲𝗱:</b> {e}", parse_mode=ParseMode.HTML)
 
+# ⚡ CHANGED BACKUP INTERVAL TO 1 MINUTE (60 Secs)
 async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
     global LAST_BACKUP_MSG_ID
     if not os.path.exists(DB_FILE): return
@@ -1499,7 +1483,7 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
         with open(DB_FILE, 'rb') as f:
             msg = await context.bot.send_document(
                 chat_id=main_admin, document=f, filename=f"Silent_Backup_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.db",
-                caption="☁️ <b>Silent Auto Cloud Backup (15 Min)</b>\n\n<i>Render safe-guard. To restore, reply to this file with /restore</i>",
+                caption="☁️ <b>Silent Auto Cloud Backup (1 Min)</b>\n\n<i>Render safe-guard. To restore, reply to this file with /restore</i>",
                 parse_mode=ParseMode.HTML, disable_notification=True 
             )
         if LAST_BACKUP_MSG_ID:
@@ -1534,7 +1518,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception: pass
 
 # ==============================================================================
-# 🌐 RENDER LONG-POLLING ANTI-SLEEP
+# 🌐 RENDER LONG-POLLING ANTI-SLEEP (PING)
 # ==============================================================================
 
 async def web_server_handler(request):
@@ -1543,6 +1527,7 @@ async def web_server_handler(request):
         return web.Response(text="✅ Long-poll successful. Stayed for 60s.")
     return web.Response(text="✅ Premium OTP Bot Running perfectly!")
 
+# ⚡ CHANGED PING INTERVAL TO 1 MINUTE (60 Secs)
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
     ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
     if not ping_url or ping_url == "None": return
@@ -1585,8 +1570,8 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(global_otp_checker_job,  interval=2,   first=2)
     app.job_queue.run_repeating(update_cache_job,         interval=15,  first=2)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
-    app.job_queue.run_repeating(self_ping_job,            interval=120, first=10)
-    app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
+    app.job_queue.run_repeating(self_ping_job,            interval=60,  first=10)   # ⚡ 1 Minute
+    app.job_queue.run_repeating(auto_backup_job,          interval=60,  first=60)   # ⚡ 1 Minute
     
-    logger.info("✨ VERSION 83 ENTERPRISE RUNNING ✨")
+    logger.info("✨ VERSION 84: ULTRA FAST FULL FILE RUNNING ✨")
     app.run_polling(drop_pending_updates=True)
