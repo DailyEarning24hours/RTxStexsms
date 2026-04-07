@@ -1,5 +1,3 @@
---- START OF FILE rtxsms.py ---
-
 import logging
 import aiohttp
 import os
@@ -15,14 +13,14 @@ import urllib.parse
 from contextlib import contextmanager
 import concurrent.futures
 
-# 🔥 UVLOOP FOR EXTREME SPEED (Used by Discord/Node.js architecture)
+# 🔥 UVLOOP FOR EXTREME SPEED
 try:
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 except ImportError:
     pass
 
-# 🔥 curl_cffi — Chrome TLS fingerprint spoof for Cloudflare bypass (Server 2)
+# 🔥 curl_cffi for CF bypass
 from curl_cffi.requests import AsyncSession as CurlAsyncSession
 
 from telegram import (
@@ -54,22 +52,18 @@ ADMIN_IDS = [6031032502]
 
 OTP_GROUP_ID = -1003830374258
 
-# 🌐 SERVER 1 CREDENTIALS (STEX)
 S1_EMAIL = "mdrajaislam469@gmail.com"
 S1_PASSWORD = "Raja1234@#"
 S1_BASE_URL = "https://stexsms.com/mapi/v1"
 
-# 🚀 SERVER 2 CREDENTIALS (ACCHUB - CF PROTECTED)
 S2_EMAIL = "rtxraja01@gmail.com"
 S2_PASSWORD = "Raja1234"
 S2_BASE_URL = "https://sms.acchub.io"
 
-# 👑 SERVER 3 CREDENTIALS (CRACKERJACKSMS)
 S3_EMAIL = "mdrajaislam469@gmail.com"
 S3_STATIC_TOKEN = "ed49e203-6618-45ec-980d-21aaab1cfe45"
 S3_BASE_URL = "https://crackerjacksms.com"
 
-# 🔥 CLOUDFLARE BYPASS HEADERS for Server 2
 def get_cf_headers(origin_domain):
     return {
         "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.164 Mobile Safari/537.36",
@@ -91,7 +85,7 @@ def get_cf_headers(origin_domain):
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
-# 🛑 ADVANCED SERVER CRASH PREVENTION & CACHING
+# 🛑 CACHING & MEMORY
 # ==============================================================================
 
 S1_TOKEN = None
@@ -114,19 +108,13 @@ LAST_INBOX_S2 = ""
 LAST_INBOX_S3 = ""
 
 START_TIME = datetime.datetime.now()
-
 BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
-# 🔥 OPTIMIZED MEMORY THREAD POOL FOR RENDER 512MB RAM LIMIT (Prevents Crashes)
 DB_POOL_SIZE = 15 
 DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=15)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# ==============================================================================
-# 🧠 ENTERPRISE MEMORY SYSTEM (RAM-FIRST ARCHITECTURE FOR 50K USERS)
-# ==============================================================================
 
 WAITING_OTPS = {}
 NUM_TO_HASH = {}
@@ -138,12 +126,8 @@ BANNED_CACHE = set()
 USER_INFO_CACHE = {} 
 CHANNELS_CACHE = set()
 
-CONSOLE_CACHE = {
-    1: [],
-    2: []
-}
+CONSOLE_CACHE = {1: [], 2: []}
 
-# Live Settings for Rewards & Withdrawals & Suffixes
 SETTINGS_CACHE = {
     "otp_reward": 0.10,
     "ref_reward": 0.05,
@@ -154,16 +138,12 @@ SETTINGS_CACHE = {
     "s3_suffix": " CJ"
 }
 
-# ==============================================================================
-# 🌍 MASSIVE COUNTRY FLAGS & ISO DICTIONARY (250+ COUNTRIES)
-# ==============================================================================
-
 COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Bolivia":"🇧🇴", "Brazil":"🇧🇷", "Bulgaria":"🇧🇬", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Estonia":"🇪🇪", "Ethiopia":"🇪🇹", "Finland":"🇫🇮", "France":"🇫🇷", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Guatemala":"🇬🇹", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Libya":"🇱🇾", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Mexico":"🇲🇽", "Moldova":"🇲🇩", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Myanmar":"🇲🇲", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "Hong Kong":"🇭🇰", "Macau":"🇲🇴", "Puerto Rico":"🇵🇷"
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Bolivia":"🇧🇴", "Brazil":"🇧🇷", "Bulgaria":"🇧🇬", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Estonia":"🇪🇪", "Ethiopia":"🇪🇹", "Finland":"🇫🇮", "France":"🇫🇷", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Guatemala":"🇬🇹", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Libya":"🇱🇾", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Mexico":"🇲🇽", "Moldova":"🇲🇩", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Myanmar":"🇲🇲", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
 }
 
 COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahrain":"BH", "Bangladesh":"BD", "Belarus":"BY", "Belgium":"BE", "Bolivia":"BO", "Brazil":"BR", "Bulgaria":"BG", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Chile":"CL", "China":"CN", "Colombia":"CO", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Estonia":"EE", "Ethiopia":"ET", "Finland":"FI", "France":"FR", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Guatemala":"GT", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mexico":"MX", "Moldova":"MD", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Myanmar":"MM", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼", "Hong Kong":"HK", "Macau":"MO", "Puerto Rico":"PR"
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahrain":"BH", "Bangladesh":"BD", "Belarus":"BY", "Belgium":"BE", "Bolivia":"BO", "Brazil":"BR", "Bulgaria":"BG", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Chile":"CL", "China":"CN", "Colombia":"CO", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Estonia":"EE", "Ethiopia":"ET", "Finland":"FI", "France":"FR", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Guatemala":"GT", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mexico":"MX", "Moldova":"MD", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Myanmar":"MM", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW"
 }
 
 def get_flag(country_name):
@@ -183,17 +163,6 @@ def get_short_code(country_name):
         if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
             return code
     return str(clean_name)[:2].upper()
-
-def format_service_name_custom(svc):
-    s = str(svc).lower()
-    if 'facebook' in s: return '𝗙𝗮𝗰𝗲𝗯𝗼𝗼𝗸'
-    elif 'whatsapp' in s: return '𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽'
-    elif 'telegram' in s: return '𝗧𝗲𝗹𝗲𝗴𝗿𝗮𝗺'
-    else: return str(svc).title()
-
-# ==============================================================================
-# 🔧 UTILITY FUNCTIONS
-# ==============================================================================
 
 def clean_number(n: str) -> str:
     return re.sub(r'\D', '', str(n))
@@ -251,10 +220,10 @@ def _find_waiter(num_raw: str):
     return None, None
 
 # ==============================================================================
-# 🗄️ DATABASE & REWARD SYSTEM MANAGEMENT
+# 🗄️ DATABASE
 # ==============================================================================
 
-DB_FILE = "bot_v82_enterprise.db"
+DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -461,7 +430,7 @@ def sync_checkpoint():
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
 
 # ==============================================================================
-# 🔐 AUTHENTICATION & API REQUESTS (3 SERVERS)
+# 🔐 AUTHENTICATION
 # ==============================================================================
 
 async def get_session():
@@ -506,7 +475,6 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}"}
             timeout = aiohttp.ClientTimeout(total=15)
-            
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
@@ -553,7 +521,6 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
             session = await get_s2_session()
             headers = get_cf_headers("acchub.io")
             headers.update({"authorization": f"Bearer {S2_TOKEN}"})
-            
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
 
@@ -576,7 +543,6 @@ async def auth_s3(force=False):
             data = aiohttp.FormData()
             data.add_field('email', S3_EMAIL); data.add_field('auth-token', S3_STATIC_TOKEN)
             headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com", "Referer": "https://crackerjacksms.com/"}
-            
             async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=15, ssl=False) as response:
                 if response.status == 200:
                     S3_TOKEN = S3_STATIC_TOKEN 
@@ -593,7 +559,6 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com"}
             timeout = aiohttp.ClientTimeout(total=15)
-            
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
@@ -611,7 +576,7 @@ async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     await asyncio.gather(auth_s1(force=True), auth_s2(force=True), auth_s3(force=True), return_exceptions=True)
 
 # ==============================================================================
-# 🔒 MIDDLEWARES & DYNAMIC UI
+# 🔒 MIDDLEWARES & UI
 # ==============================================================================
 
 async def check_subscription(user_id, bot):
@@ -654,7 +619,7 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=
         except Exception: pass
 
 # ==============================================================================
-# 🚀 ULTRA-FAST OTP POLLER & UI INJECTION
+# 🚀 ULTRA-FAST OTP POLLER & NEW UI INJECTION
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg, is_multi=False, display_country_name="Unknown"):
@@ -664,7 +629,6 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     
     user_id = user_data['user_id']
     chat_id = user_data['chat_id']
-    msg_id = user_data['msg_id']
     full_num = user_data['full_num']
     c_name = user_data.get('country_name', display_country_name)
     
@@ -675,7 +639,8 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     otp_reward = SETTINGS_CACHE["otp_reward"]
     ref_reward = SETTINGS_CACHE["ref_reward"]
     
-    new_balance = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
+    # Silent balance add
+    await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
     
     user_info_after = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
     referrer_id = user_info_after.get("referrer_id")
@@ -688,51 +653,24 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     short_name = get_short_code(c_name)
     svc_short = "Fb" if "facebook" in custom_service_name.lower() else ("Ws" if "whatsapp" in custom_service_name.lower() else custom_service_name[:3].title())
     
-    header_text = "✅ <b>𝗦𝗲𝗰𝗼𝗻𝗱 𝗢𝗧𝗣 𝗥𝗲𝗰𝗲𝗶𝘃𝗲𝗱!</b>" if is_multi else "✅ <b>𝗢𝗧𝗣 𝗥𝗲𝗰𝗲𝗶𝘃𝗲𝗱 𝗦𝘂𝗰𝗰𝗲𝘀𝘀𝗳𝘂𝗹𝗹𝘆!</b>"
+    # 🌟 SEPARATE MESSAGE FOR OTP (USER CHAT) 🌟
+    user_msg = f"<b>{flag} {short_name} | {svc_short} | +{full_num}</b>"
+    user_kb = [[InlineKeyboardButton(text=f"🔑 {code_only}", copy_text=CopyTextButton(text=code_only))]]
     
-    # 🌟 NEW INLINE REPLACEMENT UI 🌟
-    user_msg = (
-        f"{header_text}\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌐 <b>{short_name} | {svc_short} | {full_num}</b>\n\n"
-        f"💰 <b>𝗕𝗮𝗹𝗮𝗻𝗰𝗲: +{otp_reward:.2f} ৳ » {new_balance:.2f} ৳</b> ⚙️"
-    )
+    # Sends a NEW message below the waiting UI
+    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
     
-    user_kb = [
-        [InlineKeyboardButton(text=f"📋 +{full_num}", copy_text=CopyTextButton(text=full_num))],
-        [InlineKeyboardButton(text=f"🔑 {code_only}", copy_text=CopyTextButton(text=code_only))],
-        [InlineKeyboardButton("💬 𝗢𝗧𝗣 𝗚𝗥𝗢𝗨𝗣", url="https://t.me/RTxOtpX")],
-        [InlineKeyboardButton("🔄 𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿 𝗔𝗴𝗮𝗶𝗻", callback_data="change_num"), InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")]
-    ]
-    
-    # Edit the exact original message replacing the "Waiting..." button with the real OTP!
-    if not is_multi:
-        try: await context.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML)
-        except: await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML)
-    else:
-        await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML)
-    
-    clean_raw_msg = clean_message_text(raw_msg) 
     masked_num = mask_number(full_num)
     
     # 🌟 MASSIVE PREMIUM OTP GROUP FORMAT 🌟
     group_msg = (
-        f"🎉 <b>𝗡𝗲𝘄 𝗢𝗧𝗣 𝗥𝗲𝗰𝗲𝗶𝘃𝗲𝗱!</b> 🎉\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌐 <b>{short_name} | {svc_short} | {masked_num}</b>\n\n"
-        f"🌍 <b>𝗖𝗼𝘂𝗻𝘁𝗿𝘆:</b> {flag} {c_name}\n"
-        f"🛠 <b>𝗦𝗲𝗿𝘃𝗶𝗰𝗲:</b> {custom_service_name}\n"
-        f"📱 <b>𝗡𝘂𝗺𝗯𝗲𝗿:</b> <code>{masked_num}</code>\n\n"
-        f"🔢 <b>𝗢𝗧𝗣 𝗖𝗼𝗱𝗲:</b>\n"
-        f"<blockquote><b><pre>{code_only}</pre></b></blockquote>\n\n"
-        f"📨 <b>𝗙𝘂𝗹𝗹 𝗠𝗲𝘀𝘀𝗮𝗴𝗲:</b>\n"
-        f"<pre>{html.escape(str(clean_raw_msg))}</pre>\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
+        f"<b>{flag} | {svc_short} | {masked_num}</b>\n\n"
+        f"<blockquote><b><pre>{code_only}</pre></b></blockquote>\n"
     )
     
     group_kb = [
-        [InlineKeyboardButton(text=f"🔑 𝗖𝗼𝗽𝘆 𝗖𝗼𝗱𝗲: {code_only}", copy_text=CopyTextButton(text=code_only))],
-        [InlineKeyboardButton("👨‍💻 𝗢𝘄𝗻𝗲𝗿", url="https://t.me/RTx2R")]
+        [InlineKeyboardButton(text=f"{code_only}", copy_text=CopyTextButton(text=code_only))],
+        [InlineKeyboardButton("📢 𝗠𝗮𝗶𝗻 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url="https://t.me/EarnXtract"), InlineKeyboardButton("👨‍💻 𝗢𝘄𝗻𝗲𝗿", url="https://t.me/RTx2R")]
     ]
     
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
@@ -847,7 +785,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         range_val = str(range_val).strip()
         if not range_val.upper().endswith("XXX"): range_val += "XXX"
         payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        tasks = [safe_delayed_fetch(0.0, _fetch_number_s1, payload)]
+        tasks = [safe_delayed_fetch(0.0, _fetch_number_s1, payload), safe_delayed_fetch(0.3, _fetch_number_s1, payload)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
     elif server_id == 2:
@@ -855,13 +793,16 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         parts = rv.split('|')
         if len(parts) >= 2:
             payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [safe_delayed_fetch(0.0, _fetch_number_s2, payload)]
+            tasks = [safe_delayed_fetch(0.0, _fetch_number_s2, payload), safe_delayed_fetch(0.3, _fetch_number_s2, payload)]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
     elif server_id == 3:
         url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
         r1 = await _fetch_number_s3(url)
         results.append(r1)
+        await asyncio.sleep(1.0)
+        r2 = await _fetch_number_s3(url)
+        results.append(r2)
 
     if results:
         for res in results:
@@ -895,38 +836,36 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
         display_country_name = f"{country_name}{s_suffix}"
         flag = get_flag(country_name)
-        short_name = get_short_code(country_name)
         custom_svc = context.user_data.get('service_name', api_svc.title())
-        svc_short = "Fb" if "facebook" in custom_svc.lower() else ("Ws" if "whatsapp" in custom_svc.lower() else custom_svc[:3].title())
         
-        n = fetched_numbers[0]  # Take only 1 number to fit format beautifully
-        
+        # 🌟 EXACT ASSIGNED TEXT FORMAT 🌟
         txt = (
-            f"✅ <b>𝗔𝘀𝘀𝗶𝗴𝗻𝗲𝗱:</b> <code>+{n}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🌐 <b>{short_name} | {svc_short} | {n}</b>\n\n"
-            f"🌍 <b>𝗖𝗼𝘂𝗻𝘁𝗿𝘆:</b> {flag} {display_country_name}\n"
-            f"🛠 <b>𝗦𝗲𝗿𝘃𝗶𝗰𝗲:</b> {custom_svc}\n\n"
-            f"⏳ <i>𝗪𝗮𝗶𝘁𝗶𝗻𝗴 𝗳𝗼𝗿 𝗢𝗧𝗣...</i>"
+            f"{flag} <b>{display_country_name} 𝗡𝘂𝗺𝗯𝗲𝗿 𝗔𝘀𝘀𝗶𝗴𝗻𝗲𝗱:</b>\n"
+            f"╭─────────────────╮\n"
+            f"│    ⏳ Waiting for OTP...\n"
+            f"╰─────────────────╯"
         )
         
-        num_kb = [
-            [InlineKeyboardButton(text=f"📋 +{n}", copy_text=CopyTextButton(text=n))],
-            [InlineKeyboardButton(text="⏳ 𝗪𝗮𝗶𝘁𝗶𝗻𝗴 𝗳𝗼𝗿 𝗢𝗧𝗣...", callback_data="ignore")],
-            [InlineKeyboardButton("💬 𝗢𝗧𝗣 𝗚𝗥𝗢𝗨𝗣", url="https://t.me/RTxOtpX")],
-            [InlineKeyboardButton("🔄 𝗖𝗵𝗮𝗻𝗴𝗲 𝗡𝘂𝗺𝗯𝗲𝗿", callback_data="change_num"), InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")]
-        ]
+        num_kb = []
+        # Display fetched numbers as inline buttons (up to 2)
+        for n in fetched_numbers[:2]:
+            num_kb.append([InlineKeyboardButton(text=f"📋 +{n}", copy_text=CopyTextButton(text=n))])
+            
+        num_kb.append([InlineKeyboardButton("🔄 𝗖𝗵𝗮𝗻𝗴𝗲 𝗡𝘂𝗺𝗯𝗲𝗿", callback_data="change_num")])
+        num_kb.append([InlineKeyboardButton("💬 𝗢𝗧𝗣 𝗚𝗥𝗢𝗨𝗣", url="https://t.me/RTxOtpX")])
+        num_kb.append([InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")])
         
         try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
-        except Exception: await msg.edit_text(text=f"✅ Assigned: +{n}\nWaiting for OTP...", reply_markup=InlineKeyboardMarkup(num_kb))
+        except Exception: await msg.edit_text(text=f"{flag} {display_country_name} Number Assigned:\nWaiting for OTP...", reply_markup=InlineKeyboardMarkup(num_kb))
         
-        hash_key = get_hash_key(n)
-        WAITING_OTPS[hash_key] = {
-            'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
-            'time': time.time(), 'received_codes': set(), 
-            'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
-        }
-        NUM_TO_HASH[clean_number(n)] = hash_key
+        for n in fetched_numbers[:2]:
+            hash_key = get_hash_key(n)
+            WAITING_OTPS[hash_key] = {
+                'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
+                'time': time.time(), 'received_codes': set(), 
+                'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
+            }
+            NUM_TO_HASH[clean_number(n)] = hash_key
             
         context.user_data['range'] = range_val 
         context.user_data['server'] = server_id
@@ -943,7 +882,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             await msg.edit_text("📡 Server Optimizing. Please try again.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")]]))
 
 # ==============================================================================
-# 📋 MENUS & UI WITH MERGED PANELS
+# 📋 MENUS & UI
 # ==============================================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -979,11 +918,13 @@ async def show_main_menu(update_obj, context):
         await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
 
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # 🌟 NEW CATEGORY VERTICAL LAYOUT 🌟
     kb = [
-        [InlineKeyboardButton("📘 𝗙𝗮𝗰𝗲𝗯𝗼𝗼𝗸", callback_data="cat_facebook"), InlineKeyboardButton("💬 𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽", callback_data="cat_whatsapp")],
+        [InlineKeyboardButton("📘 𝗙𝗮𝗰𝗲𝗯𝗼𝗼𝗸", callback_data="cat_facebook")],
+        [InlineKeyboardButton("💬 𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽", callback_data="cat_whatsapp")],
         [InlineKeyboardButton("🔙 𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", callback_data="go_main")]
     ]
-    txt = "📱 <b>𝗖𝗔𝗧𝗘𝗚𝗢𝗥𝗜𝗘𝗦</b> 📱\n━━━━━━━━━━━━━━━━━━━━\n<i>Which application do you need numbers for?</i>"
+    txt = "<b>𝗦𝗲𝗹𝗲𝗰𝘁 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆</b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
         await update.callback_query.edit_message_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
@@ -1568,7 +1509,7 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e: logger.error(f"Auto Backup Failed: {e}")
 
 # ==============================================================================
-# 🌐 BACKGROUND CACHE UPDATER & RAM CLEANER
+# 🌐 BACKGROUND CACHE UPDATER
 # ==============================================================================
 
 async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
@@ -1593,7 +1534,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception: pass
 
 # ==============================================================================
-# 🌐 RENDER LONG-POLLING ANTI-SLEEP & DUMMY SERVER
+# 🌐 RENDER LONG-POLLING ANTI-SLEEP
 # ==============================================================================
 
 async def web_server_handler(request):
@@ -1647,6 +1588,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(self_ping_job,            interval=120, first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 82.2 ENTERPRISE FULL UI MATCHED ✨")
+    logger.info("✨ VERSION 83 ENTERPRISE RUNNING ✨")
     app.run_polling(drop_pending_updates=True)
---- END OF FILE rtxsms.py ---
