@@ -147,7 +147,7 @@ SETTINGS_CACHE = {
 # ==============================================================================
 
 def apply_color(text, style="default"):
-    # Exactly what BJS uses to trigger colors in supported apps
+    # Invisible Unicodes to hack Telegram UI colors (Works in Bgram/MDgram and official TG if supported)
     if style == "primary":
         return f"\u200b{text}"  # Blue / Primary
     elif style == "success":
@@ -222,7 +222,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE
 # ==============================================================================
 
-DB_FILE = "bot_v87_enterprise.db"
+DB_FILE = "bot_v88_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -772,34 +772,22 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION (TWO NUMBERS AT ONCE)
+# 🎯 HIGH-SPEED NUMBER GENERATION (V82 SAFE-DELAY FETCH LOGIC)
 # ==============================================================================
 
-async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-async def _fetch_number_s2(payload): return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
-async def _fetch_number_s3(url): return await s3_api_request('GET', url)
+async def _fetch_number_s1(payload): 
+    return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
 
-async def fetch_single_number(server_id, range_val, api_svc):
-    try:
-        if server_id == 1:
-            range_val = str(range_val).strip()
-            if not range_val.upper().endswith("XXX"): range_val += "XXX"
-            payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-            return await _fetch_number_s1(payload)
-            
-        elif server_id == 2:
-            rv = str(range_val).replace('X', '|')
-            parts = rv.split('|')
-            if len(parts) >= 2:
-                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-                return await _fetch_number_s2(payload)
+async def _fetch_number_s2(payload): 
+    return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
 
-        elif server_id == 3:
-            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-            return await _fetch_number_s3(url)
-    except Exception as e:
-        logger.error(f"Error fetching single number: {e}")
-    return None
+async def _fetch_number_s3(url): 
+    return await s3_api_request('GET', url)
+
+# 🔥 THIS IS THE V82 SECRET THAT PREVENTS THE BOT FROM HANGING!
+async def safe_delayed_fetch(delay, func, *args, **kwargs):
+    if delay > 0: await asyncio.sleep(delay)
+    return await func(*args, **kwargs)
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS
@@ -814,19 +802,42 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
+    await asyncio.sleep(0.01) # V82 UI instant update hack
+    
     fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else raw_svc
 
-    # 🌟 SAFE ASYNC TIMEOUT TO FIX "STUCK" ISSUE 🌟
+    results = []
     try:
-        tasks = [fetch_single_number(server_id, range_val, api_svc) for _ in range(2)]
-        results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=15.0)
-    except asyncio.TimeoutError:
-        results = []
+        # 🔥 V82 SAFE FETCHING LOGIC - DOES NOT HANG SERVER
+        if server_id == 1:
+            range_val = str(range_val).strip()
+            if not range_val.upper().endswith("XXX"): range_val += "XXX"
+            payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
+            tasks = [safe_delayed_fetch(0.0, _fetch_number_s1, payload), safe_delayed_fetch(0.3, _fetch_number_s1, payload)]
+            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=15.0)
+            
+        elif server_id == 2:
+            rv = str(range_val).replace('X', '|')
+            parts = rv.split('|')
+            if len(parts) >= 2:
+                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
+                tasks = [safe_delayed_fetch(0.0, _fetch_number_s2, payload), safe_delayed_fetch(0.3, _fetch_number_s2, payload)]
+                results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=15.0)
+
+        elif server_id == 3:
+            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
+            # 🔥 V82 SERIAL QUEUE FOR S3 TO PREVENT CRASHES
+            r1 = await asyncio.wait_for(_fetch_number_s3(url), timeout=8.0)
+            results.append(r1)
+            await asyncio.sleep(1.0)
+            r2 = await asyncio.wait_for(_fetch_number_s3(url), timeout=8.0)
+            results.append(r2)
+            
     except Exception as e:
-        logger.error(f"Generation error: {e}")
+        logger.error(f"Generation timeout/error: {e}")
         results = []
 
     for res in results:
@@ -879,7 +890,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
             }
             
-        # 🎨 Bgram/MDgram Color Hack on Buttons
+        # 🎨 BJS/Bgram Color Hack on Buttons
         num_kb.append([InlineKeyboardButton(text=apply_color("🔄 Change Number", "danger"), callback_data="change_num")])
         num_kb.append([InlineKeyboardButton(text=apply_color("🌍 Change Country", "primary"), callback_data="go_cat")])
         num_kb.append([InlineKeyboardButton(text=apply_color("🔑 Get OTP", "success"), url="https://t.me/RTxOtpX")])
@@ -1359,11 +1370,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    # 🌟 THIS FIXES THE HANGING/STUCK BUTTON ISSUE 🌟
     try: await query.answer()
     except Exception: pass
     
-    if data == "ignore": return
+    if data == "ignore": return 
     elif data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
@@ -1619,5 +1629,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(self_ping_job,            interval=60,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 87: STUCK BUG FIXED & FULL FEATURES ACTIVE ✨")
+    logger.info("✨ VERSION 88: PERFECT GENERATION LOGIC + COLORS + STYLISH FONTS ✨")
     app.run_polling(drop_pending_updates=True)
