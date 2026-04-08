@@ -11,19 +11,6 @@ import datetime
 import time
 import json
 import gc
-# --- START OF FILE rtxsms.py ---
-
-import logging
-import aiohttp
-import os
-import asyncio
-import re
-import sqlite3
-import html
-import datetime
-import time
-import json
-import gc
 import random
 import urllib.parse
 from contextlib import contextmanager
@@ -98,6 +85,8 @@ def get_cf_headers(origin_domain):
         "priority": "u=1, i"
     }
 
+API_2FA = "https://2fa.cn/codes/{}"
+
 # ==============================================================================
 # 🛑 CACHING & MEMORY
 # ==============================================================================
@@ -152,6 +141,24 @@ SETTINGS_CACHE = {
     "s2_suffix": " 2",
     "s3_suffix": " 3"
 }
+
+# ==============================================================================
+# 🎨 COLOR BUTTON HACK (BGRAM / MDGRAM)
+# ==============================================================================
+
+def apply_color(text, style="default"):
+    # ✅ BGram/MDgram color hack - zero-width character sequences
+    # Different ZWSP/ZWNJ combos signal button color to the modified client renderer
+    # 3x ZWSP prefix = Green, 3x ZWNJ prefix = Red, 3x ZWJ prefix = Blue
+    if style == "success":
+        return "\u200B\u200B\u200B" + text + "\u200B\u200B\u200B"   # Green
+    elif style == "danger":
+        return "\u200C\u200C\u200C" + text + "\u200C\u200C\u200C"   # Red
+    elif style == "primary":
+        return "\u200D\u200D\u200D" + text + "\u200D\u200D\u200D"   # Blue
+    else:
+        return text
+
 
 # ==============================================================================
 # 🌍 DYNAMIC COUNTRY FLAGS & ISO DICTIONARY
@@ -219,7 +226,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE
 # ==============================================================================
 
-DB_FILE = "bot_v89_enterprise.db"
+DB_FILE = "bot_v85_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -626,6 +633,14 @@ async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYP
         return True
     return False
 
+async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=None):
+    await asyncio.sleep(delay_seconds)
+    try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+    except Exception: pass
+    if user_msg_id:
+        try: await bot.delete_message(chat_id=chat_id, message_id=user_msg_id)
+        except Exception: pass
+
 # ==============================================================================
 # 🚀 ULTRA-FAST OTP POLLER & NEW UI INJECTION
 # ==============================================================================
@@ -661,6 +676,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     spaced_otp = " ".join(list(code_only))
     masked_num = mask_number_az(full_num)
     
+    # 🌟 AZ Style User Message
     user_msg = (
         f"🟢 💌 New OTP Received\n"
         f"╭─────────────────╮\n"
@@ -669,10 +685,11 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"{svc_emoji} Service: {custom_service_name}\n"
         f"💰 Per OTP: ৳{otp_reward:.2f}"
     )
-    user_kb = [[InlineKeyboardButton(text=f"📋 {code_only}", copy_text=CopyTextButton(text=code_only))]]
+    user_kb = [[InlineKeyboardButton(text=apply_color(f"📋 {code_only}", "primary"), copy_text=CopyTextButton(text=code_only))]]
     
     asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
     
+    # 🌟 AZ Style Group Message
     group_msg = (
         f"ALL OTP BOT                 Admin\n\n"
         f"╭─────────────────╮\n"
@@ -681,8 +698,8 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     )
     
     group_kb = [
-        [InlineKeyboardButton(text=f"🔑 📋 {spaced_otp}", copy_text=CopyTextButton(text=code_only))],
-        [InlineKeyboardButton(text="🤖 Number Bot", url=f"https://t.me/{context.bot.username}"), InlineKeyboardButton(text="📞 Channel", url="https://t.me/EarnXtract")]
+        [InlineKeyboardButton(text=apply_color(f"🔑 📋 {spaced_otp}", "primary"), copy_text=CopyTextButton(text=code_only))],
+        [InlineKeyboardButton(text=apply_color("🤖 Number Bot", "danger"), url=f"https://t.me/{context.bot.username}"), InlineKeyboardButton(text=apply_color("📞 Channel", "success"), url="https://t.me/EarnXtract")]
     ]
     
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
@@ -759,22 +776,34 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION (V82 SAFE-DELAY FETCH LOGIC)
+# 🎯 HIGH-SPEED NUMBER GENERATION (TWO NUMBERS AT ONCE)
 # ==============================================================================
 
-async def _fetch_number_s1(payload): 
-    return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
+async def _fetch_number_s2(payload): return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
+async def _fetch_number_s3(url): return await s3_api_request('GET', url)
 
-async def _fetch_number_s2(payload): 
-    return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
+async def fetch_single_number(server_id, range_val, api_svc):
+    try:
+        if server_id == 1:
+            range_val = str(range_val).strip()
+            if not range_val.upper().endswith("XXX"): range_val += "XXX"
+            payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
+            return await _fetch_number_s1(payload)
+            
+        elif server_id == 2:
+            rv = str(range_val).replace('X', '|')
+            parts = rv.split('|')
+            if len(parts) >= 2:
+                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
+                return await _fetch_number_s2(payload)
 
-async def _fetch_number_s3(url): 
-    return await s3_api_request('GET', url)
-
-# 🔥 THIS IS THE V82 SECRET THAT PREVENTS THE BOT FROM HANGING!
-async def safe_delayed_fetch(delay, func, *args, **kwargs):
-    if delay > 0: await asyncio.sleep(delay)
-    return await func(*args, **kwargs)
+        elif server_id == 3:
+            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
+            return await _fetch_number_s3(url)
+    except Exception as e:
+        logger.error(f"Error fetching single number: {e}")
+    return None
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS
@@ -789,65 +818,61 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
-    await asyncio.sleep(0.01) # UI instant update hack
-    
     fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
+    
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else raw_svc
 
-    results = []
-    try:
-        # 🔥 V82 SAFE FETCHING LOGIC - DOES NOT HANG SERVER
-        if server_id == 1:
-            range_val = str(range_val).strip()
-            if not range_val.upper().endswith("XXX"): range_val += "XXX"
-            payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-            tasks = [safe_delayed_fetch(0.0, _fetch_number_s1, payload), safe_delayed_fetch(0.3, _fetch_number_s1, payload)]
-            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=15.0)
-            
-        elif server_id == 2:
-            rv = str(range_val).replace('X', '|')
-            parts = rv.split('|')
-            if len(parts) >= 2:
-                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-                tasks = [safe_delayed_fetch(0.0, _fetch_number_s2, payload), safe_delayed_fetch(0.3, _fetch_number_s2, payload)]
-                results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=15.0)
-
-        elif server_id == 3:
-            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-            # 🔥 V82 SERIAL QUEUE FOR S3 TO PREVENT CRASHES
-            r1 = await asyncio.wait_for(_fetch_number_s3(url), timeout=8.0)
-            results.append(r1)
-            await asyncio.sleep(1.0)
-            r2 = await asyncio.wait_for(_fetch_number_s3(url), timeout=8.0)
-            results.append(r2)
-            
-    except Exception as e:
-        logger.error(f"Generation timeout/error: {e}")
-        results = []
+    # 🌟 Fetch First Number, then 0.3s later fetch Second Number sequentially
+    res1 = await fetch_single_number(server_id, range_val, api_svc)
+    await asyncio.sleep(0.3)
+    res2 = await fetch_single_number(server_id, range_val, api_svc)
+    results = [res1, res2]
 
     for res in results:
-        if isinstance(res, tuple):
-            status, resp = res
-            if status in [200, 201] and isinstance(resp, dict):
-                num = ""
-                if server_id == 2 and resp.get('status') in ['success', 200, True]:
-                    data_obj = resp.get('data', {})
-                    if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
-                    elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
-                        
-                elif server_id == 3 and str(resp.get('meta')) == '200':
-                    data_obj = resp.get('data', {})
-                    if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
-                        
-                elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
-                    num = str(resp['data']['number'])
-                    if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
-                
-                if num and num != "None": 
-                    clean_n = num.replace('+', '')
-                    if clean_n not in fetched_numbers: fetched_numbers.append(clean_n)
+        if isinstance(res, Exception) or not isinstance(res, tuple):
+            continue
+        status, resp = res
+        if status not in [200, 201] or not isinstance(resp, dict):
+            continue
+        num = ""
+
+        if server_id == 1:
+            # ✅ S1: meta.code == 200 check + broader data parsing
+            meta_code = str(resp.get('meta', {}).get('code', ''))
+            data_obj = resp.get('data', {})
+            if meta_code == '200' and isinstance(data_obj, dict):
+                num = str(data_obj.get('number') or data_obj.get('phone_number') or '')
+                if not num and isinstance(data_obj.get('numbers'), list) and data_obj['numbers']:
+                    num = str(data_obj['numbers'][0])
+                if country_name == "Unknown":
+                    country_name = data_obj.get('country', country_name)
+            elif 'data' in resp and isinstance(resp['data'], dict):
+                num = str(resp['data'].get('number') or resp['data'].get('phone_number') or '')
+                if country_name == "Unknown":
+                    country_name = resp['data'].get('country', country_name)
+
+        elif server_id == 2:
+            if resp.get('status') in ['success', 200, True, 'true', 'ok']:
+                data_obj = resp.get('data', {})
+                if isinstance(data_obj, dict):
+                    num = str(data_obj.get('phone_number') or data_obj.get('number') or '')
+                elif isinstance(data_obj, list) and data_obj:
+                    num = str(data_obj[0].get('phone_number') or data_obj[0].get('number') or '')
+
+        elif server_id == 3:
+            if str(resp.get('meta')) == '200':
+                data_obj = resp.get('data', {})
+                if isinstance(data_obj, dict):
+                    num = str(data_obj.get('did') or data_obj.get('number') or '')
+            if not num and 'data' in resp and isinstance(resp['data'], dict):
+                num = str(resp['data'].get('did') or resp['data'].get('number') or '')
+
+        if num and num not in ('None', '', 'null'):
+            clean_n = num.replace('+', '').strip()
+            if clean_n and clean_n not in fetched_numbers:
+                fetched_numbers.append(clean_n)
             
     if fetched_numbers:
         s_suffix = ""
@@ -868,6 +893,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
         num_kb = []
         for n in fetched_numbers:
+            # Main Number buttons have no extra color format here to keep them standard looking
             num_kb.append([InlineKeyboardButton(text=f"{flag} 📋 +{n}", copy_text=CopyTextButton(text=n))])
             
             hash_key = get_hash_key(n)
@@ -877,28 +903,28 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
             }
             
-        num_kb.append([InlineKeyboardButton(text="🔄 Change Number", callback_data="change_num")])
-        num_kb.append([InlineKeyboardButton(text="🌍 Change Country", callback_data="go_cat")])
-        num_kb.append([InlineKeyboardButton(text="🔑 Get OTP", url="https://t.me/RTxOtpX")])
+        # 🎨 Appling the Color Hack here for the operational buttons
+        num_kb.append([InlineKeyboardButton(text=apply_color("🔄 Change Number", "danger"), callback_data="change_num")])
+        num_kb.append([InlineKeyboardButton(text=apply_color("🌍 Change Country", "primary"), callback_data="go_cat")])
+        num_kb.append([InlineKeyboardButton(text=apply_color("🔑 Get OTP", "success"), url="https://t.me/RTxOtpX")])
         
         try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
-        except Exception as e: logger.error(f"Failed to edit msg: {e}")
+        except Exception as e: logger.error(f"Edit msg error (success path): {e}")
             
         context.user_data['range'] = range_val 
         context.user_data['server'] = server_id
         
     else:
+        # Added random string to avoid MessageNotModified error if they click multiple times and keep failing
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
+        rand_id = random.randint(1000, 9999)
         try:
             await msg.edit_text(
-                text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again.", 
+                text=f"📡 <b>Server Optimizing [{rand_id}]:</b>\n{err_msg}\n\nPlease try again.", 
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), 
                 parse_mode=ParseMode.HTML
             )
-        except Exception as e: 
-            logger.error(f"Failed to edit err msg: {e}")
-            try: await context.bot.send_message(chat_id=chat_id, text="⚠️ Server Optimizing. No numbers right now. Try again.")
-            except: pass
+        except Exception as e: logger.error(f"Edit msg error (fail path): {e}")
 
 # ==============================================================================
 # 📋 MENUS & UI
@@ -922,11 +948,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_main_menu(update_obj, context):
     user_name = update_obj.effective_user.full_name
-    # 🌟 NEW SIMPLE MENU (REMOVED 2FA AND SEE ACTIVITY) 🌟
+    # 🌟 2x2 layout - See Activity removed
     kb = [
-        ["📱 𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿"], 
-        ["🎁 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲"],
-        ["🎧 𝗦𝘂𝗽𝗽𝗼𝗿𝘁"]
+        ["📱 𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "🔐 𝗚𝗲𝘁 𝟮𝗙𝗔"],
+        ["🎁 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "🎧 𝗦𝘂𝗽𝗽𝗼𝗿𝘁"],
     ]
     msg = f"👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲, <b>{html.escape(user_name)}</b>\n\n𝗦𝗲𝗹𝗲𝗰𝘁 𝗔𝗻 𝗼𝗽𝘁𝗶𝗼𝗻 -"
     
@@ -945,7 +970,7 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
     for custom_cat in CUSTOM_CATEGORIES:
         kb.append([InlineKeyboardButton(f"📌 {custom_cat.title()}", callback_data=f"cat_{custom_cat.lower()}")])
         
-    kb.append([InlineKeyboardButton(text="🔙 Back To Services", callback_data="go_main")])
+    kb.append([InlineKeyboardButton(text=apply_color("🔙 Back To Services", "danger"), callback_data="go_main")])
     txt = "<b>Select Category</b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
@@ -975,6 +1000,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
                     r = log.get('range')
                     app_name = str(log.get('app_name', '')).lower()
 
+                # NO POSTPAID ALLOWED
                 if 'postpaid' in str(c).lower() or 'postpaid' in str(app_name).lower(): continue
 
                 if category in app_name and c and r and 'None' not in r:
@@ -1022,7 +1048,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         # 🌟 One Country per row (নিচে নিচে)
         kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}")])
     
-    kb.append([InlineKeyboardButton(text="🔙 Back To Services", callback_data="go_cat")])
+    kb.append([InlineKeyboardButton(text=apply_color("🔙 Back To Services", "danger"), callback_data="go_cat")])
     svc_icon = "📘" if category == "facebook" else "💬" if category == "whatsapp" else "📌"
     await query.edit_message_text(text=f"{svc_icon} <b>Select country for {category.title()}:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -1040,8 +1066,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
-    # 🌟 Listen to ALL Fonts
-    menu_actions = ["Get Number", "𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "Support", "𝗦𝘂𝗽𝗽𝗼𝗿𝘁", "Referral & Balance", "𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲"]
+    menu_actions = ["Get Number", "𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "Get 2FA", "𝗚𝗲𝘁 𝟮𝗙𝗔", "Support", "𝗦𝘂𝗽𝗽𝗼𝗿𝘁", "Referral & Balance", "𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲"]
     admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ Add S3 Range", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ Del S3 Range", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ Add Channel", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ Del Channel", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "➕ Add Category", "➕ 𝗔𝗱𝗱 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆", "🗑️ Del Category", "🗑️ 𝗗𝗲𝗹 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆"]
     
     is_main_menu_action = any(btn in text for btn in menu_actions)
@@ -1246,6 +1271,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿" in text or "Get Number" in text:
         if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
         else: await start_category_selection(update, context)
+            
+    elif "𝗚𝗲𝘁 𝟮𝗙𝗔" in text or "Get 2FA" in text:
+        user_data['state'] = 'WAITING_FOR_2FA'
+        await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
+        
+    elif state == 'WAITING_FOR_2FA':
+        user_msg_id = update.message.message_id
+        key = text.replace(" ", "").strip()
+        msg = await update.message.reply_text("⏳ <i>Generating...</i>", parse_mode=ParseMode.HTML)
+        try:
+            session = await get_session()
+            async with session.get(API_2FA.format(key), timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    code = data.get('code')
+                    if code: 
+                        out = f"✅ <b>2FA CODE GENERATED!</b>\n━━━━━━━━━━━━━━━━━━━━\n🔢 <b>Code:</b> <code>{code}</code>\n\n<i>⚠️ Auto-delete in 5 mins.</i>"
+                        await msg.edit_text(out, parse_mode=ParseMode.HTML)
+                        asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
+                    else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
+                else: await msg.edit_text("❌ <b>API Error!</b>", parse_mode=ParseMode.HTML)
+        except Exception: await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
+        user_data['state'] = None
 
     elif "𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲" in text or "Referral & Balance" in text:
         loop = asyncio.get_event_loop()
@@ -1280,6 +1328,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
         user_data['state'] = None
         
+    
     elif state == 'WAIT_WITHDRAW_ACC':
         user_data['wd_account'] = text; user_data['state'] = 'WAIT_WITHDRAW_AMT'
         await update.message.reply_text(f"💳 <b>Enter Amount to Withdraw:</b>\n<i>(Minimum {SETTINGS_CACHE['min_withdraw']} ৳)</i>", parse_mode=ParseMode.HTML)
@@ -1331,10 +1380,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    try: await query.answer()
-    except Exception: pass
-    
-    if data == "ignore": return 
+    if data == "ignore": return await query.answer()
     elif data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
@@ -1345,6 +1391,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("cat_"): await handle_category_click(update, context)
         
     elif data.startswith("r_"):
+        await query.answer()
         parts = data.split("_")
         server_id, range_val = int(parts[1]), parts[2]
         if len(parts) > 3: context.user_data['real_country_name'] = parts[3]
@@ -1357,13 +1404,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else: await query.edit_message_text("⚠️ <b>Session Expired.</b>\n<i>Please start again.</i>", parse_mode=ParseMode.HTML)
             
     elif data == "go_main": await show_main_menu(update, context)
-    elif data == "go_cat": await start_category_selection(update, context)
+    elif data == "go_cat":
+        await query.answer()
+        await start_category_selection(update, context)
         
     elif data.startswith("dels3_"):
         if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
         r_id = int(data.split("_")[1])
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_delete_s3_range, r_id)
+        await query.answer("✅ S3 Range Deleted!")
         ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
         if not ranges: await query.edit_message_text("📭 <i>All S3 Ranges deleted.</i>", parse_mode=ParseMode.HTML)
         else:
@@ -1376,6 +1426,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         CHANNELS_CACHE.discard(ch)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_del_channel, ch)
+        await query.answer(f"✅ Removed {ch}")
         if not CHANNELS_CACHE: await query.edit_message_text("📭 <i>All Channels deleted.</i>", parse_mode=ParseMode.HTML)
         else:
             kb = [[InlineKeyboardButton(f"❌ {c}", callback_data=f"delch_{c}")] for c in CHANNELS_CACHE]
@@ -1387,6 +1438,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if cat in CUSTOM_CATEGORIES: CUSTOM_CATEGORIES.remove(cat)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_del_category, cat)
+        await query.answer(f"✅ Removed {cat}")
         if not CUSTOM_CATEGORIES: await query.edit_message_text("📭 <i>All custom categories deleted.</i>", parse_mode=ParseMode.HTML)
         else:
             kb = [[InlineKeyboardButton(f"❌ {c}", callback_data=f"delcat_{c}")] for c in CUSTOM_CATEGORIES]
@@ -1397,12 +1449,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = data.split("_")[1]
         context.user_data['admin_reply_target'] = target_user_id
         await query.message.reply_text(f"✍️ <b>Type reply for:</b> <code>{target_user_id}</code>\n<i>(Type message normally)</i>", parse_mode=ParseMode.HTML)
+        await query.answer()
 
     elif data == "req_withdraw":
         loop = asyncio.get_event_loop()
         u_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         min_wd = SETTINGS_CACHE["min_withdraw"]
-        if u_info['balance'] < min_wd: return
+        if u_info['balance'] < min_wd: return await query.answer(f"⚠️ Minimum withdraw is {min_wd} ৳.", show_alert=True)
             
         kb = [
             [InlineKeyboardButton("Bkash", callback_data="wdm_Bkash")],
@@ -1590,5 +1643,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(self_ping_job,            interval=60,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 89: 100% BUG FREE - NO COLORS, NO 2FA, NO ACTIVITY ✨")
+    logger.info("✨ VERSION 85.5: STYLISH FONTS & COLOR HACKS READY ✨")
     app.run_polling(drop_pending_updates=True)
