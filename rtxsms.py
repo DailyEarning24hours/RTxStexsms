@@ -11,6 +11,7 @@ import datetime
 import time
 import json
 import gc
+import random
 import urllib.parse
 from contextlib import contextmanager
 import concurrent.futures
@@ -142,6 +143,25 @@ SETTINGS_CACHE = {
 }
 
 # ==============================================================================
+# 🎨 COLOR BUTTON HACK (BGRAM / MDGRAM)
+# ==============================================================================
+
+def apply_color(text, style="default"):
+    # Invisible Unicodes to hack Telegram UI colors (Works in Bgram/MDgram)
+    COLOR_SUCCESS = "\u200B" * 3  # Green / Success
+    COLOR_DANGER  = "\u200C" * 3  # Red / Danger
+    COLOR_PRIMARY = "\u200D" * 3  # Blue / Primary
+    
+    if style == "success":
+        return f"{COLOR_SUCCESS}{text}"
+    elif style == "danger":
+        return f"{COLOR_DANGER}{text}"
+    elif style == "primary":
+        return f"{COLOR_PRIMARY}{text}"
+    else:
+        return text
+
+# ==============================================================================
 # 🌍 DYNAMIC COUNTRY FLAGS & ISO DICTIONARY
 # ==============================================================================
 
@@ -172,7 +192,6 @@ def clean_number(n: str) -> str:
     return re.sub(r'\D', '', str(n))
 
 def mask_number_az(number: str) -> str:
-    # Example AZ Style: +255XXXX8875
     digits = clean_number(number)
     if len(digits) <= 7: return "+" + "XXXX" + digits[-2:]
     return "+" + digits[:3] + "XXXX" + digits[-4:]
@@ -667,7 +686,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"{svc_emoji} Service: {custom_service_name}\n"
         f"💰 Per OTP: ৳{otp_reward:.2f}"
     )
-    user_kb = [[InlineKeyboardButton(text=f"📋 {code_only}", copy_text=CopyTextButton(text=code_only))]]
+    user_kb = [[InlineKeyboardButton(text=apply_color(f"📋 {code_only}", "primary"), copy_text=CopyTextButton(text=code_only))]]
     
     asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
     
@@ -680,8 +699,8 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     )
     
     group_kb = [
-        [InlineKeyboardButton(text=f"🔑 📋 {spaced_otp}", copy_text=CopyTextButton(text=code_only))],
-        [InlineKeyboardButton("🤖 Number Bot", url=f"https://t.me/{context.bot.username}"), InlineKeyboardButton("📞 Channel", url="https://t.me/EarnXtract")]
+        [InlineKeyboardButton(text=apply_color(f"🔑 📋 {spaced_otp}", "primary"), copy_text=CopyTextButton(text=code_only))],
+        [InlineKeyboardButton(text=apply_color("🤖 Number Bot", "danger"), url=f"https://t.me/{context.bot.username}"), InlineKeyboardButton(text=apply_color("📞 Channel", "success"), url="https://t.me/EarnXtract")]
     ]
     
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
@@ -766,22 +785,25 @@ async def _fetch_number_s2(payload): return await s2_api_request('POST', f"{S2_B
 async def _fetch_number_s3(url): return await s3_api_request('GET', url)
 
 async def fetch_single_number(server_id, range_val, api_svc):
-    if server_id == 1:
-        range_val = str(range_val).strip()
-        if not range_val.upper().endswith("XXX"): range_val += "XXX"
-        payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        return await _fetch_number_s1(payload)
-        
-    elif server_id == 2:
-        rv = str(range_val).replace('X', '|')
-        parts = rv.split('|')
-        if len(parts) >= 2:
-            payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            return await _fetch_number_s2(payload)
+    try:
+        if server_id == 1:
+            range_val = str(range_val).strip()
+            if not range_val.upper().endswith("XXX"): range_val += "XXX"
+            payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
+            return await _fetch_number_s1(payload)
+            
+        elif server_id == 2:
+            rv = str(range_val).replace('X', '|')
+            parts = rv.split('|')
+            if len(parts) >= 2:
+                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
+                return await _fetch_number_s2(payload)
 
-    elif server_id == 3:
-        url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-        return await _fetch_number_s3(url)
+        elif server_id == 3:
+            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
+            return await _fetch_number_s3(url)
+    except Exception as e:
+        logger.error(f"Error fetching single number: {e}")
     return None
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
@@ -803,7 +825,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else raw_svc
 
-    # 🌟 Fetch Two Numbers Concurrently
+    # 🌟 Fetch Two Numbers Concurrently (Fix Stuck Issue)
     tasks = [fetch_single_number(server_id, range_val, api_svc) for _ in range(2)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -839,7 +861,6 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         flag = get_flag(country_name)
         custom_svc = context.user_data.get('service_name', api_svc.title())
         
-        # 🌟 AZ Style Layout for Number Assigned
         txt = (
             f"{flag} <b>{display_country_name} Number Assigned:</b>\n"
             f"╭─────────────────╮\n"
@@ -849,6 +870,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
         num_kb = []
         for n in fetched_numbers:
+            # Main Number buttons have no extra color format here to keep them standard looking
             num_kb.append([InlineKeyboardButton(text=f"{flag} 📋 +{n}", copy_text=CopyTextButton(text=n))])
             
             hash_key = get_hash_key(n)
@@ -858,25 +880,28 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
             }
             
-        num_kb.append([InlineKeyboardButton("🔄 Change Number", callback_data="change_num")])
-        num_kb.append([InlineKeyboardButton("🌍 Change Country", callback_data="go_cat")])
-        num_kb.append([InlineKeyboardButton("🔑 Get OTP", callback_data="ignore")])
+        # 🎨 Appling the Color Hack here for the operational buttons
+        num_kb.append([InlineKeyboardButton(text=apply_color("🔄 Change Number", "danger"), callback_data="change_num")])
+        num_kb.append([InlineKeyboardButton(text=apply_color("🌍 Change Country", "primary"), callback_data="go_cat")])
+        num_kb.append([InlineKeyboardButton(text=apply_color("🔑 Get OTP", "success"), url="https://t.me/RTxOtpX")])
         
         try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
-        except Exception: pass
+        except Exception as e: logger.error(f"Edit msg error (success path): {e}")
             
         context.user_data['range'] = range_val 
         context.user_data['server'] = server_id
         
     else:
+        # Added random string to avoid MessageNotModified error if they click multiple times and keep failing
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
+        rand_id = random.randint(1000, 9999)
         try:
             await msg.edit_text(
-                text=f"📡 <b>Server Optimizing:</b>\n{err_msg}\n\nPlease try again.", 
+                text=f"📡 <b>Server Optimizing [{rand_id}]:</b>\n{err_msg}\n\nPlease try again.", 
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), 
                 parse_mode=ParseMode.HTML
             )
-        except Exception: pass
+        except Exception as e: logger.error(f"Edit msg error (fail path): {e}")
 
 # ==============================================================================
 # 📋 MENUS & UI
@@ -900,12 +925,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_main_menu(update_obj, context):
     user_name = update_obj.effective_user.full_name
+    # 🌟 Stylish Font applied exactly as requested
     kb = [
-        ["📱 Get Number", "🔐 Get 2FA"], 
-        ["🎁 Referral & Balance", "📊 See Activity"],
-        ["🎧 Support"]
+        ["📱 𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "🔐 𝗚𝗲𝘁 𝟮𝗙𝗔"], 
+        ["🎁 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "📊 𝗦𝗲𝗲 𝗔𝗰𝘁𝗶𝘃𝗶𝘁𝘆"],
+        ["🎧 𝗦𝘂𝗽𝗽𝗼𝗿𝘁"]
     ]
-    msg = f"👋 Welcome, <b>{html.escape(user_name)}</b>\n\nSelect An option -"
+    msg = f"👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲, <b>{html.escape(user_name)}</b>\n\n𝗦𝗲𝗹𝗲𝗰𝘁 𝗔𝗻 𝗼𝗽𝘁𝗶𝗼𝗻 -"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -922,7 +948,7 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
     for custom_cat in CUSTOM_CATEGORIES:
         kb.append([InlineKeyboardButton(f"📌 {custom_cat.title()}", callback_data=f"cat_{custom_cat.lower()}")])
         
-    kb.append([InlineKeyboardButton("🔙 Main Menu", callback_data="go_main")])
+    kb.append([InlineKeyboardButton(text=apply_color("🔙 Back To Services", "danger"), callback_data="go_main")])
     txt = "<b>Select Category</b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
@@ -978,10 +1004,9 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
         
-    sorted_keys = sorted(country_stats.keys(), key=lambda x: x[1]) # Sort alphabetically by country name
+    sorted_keys = sorted(country_stats.keys(), key=lambda x: x[1]) 
     
     kb = []
-    row = []
     s1_suffix = SETTINGS_CACHE['s1_suffix']
     s2_suffix = SETTINGS_CACHE['s2_suffix']
     s3_suffix = SETTINGS_CACHE['s3_suffix']
@@ -995,18 +1020,13 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         elif srv_id == 2: display_name += s2_suffix
         elif srv_id == 3: display_name += s3_suffix
             
-        # 🌟 AZ Style Button Format: 🇲🇳 Mongolia 2 (2710)
         btn_text = f"{get_flag(c_name)} {display_name} ({stats['count']})"
         safe_c_name = str(c_name)[:15].replace(" ", "")
         
-        row.append(InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}"))
-        if len(row) == 2:
-            kb.append(row)
-            row = []
+        # 🌟 One Country per row (নিচে নিচে)
+        kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}")])
     
-    if row: kb.append(row)
-    
-    kb.append([InlineKeyboardButton("🔙 Back To Services", callback_data="go_cat")])
+    kb.append([InlineKeyboardButton(text=apply_color("🔙 Back To Services", "danger"), callback_data="go_cat")])
     svc_icon = "📘" if category == "facebook" else "💬" if category == "whatsapp" else "📌"
     await query.edit_message_text(text=f"{svc_icon} <b>Select country for {category.title()}:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -1024,8 +1044,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
-    menu_actions = ["Get Number", "Get 2FA", "Support", "See Activity", "Referral & Balance"]
-    admin_actions = ["Bot Status", "Total Users", "Broadcast", "Ban / Unban", "Set Rewards", "Set Min Withdraw", "Add Balance", "Top Referrers", "Set Ping URL", "Set Suffix S1", "Set Suffix S2", "Set Suffix S3", "➕ Add S3 Range", "🗑️ Del S3 Range", "Main Menu", "➕ Add Channel", "🗑️ Del Channel", "➕ Add Category", "🗑️ Del Category"]
+    menu_actions = ["Get Number", "𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "Get 2FA", "𝗚𝗲𝘁 𝟮𝗙𝗔", "Support", "𝗦𝘂𝗽𝗽𝗼𝗿𝘁", "See Activity", "𝗦𝗲𝗲 𝗔𝗰𝘁𝗶𝘃𝗶𝘁𝘆", "Referral & Balance", "𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲"]
+    admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ Add S3 Range", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ Del S3 Range", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ Add Channel", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ Del Channel", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "➕ Add Category", "➕ 𝗔𝗱𝗱 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆", "🗑️ Del Category", "🗑️ 𝗗𝗲𝗹 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆"]
     
     is_main_menu_action = any(btn in text for btn in menu_actions)
     is_admin_action = any(btn in text for btn in admin_actions)
@@ -1035,7 +1055,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data['admin_reply_target'] = None
         
     if user_id in ADMIN_IDS:
-        if "Bot Status" in text:
+        if "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀" in text or "Bot Status" in text:
             uptime = datetime.datetime.now() - START_TIME
             txt = (
                 f"📊 <b>BOT STATUS</b> 📊\n"
@@ -1048,61 +1068,61 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
             
-        elif "Total Users" in text: return await update.message.reply_text(f"👥 <b>Total Registered Users:</b> {get_total_users_count()}", parse_mode=ParseMode.HTML)
-        elif "Broadcast" in text:
+        elif "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀" in text or "Total Users" in text: return await update.message.reply_text(f"👥 <b>Total Registered Users:</b> {get_total_users_count()}", parse_mode=ParseMode.HTML)
+        elif "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁" in text or "Broadcast" in text:
             user_data['state'] = 'ADMIN_BROADCAST'
             return await update.message.reply_text("📢 <b>Send the message you want to broadcast.</b>", parse_mode=ParseMode.HTML)
-        elif "Ban / Unban" in text:
+        elif "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻" in text or "Ban / Unban" in text:
             user_data['state'] = 'ADMIN_BAN'
             return await update.message.reply_text("🚫 <b>Send User ID and action (ban/unban).</b>\nExample: `12345678 ban`", parse_mode=ParseMode.HTML)
-        elif "Set Rewards" in text:
+        elif "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀" in text or "Set Rewards" in text:
             user_data['state'] = 'ADMIN_REWARD'
             return await update.message.reply_text("💰 <b>Set Reward.</b>\nExample: `otp 0.5` or `ref 0.2`", parse_mode=ParseMode.HTML)
-        elif "Set Min Withdraw" in text:
+        elif "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄" in text or "Set Min Withdraw" in text:
             user_data['state'] = 'ADMIN_MIN_WD'
             return await update.message.reply_text("💳 <b>Set Minimum Withdraw Amount.</b>\nExample: `100`", parse_mode=ParseMode.HTML)
-        elif "Add Balance" in text:
+        elif "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲" in text or "Add Balance" in text:
             user_data['state'] = 'ADMIN_ADD_BAL'
             return await update.message.reply_text("💸 <b>Add balance to user.</b>\nExample: `12345678 50.0`", parse_mode=ParseMode.HTML)
-        elif "Set Ping URL" in text:
+        elif "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟" in text or "Set Ping URL" in text:
             user_data['state'] = 'ADMIN_SET_PING'
             return await update.message.reply_text("🌐 <b>Send the URL for Auto-Ping.</b>", parse_mode=ParseMode.HTML)
-        elif "Set Suffix" in text:
-            if "S1" in text: user_data['state'] = 'ADMIN_SET_S1_SUFFIX'
-            elif "S2" in text: user_data['state'] = 'ADMIN_SET_S2_SUFFIX'
-            elif "S3" in text: user_data['state'] = 'ADMIN_SET_S3_SUFFIX'
+        elif "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅" in text or "Set Suffix" in text:
+            if "S1" in text or "𝗦𝟭" in text: user_data['state'] = 'ADMIN_SET_S1_SUFFIX'
+            elif "S2" in text or "𝗦𝟮" in text: user_data['state'] = 'ADMIN_SET_S2_SUFFIX'
+            elif "S3" in text or "𝗦𝟯" in text: user_data['state'] = 'ADMIN_SET_S3_SUFFIX'
             return await update.message.reply_text("✏️ <b>Send suffix.</b>\n(Send `-` to keep it blank)", parse_mode=ParseMode.HTML)
             
-        elif "➕ Add Category" in text:
+        elif "➕ 𝗔𝗱𝗱 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆" in text or "➕ Add Category" in text:
             user_data['state'] = 'ADMIN_ADD_CAT'
             return await update.message.reply_text("➕ <b>Send new Category name (e.g., Telegram, Tiktok):</b>", parse_mode=ParseMode.HTML)
             
-        elif "🗑️ Del Category" in text:
+        elif "🗑️ 𝗗𝗲𝗹 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆" in text or "🗑️ Del Category" in text:
             if not CUSTOM_CATEGORIES: return await update.message.reply_text("📭 No custom categories found.", parse_mode=ParseMode.HTML)
             kb = [[InlineKeyboardButton(f"❌ {c}", callback_data=f"delcat_{c}")] for c in CUSTOM_CATEGORIES]
             return await update.message.reply_text("🗑️ <b>Click a category to remove:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
             
-        elif "➕ Add S3 Range" in text:
+        elif "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲" in text or "➕ Add S3 Range" in text:
             user_data['state'] = 'ADMIN_S3_ADD_CAT'
             return await update.message.reply_text("➕ <b>Add S3 Range</b>\nSend Category (e.g. `facebook`, `telegram`):", parse_mode=ParseMode.HTML)
             
-        elif "🗑️ Del S3 Range" in text:
+        elif "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲" in text or "🗑️ Del S3 Range" in text:
             loop = asyncio.get_event_loop()
             ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
             if not ranges: return await update.message.reply_text("📭 <i>No S3 Ranges found.</i>", parse_mode=ParseMode.HTML)
             kb = [[InlineKeyboardButton(f"❌ {r[1].title()} | {r[3]} ({r[2]})", callback_data=f"dels3_{r[0]}")] for r in ranges]
             return await update.message.reply_text("🗑️ <b>Click a range to delete:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
-        elif "➕ Add Channel" in text:
+        elif "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text or "➕ Add Channel" in text:
             user_data['state'] = 'ADMIN_ADD_CHANNEL'
             return await update.message.reply_text("➕ <b>Send Channel Username.</b>\nExample: `@EarnXtract`", parse_mode=ParseMode.HTML)
 
-        elif "🗑️ Del Channel" in text:
+        elif "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text or "🗑️ Del Channel" in text:
             if not CHANNELS_CACHE: return await update.message.reply_text("📭 <i>No channels found.</i>", parse_mode=ParseMode.HTML)
             kb = [[InlineKeyboardButton(f"❌ {ch}", callback_data=f"delch_{ch}")] for ch in CHANNELS_CACHE]
             return await update.message.reply_text("🗑️ <b>Click a channel to remove:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
-        elif "Top Referrers" in text:
+        elif "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀" in text or "Top Referrers" in text:
             loop = asyncio.get_event_loop()
             top_users = await loop.run_in_executor(DB_EXECUTOR, sync_get_top_referrers)
             msg = "🏆 <b>TOP 10 REFERRERS</b> 🏆\n━━━━━━━━━━━━━━━━━━━━\n"
@@ -1111,7 +1131,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if "1." not in msg: msg += "<i>No active referrers yet.</i>"
             return await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
             
-        elif "Main Menu" in text:
+        elif "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂" in text or "Main Menu" in text:
             await show_main_menu(update, context)
             return
 
@@ -1226,11 +1246,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     state = user_data.get('state')
     
-    if "Get Number" in text:
+    if "𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿" in text or "Get Number" in text:
         if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
         else: await start_category_selection(update, context)
             
-    elif "Get 2FA" in text:
+    elif "𝗚𝗲𝘁 𝟮𝗙𝗔" in text or "Get 2FA" in text:
         user_data['state'] = 'WAITING_FOR_2FA'
         await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
         
@@ -1253,7 +1273,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception: await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
         user_data['state'] = None
 
-    elif "Referral & Balance" in text:
+    elif "𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲" in text or "Referral & Balance" in text:
         loop = asyncio.get_event_loop()
         user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         bot_username = context.bot.username
@@ -1270,7 +1290,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = [[InlineKeyboardButton("💳 Withdraw Balance", callback_data="req_withdraw")]]
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
-    elif "Support" in text:
+    elif "𝗦𝘂𝗽𝗽𝗼𝗿𝘁" in text or "Support" in text:
         user_data['state'] = 'WAITING_FOR_SUPPORT'
         await update.message.reply_text("🎧 <b>SUPPORT SYSTEM</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Type your problem below.</i>", parse_mode=ParseMode.HTML)
         
@@ -1286,8 +1306,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
         user_data['state'] = None
         
-    elif "See Activity" in text:
-        kb = [[InlineKeyboardButton("💬 OTP Channel", url="https://t.me/RTxOtpX")]]
+    elif "𝗦𝗲𝗲 𝗔𝗰𝘁𝗶𝘃𝗶𝘁𝘆" in text or "See Activity" in text:
+        kb = [[InlineKeyboardButton(text=apply_color("💬 OTP Channel", "success"), url="https://t.me/RTxOtpX")]]
         await update.message.reply_text("📊 <b>BOT ACTIVITY LINKS</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Join to see live Bot activity:</i>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
     elif state == 'WAIT_WITHDRAW_ACC':
@@ -1453,16 +1473,16 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['admin_reply_target'] = None
     context.user_data['state'] = None
     kb = [
-        ["📊 Bot Status", "👥 Total Users"],
-        ["📢 Broadcast", "🚫 Ban / Unban"],
-        ["💰 Set Rewards", "💳 Set Min Withdraw"],
-        ["💸 Add Balance", "🏆 Top Referrers"],
-        ["➕ Add Channel", "🗑️ Del Channel"],
-        ["➕ Add Category", "🗑️ Del Category"],
-        ["✏️ Set Suffix S1", "✏️ Set Suffix S2"],
-        ["✏️ Set Suffix S3", "🌐 Set Ping URL"],
-        ["➕ Add S3 Range", "🗑️ Del S3 Range"],
-        ["🔙 Main Menu"]
+        ["📊 𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "👥 𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀"],
+        ["📢 𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "🚫 𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻"],
+        ["💰 𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "💳 𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄"],
+        ["💸 𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "🏆 𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀"],
+        ["➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"],
+        ["➕ 𝗔𝗱𝗱 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆", "🗑️ 𝗗𝗲𝗹 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆"],
+        ["✏️ 𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "✏️ 𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮"],
+        ["✏️ 𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "🌐 𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟"],
+        ["➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲"],
+        ["🔙 𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂"]
     ]
     txt = "🔐 <b>ADVANCED ADMIN PANEL</b> 🔐\n━━━━━━━━━━━━━━━━━━━━\n<i>Use the keyboard below to manage the bot:</i>"
     await update.message.reply_text(txt, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -1599,7 +1619,7 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(update_cache_job,         interval=15,  first=2)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300, first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=60,  first=10)
-    app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)  # ⚡ 15 Minutes
+    app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 85: AZ STYLE - ALL FEATURES PERFECTED ✨")
+    logger.info("✨ VERSION 85.5: STYLISH FONTS & COLOR HACKS READY ✨")
     app.run_polling(drop_pending_updates=True)
