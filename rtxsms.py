@@ -143,23 +143,18 @@ SETTINGS_CACHE = {
 }
 
 # ==============================================================================
-# 🎨 COLOR BUTTON HACK (BGRAM / MDGRAM)
+# 🎨 COLOR BUTTON HACK (BJS / Telegram Unofficial UI Hack)
 # ==============================================================================
 
 def apply_color(text, style="default"):
-    # Invisible Unicodes to hack Telegram UI colors (Works in Bgram/MDgram)
-    COLOR_SUCCESS = "\u200B" * 3  # Green / Success
-    COLOR_DANGER  = "\u200C" * 3  # Red / Danger
-    COLOR_PRIMARY = "\u200D" * 3  # Blue / Primary
-    
-    if style == "success":
-        return f"{COLOR_SUCCESS}{text}"
+    # Exactly what BJS uses to trigger colors in supported apps
+    if style == "primary":
+        return f"\u200b{text}"  # Blue / Primary
+    elif style == "success":
+        return f"\u200c{text}"  # Green / Success
     elif style == "danger":
-        return f"{COLOR_DANGER}{text}"
-    elif style == "primary":
-        return f"{COLOR_PRIMARY}{text}"
-    else:
-        return text
+        return f"\u200d{text}"  # Red / Danger
+    return text
 
 # ==============================================================================
 # 🌍 DYNAMIC COUNTRY FLAGS & ISO DICTIONARY
@@ -227,7 +222,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE
 # ==============================================================================
 
-DB_FILE = "bot_v86_enterprise.db"
+DB_FILE = "bot_v87_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -821,13 +816,18 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     
     fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
-    
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else raw_svc
 
-    # 🌟 Fetch Two Numbers Concurrently
-    tasks = [fetch_single_number(server_id, range_val, api_svc) for _ in range(2)]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # 🌟 SAFE ASYNC TIMEOUT TO FIX "STUCK" ISSUE 🌟
+    try:
+        tasks = [fetch_single_number(server_id, range_val, api_svc) for _ in range(2)]
+        results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=15.0)
+    except asyncio.TimeoutError:
+        results = []
+    except Exception as e:
+        logger.error(f"Generation error: {e}")
+        results = []
 
     for res in results:
         if isinstance(res, tuple):
@@ -896,7 +896,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         try:
             await msg.edit_text(
                 text=f"📡 <b>Server Optimizing [{rand_id}]:</b>\n{err_msg}\n\nPlease try again.", 
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), 
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(apply_color("🔙 Back", "danger"), callback_data="go_cat")]]), 
                 parse_mode=ParseMode.HTML
             )
         except Exception: pass
@@ -997,7 +997,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     if not country_stats:
         await query.edit_message_text(
             text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(apply_color("🔙 Back", "danger"), callback_data="go_cat")]]), parse_mode=ParseMode.HTML
         )
         return
         
@@ -1285,7 +1285,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 <b>Link:</b> <code>{ref_link}</code>\n\n"
             f"Share your link and earn ৳{SETTINGS_CACHE['ref_reward']} when they join!"
         )
-        kb = [[InlineKeyboardButton("💳 Withdraw Balance", callback_data="req_withdraw")]]
+        kb = [[InlineKeyboardButton(apply_color("💳 Withdraw Balance", "primary"), callback_data="req_withdraw")]]
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
     elif "𝗦𝘂𝗽𝗽𝗼𝗿𝘁" in text or "Support" in text:
@@ -1359,7 +1359,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     await ensure_user_fast(user_id)
     
-    if data == "ignore": return await query.answer()
+    # 🌟 THIS FIXES THE HANGING/STUCK BUTTON ISSUE 🌟
+    try: await query.answer()
+    except Exception: pass
+    
+    if data == "ignore": return
     elif data == "check_join":
         if await check_subscription(user_id, context.bot): 
             try: await query.message.delete()
@@ -1389,7 +1393,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         r_id = int(data.split("_")[1])
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_delete_s3_range, r_id)
-        await query.answer("✅ S3 Range Deleted!")
         ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
         if not ranges: await query.edit_message_text("📭 <i>All S3 Ranges deleted.</i>", parse_mode=ParseMode.HTML)
         else:
@@ -1402,7 +1405,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         CHANNELS_CACHE.discard(ch)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_del_channel, ch)
-        await query.answer(f"✅ Removed {ch}")
         if not CHANNELS_CACHE: await query.edit_message_text("📭 <i>All Channels deleted.</i>", parse_mode=ParseMode.HTML)
         else:
             kb = [[InlineKeyboardButton(f"❌ {c}", callback_data=f"delch_{c}")] for c in CHANNELS_CACHE]
@@ -1414,7 +1416,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if cat in CUSTOM_CATEGORIES: CUSTOM_CATEGORIES.remove(cat)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_del_category, cat)
-        await query.answer(f"✅ Removed {cat}")
         if not CUSTOM_CATEGORIES: await query.edit_message_text("📭 <i>All custom categories deleted.</i>", parse_mode=ParseMode.HTML)
         else:
             kb = [[InlineKeyboardButton(f"❌ {c}", callback_data=f"delcat_{c}")] for c in CUSTOM_CATEGORIES]
@@ -1425,13 +1426,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = data.split("_")[1]
         context.user_data['admin_reply_target'] = target_user_id
         await query.message.reply_text(f"✍️ <b>Type reply for:</b> <code>{target_user_id}</code>\n<i>(Type message normally)</i>", parse_mode=ParseMode.HTML)
-        await query.answer()
 
     elif data == "req_withdraw":
         loop = asyncio.get_event_loop()
         u_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         min_wd = SETTINGS_CACHE["min_withdraw"]
-        if u_info['balance'] < min_wd: return await query.answer(f"⚠️ Minimum withdraw is {min_wd} ৳.", show_alert=True)
+        if u_info['balance'] < min_wd: return
             
         kb = [
             [InlineKeyboardButton("Bkash", callback_data="wdm_Bkash")],
@@ -1619,5 +1619,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(self_ping_job,            interval=60,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 86: FULL FIX WITH COLORS & STYLISH FONTS ✨")
+    logger.info("✨ VERSION 87: STUCK BUG FIXED & FULL FEATURES ACTIVE ✨")
     app.run_polling(drop_pending_updates=True)
