@@ -132,13 +132,13 @@ SETTINGS_CACHE = {
     "otp_reward": 0.10,
     "ref_reward": 0.05,
     "min_withdraw": 50.0,
-    "ping_url": "https://rtxstexsms-dhno.onrender.com",
+    "ping_url": "https://rtxstexsms-qf5h.onrender.com",
     "s1_suffix": "",
     "s2_suffix": " XRT",
     "s3_suffix": " CJ"
 }
 
-# Updated with extensive global flags mapping
+# Extensive global flags mapping
 COUNTRY_FLAGS = {
     "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Bolivia":"🇧🇴", "Brazil":"🇧🇷", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Cape Verde":"🇨🇻", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Democratic Republic of the Congo":"🇨🇩", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Macedonia":"🇲🇰", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Moldova":"🇲🇩", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
 }
@@ -170,14 +170,12 @@ def get_short_code(country_name):
 def clean_number(n: str) -> str:
     return re.sub(r'\D', '', str(n))
 
-def mask_number(number: str) -> str:
+def mask_number_group(number: str) -> str:
     digits = clean_number(number)
-    if len(digits) < 7: return number
-    first, last = digits[:6], digits[-3:]
-    middle = '•' * (len(digits) - 9)
-    if len(digits) <= 9:
-        first, last = digits[:4], digits[-3:]
-        middle = '•' * (len(digits) - 7)
+    if len(digits) <= 6: return digits
+    first = digits[:2]
+    last = digits[-4:]
+    middle = 'X' * (len(digits) - 6)
     return first + middle + last
 
 def clean_message_text(raw_text):
@@ -642,45 +640,53 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     otp_reward = SETTINGS_CACHE["otp_reward"]
     ref_reward = SETTINGS_CACHE["ref_reward"]
     
+    # Get balance BEFORE adding for UI
+    user_info_before = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
+    old_bal = user_info_before['balance']
+    
     # Silent balance add
-    await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
+    new_bal = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
     
     user_info_after = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
     referrer_id = user_info_after.get("referrer_id")
     if referrer_id:
         await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, referrer_id, ref_reward)
-        try: asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=f"🎁 <b>𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 𝗕𝗼𝗻𝘂𝘀!</b>\nYour referral received an OTP. You got <b>+{ref_reward:.2f} ৳</b>!", parse_mode=ParseMode.HTML))
+        try: asyncio.create_task(context.bot.send_message(chat_id=referrer_id, text=f"Your referral received an OTP. You got <b>+{ref_reward:.2f} ৳</b>!", parse_mode=ParseMode.HTML))
         except Exception: pass
 
     flag = get_flag(c_name)
     short_name = get_short_code(c_name)
-    svc_short = "Fb" if "facebook" in custom_service_name.lower() else ("Ws" if "whatsapp" in custom_service_name.lower() else custom_service_name[:3].title())
     
-    # 🌟 NEW OTP LAYOUT (MASSIVE CODE + BUTTON) 🌟
+    svc_name_display = "Fᴀᴄᴇʙᴏᴏᴋ" if "facebook" in custom_service_name.lower() else ("Wʜᴀᴛsᴀᴘᴘ" if "whatsapp" in custom_service_name.lower() else custom_service_name.title())
+    svc_short = "Fʙ" if "facebook" in custom_service_name.lower() else ("Ws" if "whatsapp" in custom_service_name.lower() else custom_service_name[:2].title())
+    
+    # 🌟 NEW OTP LAYOUT (USER CHAT) 🌟
     user_msg = (
-        f"💌 <b>New OTP Received</b>\n"
+        f"💬 <b>ɴᴇᴡ Oᴛᴘ Rᴇᴄɪᴠᴇᴅ</b> \n"
         f"╭─────────────────╮\n"
-        f"│  <code>+{full_num}</code>\n"
-        f"╰─────────────────╯\n"
-        f"🔵 <b>Service:</b> {custom_service_name.title()}\n"
-        f"💰 <b>Per OTP:</b> ৳{otp_reward:.2f}\n\n"
-        f"<blockquote><b><pre>{code_only}</pre></b></blockquote>"
+        f"│  +{full_num}\n"
+        f"╰─────────────────╯  \n"
+        f"🟢 Sᴇʀᴠɪᴄᴇ » {svc_name_display}\n"
+        f"💰 Bᴀʟᴀɴᴄᴇ - {old_bal:.2f} » {new_bal:.2f}"
     )
-    user_kb = [[InlineKeyboardButton(text=f"⎘ {code_only}", copy_text=CopyTextButton(text=code_only))]]
+    
+    # Code purely inside the huge inline button
+    user_kb = [[InlineKeyboardButton(text=f"{code_only}", copy_text=CopyTextButton(text=code_only))]]
     
     asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
     
-    masked_num = mask_number(full_num)
-    
     # 🌟 MASSIVE PREMIUM OTP GROUP FORMAT 🌟
+    masked_num = mask_number_group(full_num)
+    
     group_msg = (
-        f"<b>{flag} | {svc_short} | {masked_num}</b>\n\n"
-        f"<blockquote><b><pre>{code_only}</pre></b></blockquote>\n"
+        f"╭─────────────────╮\n"
+        f"│  {flag} #{short_name} » {svc_short} {masked_num}\n"
+        f"╰─────────────────╯"
     )
     
     group_kb = [
         [InlineKeyboardButton(text=f"{code_only}", copy_text=CopyTextButton(text=code_only))],
-        [InlineKeyboardButton("📢 𝗠𝗮𝗶𝗻 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url="https://t.me/EarnXtract"), InlineKeyboardButton("👨‍💻 𝗢𝘄𝗻𝗲𝗿", url="https://t.me/RTx2R")]
+        [InlineKeyboardButton("📢 Mᴀɪɴ Cʜᴀɴɴᴇʟ", url="https://t.me/EarnXtract"), InlineKeyboardButton("🤖 Bᴏᴛ Lɪɴᴋ", url=f"https://t.me/{context.bot.username}")]
     ]
     
     asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
@@ -719,8 +725,11 @@ async def check_inbox(context, server_res, last_text, text_var_name):
                 hash_key, waiter = _find_waiter(num_raw)
                 if hash_key:
                     code_val = extract_code(raw_msg) if text_var_name == "s3" else get_code_from_item(item, raw_msg)
+                    # Using raw_msg to track unique messages
                     msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
                     rcv_set = waiter.setdefault('received_codes', set())
+                    
+                    # If this is a new message with OTP for the same number, we process it!
                     if msg_sig not in rcv_set:
                         rcv_set.add(msg_sig)
                         is_multi = len(rcv_set) > 1
@@ -758,7 +767,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION (2 NUMBERS)
+# 🎯 HIGH-SPEED NUMBER GENERATION (2 NUMBERS IN INLINE BUTTONS)
 # ==============================================================================
 
 async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
@@ -772,7 +781,7 @@ async def safe_delayed_fetch(delay, func, *args, **kwargs):
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, NUM_TO_HASH
     
-    wait_txt = "⏳ <i>𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀...</i> 🚀"
+    wait_txt = "⏳ <i>Genareting Number Please Wait...</i> 🚀"
     if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
@@ -865,21 +874,22 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         flag = get_flag(country_name)
         custom_svc = context.user_data.get('service_name', api_svc.title())
         
-        # 🌟 EXACT ASSIGNED TEXT FORMAT WITH 2 NUMBERS IN MESSAGE BODY 🌟
+        # 🌟 EXACT ASSIGNED TEXT FORMAT WITH NUMBERS IN INLINE BUTTONS 🌟
         txt = (
             f"{flag} <b>{display_country_name} Number Assigned:</b>\n"
             f"╭─────────────────╮\n"
             f"│  ⏳ <b>Waiting for OTP...</b>\n"
-            f"╰─────────────────╯\n\n"
+            f"╰─────────────────╯"
         )
-        for n in fetched_numbers:
-            txt += f"  {flag} ⎘ <code>+{n}</code>\n"
         
-        num_kb = [
-            [InlineKeyboardButton("🔄 Change Number", callback_data="change_num")],
-            [InlineKeyboardButton("🌍 Change Country", callback_data="go_cat")],
-            [InlineKeyboardButton("🗝️ Get OTP", url="https://t.me/RTxOtpX")]
-        ]
+        num_kb = []
+        # Put fetched numbers as inline buttons (will show 2 inline buttons if 2 found)
+        for n in fetched_numbers:
+            num_kb.append([InlineKeyboardButton(text=f"⎘ +{n}", copy_text=CopyTextButton(text=n))])
+            
+        num_kb.append([InlineKeyboardButton("🔄 Change Number", callback_data="change_num")])
+        num_kb.append([InlineKeyboardButton("🌍 Change Country", callback_data="go_cat")])
+        num_kb.append([InlineKeyboardButton("🗝️ Get OTP", url="https://t.me/RTxOtpX")])
         
         try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
         except Exception: pass
@@ -931,8 +941,7 @@ async def show_main_menu(update_obj, context):
     user_name = update_obj.effective_user.full_name
     kb = [
         ["📱 𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "🔐 𝗚𝗲𝘁 𝟮𝗙𝗔"], 
-        ["🎁 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "📊 𝗦𝗲𝗲 𝗔𝗰𝘁𝗶𝘃𝗶𝘁𝘆"],
-        ["🎧 𝗦𝘂𝗽𝗽𝗼𝗿𝘁"]
+        ["🎁 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "🎧 𝗦𝘂𝗽𝗽𝗼𝗿𝘁"]
     ]
     msg = f"👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲, <b>{html.escape(user_name)}</b>\n\n𝗦𝗲𝗹𝗲𝗰𝘁 𝗔𝗻 𝗼𝗽𝘁𝗶𝗼𝗻 -"
     
@@ -1029,7 +1038,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         kb.append([InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}")])
         
     kb.append([InlineKeyboardButton("🔙 𝗕𝗮𝗰𝗸", callback_data="go_cat")])
-    await query.edit_message_text(text=f"🌍 <b>𝗦𝗘𝗟𝗘𝗖𝗧 𝗔 𝗖𝗢𝗨𝗡𝗧𝗥𝗬 ({category.title()})</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text=f"🌍 𝗦𝗘𝗟𝗘𝗖𝗧 𝗔 𝗖𝗢𝗨𝗡𝗧𝗥𝗬 ({category.title()})", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & ADMIN LOGIC
@@ -1148,7 +1157,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     success += 1
                 except: failed += 1
                 await asyncio.sleep(0.05) 
-            await msg.edit_text(f"✅ <b>𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁 𝗖𝗼𝗺𝗽𝗹𝗲𝘁𝗲𝗱!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
+            await msg.edit_text(f"✅ <b>𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁 𝗖𝗼𝗺plete𝗱!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
             user_data['state'] = None
             return
             
@@ -1253,7 +1262,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     elif "𝗚𝗲𝘁 𝟮𝗙𝗔" in text or "Get 2FA" in text:
         user_data['state'] = 'WAITING_FOR_2FA'
-        await update.message.reply_text("🔐 <b>𝟮𝗙𝗔 𝗖𝗢𝗗𝗘 𝗚𝗘𝗡𝗘𝗥𝗔𝗧𝗢𝗥</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("2ғᴀ Cᴏᴅᴇ Gᴇɴᴀʀᴇᴛᴏʀ Pᴇsᴛ Yᴏᴜ Cᴏᴅᴇ Fᴏʀ ɢᴇɴᴀʀᴇᴛᴇ Cᴏᴅᴇ ♻️", parse_mode=ParseMode.HTML)
         
     elif state == 'WAITING_FOR_2FA':
         user_msg_id = update.message.message_id
@@ -1266,7 +1275,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data = await resp.json()
                     code = data.get('code')
                     if code: 
-                        out = f"✅ <b>𝟮𝗙𝗔 𝗖𝗢𝗗𝗘 𝗚𝗘𝗡𝗘𝗥𝗔𝗧𝗘𝗗!</b>\n━━━━━━━━━━━━━━━━━━━━\n🔢 <b>𝗖𝗼𝗱𝗲:</b> <code>{code}</code>\n\n<i>⚠️ Auto-delete in 5 mins.</i>"
+                        out = f"✅ <b>Hᴇʀᴇ Is Yᴏᴜʀ Cᴏᴅᴇ 🔢\n <b>Cᴏᴅᴇ :</b> <code>{code}</code>\n<i>Aᴜᴛᴏ Dᴇʟᴇᴛᴇ Iɴ 5 ᴍɪɴɪᴜᴛᴇ .</i>"
                         await msg.edit_text(out, parse_mode=ParseMode.HTML)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
                     else: await msg.edit_text("❌ <b>𝗜𝗻𝘃𝗮𝗹𝗶𝗱 𝗦𝗲𝗰𝗿𝗲𝘁 𝗞𝗲𝘆.</b>", parse_mode=ParseMode.HTML)
@@ -1281,21 +1290,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         
         msg = (
-            f"🎁 <b>𝗥𝗘𝗙𝗘𝗥𝗥𝗔𝗟 & 𝗕𝗔𝗟𝗔𝗡𝗖𝗘</b> 🎁\n"
+            f"🎁 <b>Rᴇғғᴇʀ Aɴᴅ Eᴀʀɴ</b> 🎁\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>𝗬𝗼𝘂𝗿 𝗕𝗮𝗹𝗮𝗻𝗰𝗲:</b> {user_info['balance']:.2f} ৳\n"
-            f"👥 <b>𝗧𝗼𝘁𝗮𝗹 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹𝘀:</b> {user_info['total_referrals']}\n\n"
-            f"⚡ <b>𝗘𝗮𝗿𝗻 𝗣𝗲𝗿 𝗢𝗧𝗣:</b> {SETTINGS_CACHE['otp_reward']:.2f} ৳\n"
-            f"🔗 <b>𝗘𝗮𝗿𝗻 𝗣𝗲𝗿 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 𝗢𝗧𝗣:</b> {SETTINGS_CACHE['ref_reward']:.2f} ৳\n\n"
-            f"🚀 <b>𝗬𝗼𝘂𝗿 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 𝗟𝗶𝗻𝗸:</b>\n<code>{ref_link}</code>\n\n"
-            f"<i>Share this link with friends. When they receive an OTP, you get a bonus!</i>"
+            f"💰 <b> Yᴏᴜʀ Bᴀʟᴀɴᴄᴇ :</b> {user_info['balance']:.2f} ৳\n"
+            f"👥 <b>Tᴏᴛᴀʟ Rᴇғғᴀʀ :</b> {user_info['total_referrals']}\n\n"
+            f"⚡ <b>Eᴀʀɴ Pᴇʀ Oᴛᴘ:</b> {SETTINGS_CACHE['otp_reward']:.2f} ৳\n"
+            f"🔗 <b>Eᴀʀɴ Pᴇʀ Rᴇғғᴀʀ Oᴛᴘ:</b> {SETTINGS_CACHE['ref_reward']:.2f} ৳\n\n"
+            f"🚀 <b>Yᴏᴜʀ Rᴇғғᴀʀ Lɪɴᴋ :</b>\n<code>{ref_link}</code>\n\n"
+            f"<b>Share this link with friends. When they receive an OTP, you get a bonus!</b>"
         )
         kb = [[InlineKeyboardButton("💳 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", callback_data="req_withdraw")]]
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
     elif "𝗦𝘂𝗽𝗽𝗼𝗿𝘁" in text or "Support" in text:
         user_data['state'] = 'WAITING_FOR_SUPPORT'
-        await update.message.reply_text("🎧 <b>𝗦𝗨𝗣𝗣𝗢𝗥𝗧 𝗦𝗬𝗦𝗧𝗘𝗠</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Type your problem below.</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("🎧 <b>Sᴜᴘᴘᴏʀᴛ Sʏsᴛᴇᴍ Tʏᴘᴇ Yᴏᴜʀ Pʀᴏʙʟᴇɴ Aᴅᴍɪɴ Wɪʟʟ Rɪᴘʟʏ Sᴏᴏɴ 🟢", parse_mode=ParseMode.HTML)
         
     elif state == 'WAITING_FOR_SUPPORT':
         for a_id in ADMIN_IDS:
