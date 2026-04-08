@@ -11,6 +11,19 @@ import datetime
 import time
 import json
 import gc
+# --- START OF FILE rtxsms.py ---
+
+import logging
+import aiohttp
+import os
+import asyncio
+import re
+import sqlite3
+import html
+import datetime
+import time
+import json
+import gc
 import random
 import urllib.parse
 from contextlib import contextmanager
@@ -602,7 +615,7 @@ async def send_join_prompt(update, context):
     if row: keyboard.append(row)
     keyboard.append([InlineKeyboardButton("✅ Joined / Verify", callback_data="check_join")])
     
-    msg = "⛔ <b>Aᴄᴄᴇss Dᴇɴᴇɪᴇ</b>\n━━━━━━━━━━━━━━━━\n<i> Yᴏᴜ ᴍᴜsᴛ Nᴇᴇᴅ Tᴏ Jᴏɪɴ Oᴜʀ ᴀʟʟ ᴄʜᴀɴɴᴀʟ 🟢</i>"
+    msg = "⛔ <b>Access Denied!</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>You must be a member of our official channels.</i>\n\n👇 <b>Please join below:</b>"
     if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     else: await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
@@ -915,7 +928,7 @@ async def show_main_menu(update_obj, context):
         ["🎁 𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲"],
         ["🎧 𝗦𝘂𝗽𝗽𝗼𝗿𝘁"]
     ]
-    msg = f"👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲, <b>{html.escape(user_name)}</b>\n\n » 𝗦𝗲𝗹𝗲𝗰𝘁 𝗔𝗻 𝗼𝗽𝘁𝗶𝗼𝗻 -"
+    msg = f"👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲, <b>{html.escape(user_name)}</b>\n\n𝗦𝗲𝗹𝗲𝗰𝘁 𝗔𝗻 𝗼𝗽𝘁𝗶𝗼𝗻 -"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -933,7 +946,7 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
         kb.append([InlineKeyboardButton(f"📌 {custom_cat.title()}", callback_data=f"cat_{custom_cat.lower()}")])
         
     kb.append([InlineKeyboardButton(text="🔙 Back To Services", callback_data="go_main")])
-    txt = "<b> Sᴇʟᴇᴄᴛ Cᴀᴛᴀɢᴏʀʏ </b>"
+    txt = "<b>Select Category</b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
         await update.callback_query.edit_message_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
@@ -982,7 +995,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
 
     if not country_stats:
         await query.edit_message_text(
-            text=f"📡 <b>Load Balancing...</b>\n<b>No Number Faund Come Back Letar</b>", 
+            text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), parse_mode=ParseMode.HTML
         )
         return
@@ -1011,7 +1024,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     
     kb.append([InlineKeyboardButton(text="🔙 Back To Services", callback_data="go_cat")])
     svc_icon = "📘" if category == "facebook" else "💬" if category == "whatsapp" else "📌"
-    await query.edit_message_text(text=f"{svc_icon} <b> Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text=f"{svc_icon} <b>Select country for {category.title()}:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & ADMIN LOGIC
@@ -1241,12 +1254,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         
         msg = (
-            f"🎁 <b>Rᴇғғᴇʀ Aɴᴅ Eᴀʀɴ </b> 🎁\n"
+            f"🎁 <b>REFERRAL & BALANCE</b> 🎁\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>Bᴀʟᴀɴᴄᴇ:</b> {user_info['balance']:.2f} ৳\n"
-            f"👥 <b>Rᴇғғᴀʀ :</b> {user_info['total_referrals']}\n\n"
-            f"🔗 <b>Yᴏᴜʀ Lɪɴᴋ:</b> <code>{ref_link}</code>\n\n"
-            f"Sʜᴇʀᴇ ᴀɴᴅ Eᴀʀɴ ৳{SETTINGS_CACHE['ref_reward']} Pᴇʀ Oᴛᴘ!"
+            f"💰 <b>Balance:</b> {user_info['balance']:.2f} ৳\n"
+            f"👥 <b>Referrals:</b> {user_info['total_referrals']}\n\n"
+            f"🔗 <b>Link:</b> <code>{ref_link}</code>\n\n"
+            f"Share your link and earn ৳{SETTINGS_CACHE['ref_reward']} when they join!"
         )
         kb = [[InlineKeyboardButton("💳 Withdraw Balance", callback_data="req_withdraw")]]
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
