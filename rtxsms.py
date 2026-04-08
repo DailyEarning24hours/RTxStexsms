@@ -1,5 +1,3 @@
---- START OF FILE ai_studio_code.py ---
-
 import logging
 import aiohttp
 import os
