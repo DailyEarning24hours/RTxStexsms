@@ -227,7 +227,7 @@ def _find_waiter(num_raw: str):
 # 🗄️ DATABASE
 # ==============================================================================
 
-DB_FILE = "bot_v85_enterprise.db"
+DB_FILE = "bot_v86_enterprise.db"
 
 class DatabasePool:
     def __init__(self, db_file, pool_size=10):
@@ -825,7 +825,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else raw_svc
 
-    # 🌟 Fetch Two Numbers Concurrently (Fix Stuck Issue)
+    # 🌟 Fetch Two Numbers Concurrently
     tasks = [fetch_single_number(server_id, range_val, api_svc) for _ in range(2)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -870,7 +870,6 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
         num_kb = []
         for n in fetched_numbers:
-            # Main Number buttons have no extra color format here to keep them standard looking
             num_kb.append([InlineKeyboardButton(text=f"{flag} 📋 +{n}", copy_text=CopyTextButton(text=n))])
             
             hash_key = get_hash_key(n)
@@ -880,19 +879,18 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
             }
             
-        # 🎨 Appling the Color Hack here for the operational buttons
+        # 🎨 Bgram/MDgram Color Hack on Buttons
         num_kb.append([InlineKeyboardButton(text=apply_color("🔄 Change Number", "danger"), callback_data="change_num")])
         num_kb.append([InlineKeyboardButton(text=apply_color("🌍 Change Country", "primary"), callback_data="go_cat")])
         num_kb.append([InlineKeyboardButton(text=apply_color("🔑 Get OTP", "success"), url="https://t.me/RTxOtpX")])
         
         try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
-        except Exception as e: logger.error(f"Edit msg error (success path): {e}")
+        except Exception: pass
             
         context.user_data['range'] = range_val 
         context.user_data['server'] = server_id
         
     else:
-        # Added random string to avoid MessageNotModified error if they click multiple times and keep failing
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
         rand_id = random.randint(1000, 9999)
         try:
@@ -901,7 +899,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="go_cat")]]), 
                 parse_mode=ParseMode.HTML
             )
-        except Exception as e: logger.error(f"Edit msg error (fail path): {e}")
+        except Exception: pass
 
 # ==============================================================================
 # 📋 MENUS & UI
@@ -978,7 +976,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
                     r = log.get('range')
                     app_name = str(log.get('app_name', '')).lower()
 
-                # NO POSTPAID ALLOWED
                 if 'postpaid' in str(c).lower() or 'postpaid' in str(app_name).lower(): continue
 
                 if category in app_name and c and r and 'None' not in r:
@@ -1044,6 +1041,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
+    # 🌟 Listen to BOTH Stylish and Normal fonts
     menu_actions = ["Get Number", "𝗚𝗲𝘁 𝗡𝘂𝗺𝗯𝗲𝗿", "Get 2FA", "𝗚𝗲𝘁 𝟮𝗙𝗔", "Support", "𝗦𝘂𝗽𝗽𝗼𝗿𝘁", "See Activity", "𝗦𝗲𝗲 𝗔𝗰𝘁𝗶𝘃𝗶𝘁𝘆", "Referral & Balance", "𝗥𝗲𝗳𝗲𝗿𝗿𝗮𝗹 & 𝗕𝗮𝗹𝗮𝗻𝗰𝗲"]
     admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ Add S3 Range", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ Del S3 Range", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ Add Channel", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ Del Channel", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "➕ Add Category", "➕ 𝗔𝗱𝗱 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆", "🗑️ Del Category", "🗑️ 𝗗𝗲𝗹 𝗖𝗮𝘁𝗲𝗴𝗼𝗿𝘆"]
     
@@ -1621,5 +1619,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(self_ping_job,            interval=60,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=900, first=900)
     
-    logger.info("✨ VERSION 85.5: STYLISH FONTS & COLOR HACKS READY ✨")
+    logger.info("✨ VERSION 86: FULL FIX WITH COLORS & STYLISH FONTS ✨")
     app.run_polling(drop_pending_updates=True)
