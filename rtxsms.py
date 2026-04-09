@@ -1345,7 +1345,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     code = data.get('code')
                     if code: 
                         out = f"✅ <b>2FA CODE GENERATED!</b>\n<b>⚠️ Auto-delete in 5 mins.</b>"
-                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}},"style": "primary"]]}
+                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}}]]}
                         await msg.edit_text(out, reply_markup=user_markup, parse_mode=ParseMode.HTML)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
                     else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
