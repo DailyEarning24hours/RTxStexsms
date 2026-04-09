@@ -66,7 +66,7 @@ S3_BASE_URL = "https://crackerjacksms.com"
 
 def get_cf_headers(origin_domain):
     return {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Origin": f"https://{origin_domain}",
         "sec-fetch-site": "same-origin",
@@ -79,7 +79,7 @@ def get_cf_headers(origin_domain):
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
-# 🛑 CACHING & MEMORY (ULTRA FAST)
+# 🛑 CACHING & MEMORY (RENDER OPTIMIZED)
 # ==============================================================================
 
 S1_TOKEN = None
@@ -104,9 +104,9 @@ LAST_INBOX_S3 = ""
 START_TIME = datetime.datetime.now()
 BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
-# 🔥 Thread Pool Increased for Render Free Plan to handle 30k users
-DB_POOL_SIZE = 50 
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=50)
+# 🔥 OPTIMIZED FOR RENDER FREE (Prevents DB Locking/Memory Thrashing)
+DB_POOL_SIZE = 20 
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ USER_INFO_CACHE = {}
 CHANNELS_CACHE = set()
 
 CONSOLE_CACHE = {1: [], 2: []}
-PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} # 🔥 INSTANT MENU CACHE
+PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} 
 
 SETTINGS_CACHE = {
     "otp_reward": 0.10,
@@ -214,14 +214,14 @@ def get_hash_key(number_str):
 DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=50):
+    def __init__(self, db_file, pool_size=20):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
     def get_connection(self):
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
-        conn.execute('PRAGMA journal_mode=WAL;') # 🔥 WAL mode for speed
-        conn.execute('PRAGMA synchronous=OFF;')  # 🔥 Ultra fast DB operations
+        conn.execute('PRAGMA journal_mode=WAL;') 
+        conn.execute('PRAGMA synchronous=OFF;')  
         conn.execute('PRAGMA temp_store=MEMORY;')
         conn.execute('PRAGMA mmap_size=300000000;') 
         try: yield conn
@@ -444,7 +444,7 @@ def sync_checkpoint():
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(limit=5000, keepalive_timeout=1200, enable_cleanup_closed=True)
+        connector = aiohttp.TCPConnector(limit=500, keepalive_timeout=600, enable_cleanup_closed=True)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
@@ -465,7 +465,7 @@ async def auth_s1(force=False):
         }
         try:
             session = await get_session()
-            async with session.post(f"{S1_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=15, ssl=False) as response:
+            async with session.post(f"{S1_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=10, ssl=False) as response:
                 if response.status == 200:
                     data = await parse_response_safely(response)
                     if data and str(data.get('meta', {}).get('code')) == '200':
@@ -477,12 +477,15 @@ async def auth_s1(force=False):
 
 async def s1_api_request(method, url, json_payload=None, return_text=False):
     global S1_TOKEN
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             if not S1_TOKEN and not await auth_s1(): continue
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}", "Connection": "keep-alive"}
-            timeout = aiohttp.ClientTimeout(total=10)
+            
+            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
+            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
+            
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
@@ -510,7 +513,7 @@ async def auth_s2(force=False):
         headers = get_cf_headers("acchub.io")
         try:
             session = await get_s2_session()
-            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=15)
+            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=10)
             if response.status_code in [200, 201]:
                 try: data = response.json()
                 except Exception: data = None
@@ -529,8 +532,10 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
             session = await get_s2_session()
             headers = get_cf_headers("acchub.io")
             headers.update({"authorization": f"Bearer {S2_TOKEN}"})
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=10)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=10)
+            
+            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=4.0)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=4.0)
 
             status = response.status_code
             if status in [401, 403]: S2_TOKEN = None; await auth_s2(force=True); continue
@@ -539,7 +544,7 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
                 try: return 200, response.json()
                 except: return 200, None
             return status, None
-        except Exception: await asyncio.sleep(0.2)
+        except Exception: await asyncio.sleep(0.1)
     return 500, None
 
 async def auth_s3(force=False):
@@ -566,7 +571,10 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
             if not S3_TOKEN and not await auth_s3(): continue
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com", "Connection": "keep-alive"}
-            timeout = aiohttp.ClientTimeout(total=10)
+            
+            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
+            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
+            
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
@@ -577,7 +585,7 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
                 try: return 200, json.loads(text_response)
                 except: return 200, None
             return status, None
-        except Exception: await asyncio.sleep(0.2)
+        except Exception: await asyncio.sleep(0.1)
     return 500, None
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
@@ -629,7 +637,7 @@ async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=
         except Exception: pass
 
 # ==============================================================================
-# 🚀 ULTRA-FAST OTP POLLER & NEW UI INJECTION
+# 🚀 ULTRA-FAST OTP POLLER
 # ==============================================================================
 
 async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw_msg, is_multi=False, display_country_name="Unknown"):
@@ -783,7 +791,6 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     s3_url = f"{S3_BASE_URL}/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
     s3_task = asyncio.create_task(s3_api_request('GET', s3_url, return_text=True))
     
-    # 🔥 SUPER FAST AS-COMPLETED PROCESSING (Processes whichever API replies first without waiting for others)
     for completed_task in asyncio.as_completed([s1_task, s2_task, s3_task]):
         try:
             res = await completed_task
@@ -793,7 +800,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
         except: pass
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION (FIRST-COMPLETED RACE ENGINE)
+# 🎯 HIGH-SPEED NUMBER GENERATION (STRICT ANTI-HANG ENGINE)
 # ==============================================================================
 
 async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
@@ -825,35 +832,35 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
 
     fetched_numbers = []
     
-    # 🔥 ENTERPRISE RETRY ENGINE: Try up to 2 times instantly if 0 numbers found
+    # 🔥 ANTI-HANG GUARANTEE: Try fast parallel approach, but NEVER wait more than 3.5 seconds!
     for attempt in range(2):
         if len(fetched_numbers) >= 2: break
         
-        tasks = set()
+        tasks = []
         if server_id == 1:
             r_val = str(range_val).strip()
             if not r_val.upper().endswith("XXX"): r_val += "XXX"
             payload = {"range": r_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-            # 🔥 Fire 4 requests instantly (No delay)
-            tasks = {asyncio.create_task(_fetch_number_s1(payload)) for _ in range(4)}
+            # Only 2 requests slightly staggered to avoid rate limits
+            tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
             
         elif server_id == 2:
             rv = str(range_val).replace('X', '|')
             parts = rv.split('|')
             if len(parts) >= 2:
                 payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-                tasks = {asyncio.create_task(_fetch_number_s2(payload)) for _ in range(4)}
+                tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.2, _fetch_number_s2, payload)]
 
         elif server_id == 3:
             url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-            tasks = {asyncio.create_task(_fetch_number_s3(url)) for _ in range(4)}
+            tasks = [_fetch_number_s3(url), safe_delayed_fetch(0.2, _fetch_number_s3, url)]
 
-        # 🔥 FIRST-COMPLETED RACE: Return the moment ANY server replies with a number!
-        while tasks and len(fetched_numbers) < 2:
-            done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, timeout=2.5)
-            for task in done:
-                try:
-                    res = task.result()
+        if tasks:
+            try:
+                # 🔥 STRICT TIMEOUT: Forces bot to move on if API gets stuck
+                results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
+                
+                for res in results:
                     if isinstance(res, tuple):
                         status, resp = res
                         if status in [200, 201] and isinstance(resp, dict):
@@ -876,10 +883,12 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                                 clean_n = num.replace('+', '')
                                 if clean_n not in fetched_numbers: 
                                     fetched_numbers.append(clean_n)
-                except Exception as e: logger.error(f"Race Task Error: {e}")
-                
-        # Cancel remaining pending tasks instantly to free RAM
-        for t in tasks: t.cancel()
+                                    if len(fetched_numbers) == 2: break
+            except asyncio.TimeoutError:
+                logger.warning(f"Server {server_id} timed out. Preventing hang.")
+                pass # Move gracefully to next attempt or fail instantly
+            except Exception as e:
+                logger.error(f"Generation error: {e}")
 
     if fetched_numbers:
         s_suffix = ""
@@ -922,11 +931,11 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         context.user_data['server'] = server_id
         
     else:
-        err_msg = "🔄 <b>Our high-speed servers are balancing the load. No numbers found right now.</b>"
+        err_msg = "🔄 <b>No numbers found right now. Please try again.</b>"
         btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
         try:
             await msg.edit_text(
-                text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}\n\nPlease try again.", 
+                text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", 
                 reply_markup=btn_back, parse_mode=ParseMode.HTML
             )
         except Exception: pass
@@ -965,7 +974,7 @@ async def show_live_traffic(update, context):
         flag = get_flag(c)
         pct = (count / total) * 100
         short_c = get_short_code(c)
-        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘ force"
+        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘᴘ"
         
         if pct >= 70:
             color = "🟢"
@@ -1037,7 +1046,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     category = query.data.split('_')[1].lower()
     context.user_data['service_name'] = category.title()
     
-    # 🔥 INSTANT CACHE FETCH (0.001s response time)
     if PRECOMPUTED_MENUS.get(category):
         await query.edit_message_text(
             text=f"<b>Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
@@ -1045,7 +1053,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    # Fallback if cache is completely empty
     await query.edit_message_text(text="<b>⚡ 𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</b>", parse_mode=ParseMode.HTML)
     btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
     await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
@@ -1141,7 +1148,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text:
             if not CHANNELS_CACHE: return await update.message.reply_text("📭 <i>No channels found.</i>", parse_mode=ParseMode.HTML)
             kb = [[InlineKeyboardButton(f"❌ {ch}", callback_data=f"delch_{ch}")] for ch in CHANNELS_CACHE]
-            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝗿𝗲𝗺𝗼𝘃োম:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝗿𝗲𝗺𝗼𝘃𝗲:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
         elif "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀" in text or "Top Referrers" in text:
             loop = asyncio.get_event_loop()
@@ -1537,7 +1544,7 @@ async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_checkpoint)
-        if os.path.exists(DB_FILE): await update.message.reply_document(document=open(DB_FILE, 'rb'), filename=DB_FILE, caption="☁️ <b>𝗠𝗮𝗻𝘂𝗮𝗹 𝗗𝗮𝘁𝗮𝗯𝗮𝘀𝗲 𝗕𝗮𝗰𝗸𝘂 সপ্তাহে</b>\n\n<i>To restore, reply to this file with /restore</i>", parse_mode=ParseMode.HTML)
+        if os.path.exists(DB_FILE): await update.message.reply_document(document=open(DB_FILE, 'rb'), filename=DB_FILE, caption="☁️ <b>𝗠𝗮𝗻𝘂𝗮𝗹 𝗗𝗮𝘁𝗮𝗯𝗮𝘀𝗲 𝗕𝗮𝗰𝗸𝘂𝗽</b>\n\n<i>To restore, reply to this file with /restore</i>", parse_mode=ParseMode.HTML)
         else: await update.message.reply_text("⚠️ No database file found yet.")
     except Exception as e: await update.message.reply_text(f"❌ Backup failed: {e}")
 
@@ -1580,7 +1587,7 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e: logger.error(f"Auto Backup Failed: {e}")
 
 # ==============================================================================
-# 🌐 BACKGROUND CACHE UPDATER & MENU PRE-COMPUTER (SUPER FAST)
+# 🌐 BACKGROUND CACHE UPDATER & MENU PRE-COMPUTER
 # ==============================================================================
 
 async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
@@ -1603,7 +1610,6 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
         if s1_logs: CONSOLE_CACHE[1] = s1_logs[:150]
         if s2_logs: CONSOLE_CACHE[2] = s2_logs[:150]
 
-        # 🔥 PRECOMPUTE MENUS SO USERS DON'T WAIT
         for cat in ["facebook", "whatsapp"]:
             country_stats = {}
             def process_logs_local(logs, srv_id):
@@ -1721,5 +1727,5 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=1200, first=1200)
     
-    logger.info("✨ VERSION 84 ENTERPRISE RUNNING (SUPER FAST EDITION) ✨")
+    logger.info("✨ VERSION 85 ENTERPRISE RUNNING (ANTI-HANG EDITION) ✨")
     app.run_polling(drop_pending_updates=True)
