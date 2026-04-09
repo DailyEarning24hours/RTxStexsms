@@ -28,14 +28,17 @@ from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
     ReplyKeyboardMarkup, 
-    ContextTypes, 
-    filters
+    ReplyKeyboardRemove,
+    CopyTextButton
 )
 from telegram.ext import (
     Application, 
     CommandHandler, 
     MessageHandler, 
-    CallbackQueryHandler
+    CallbackQueryHandler, 
+    ContextTypes, 
+    filters, 
+    ConversationHandler
 )
 from telegram.constants import ParseMode
 from aiohttp import web
@@ -60,13 +63,6 @@ S2_BASE_URL = "https://sms.acchub.io"
 S3_EMAIL = "mdrajaislam469@gmail.com"
 S3_STATIC_TOKEN = "ed49e203-6618-45ec-980d-21aaab1cfe45"
 S3_BASE_URL = "https://crackerjacksms.com"
-
-# 🔥 RAW TELEGRAM API FOR COLORED BUTTONS 🔥
-async def tg_api_call(method, payload):
-    url = f"https://api.telegram.org/bot{TOKEN}/{method}"
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            return await response.json()
 
 def get_cf_headers(origin_domain):
     return {
@@ -115,6 +111,7 @@ logger = logging.getLogger(__name__)
 
 WAITING_OTPS = {}
 NUM_TO_HASH = {}
+BATCH_MSGS = {} 
 OTP_TIMEOUT_SECONDS = 1200  
 
 USER_CACHE = set()
@@ -136,7 +133,11 @@ SETTINGS_CACHE = {
 
 # Extensive Flag & Code Mapping
 COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Moldova":"🇲🇩", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
+}
+
+COUNTRY_CODES = {
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Togo":"TG", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW"
 }
 
 def get_flag(country_name):
@@ -152,7 +153,11 @@ def get_flag(country_name):
 def get_short_code(country_name):
     clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "")
     clean_name = re.sub(r'(?i)\bpostpaid\b', '', clean_name).strip()
+    if clean_name in COUNTRY_CODES: return COUNTRY_CODES[clean_name]
     clean_no_space = clean_name.replace(" ", "").lower()
+    for name, code in COUNTRY_CODES.items():
+        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
+            return code
     return str(clean_name)[:2].upper()
 
 def clean_number(n: str) -> str:
@@ -253,12 +258,12 @@ def init_db():
         c.execute("SELECT otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix FROM settings WHERE id=1")
         settings_row = c.fetchone()
         if not settings_row:
-            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix) VALUES (1, 0.10, 0.05, 50.0, 'https://rtxstexsms-dhno.onrender.com', '', ' XRT', ' CJ')")
+            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix) VALUES (1, 0.10, 0.05, 50.0, 'https://rtxstexsms-qf5h.onrender.com', '', ' XRT', ' CJ')")
         else:
             SETTINGS_CACHE["otp_reward"] = settings_row[0]
             SETTINGS_CACHE["ref_reward"] = settings_row[1]
             SETTINGS_CACHE["min_withdraw"] = float(settings_row[2]) if settings_row[2] else 50.0
-            SETTINGS_CACHE["ping_url"] = settings_row[3] if settings_row[3] else "https://rtxstexsms-dhno.onrender.com"
+            SETTINGS_CACHE["ping_url"] = settings_row[3] if settings_row[3] else "https://rtxstexsms-qf5h.onrender.com"
             SETTINGS_CACHE["s1_suffix"] = settings_row[4] if settings_row[4] else ""
             SETTINGS_CACHE["s2_suffix"] = settings_row[5] if settings_row[5] else " XRT"
             SETTINGS_CACHE["s3_suffix"] = settings_row[6] if settings_row[6] else " CJ"
@@ -302,8 +307,32 @@ async def ensure_user_fast(user_id, referrer_id=None):
         loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
+def sync_add_channel(username):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("INSERT OR IGNORE INTO channels (channel_username) VALUES (?)", (username,))
+        conn.commit()
+
+def sync_del_channel(username):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM channels WHERE channel_username=?", (username,))
+        conn.commit()
+
 def is_user_banned_fast(user_id): return user_id in BANNED_CACHE
 def get_total_users_count(): return len(USER_CACHE)
+
+def sync_set_ban_status_db(user_id, status):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET is_banned=? WHERE user_id=?", (status, user_id))
+        conn.commit()
+
+async def set_ban_status(user_id, status):
+    if status == 1: BANNED_CACHE.add(user_id)
+    else: BANNED_CACHE.discard(user_id)
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
 def sync_get_user_info(user_id):
     if user_id in USER_INFO_CACHE: return USER_INFO_CACHE[user_id]
@@ -326,6 +355,21 @@ def sync_add_balance(user_id, amount):
         if user_id in USER_INFO_CACHE: USER_INFO_CACHE[user_id]["balance"] = new_bal
         conn.commit()
         return new_bal
+
+def sync_update_setting(key, value):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        settings_map = {"otp": "otp_reward", "ref": "ref_reward", "min_withdraw": "min_withdraw", "ping_url": "ping_url", "s1_suffix": "s1_suffix", "s2_suffix": "s2_suffix", "s3_suffix": "s3_suffix"}
+        if key in settings_map:
+            c.execute(f"UPDATE settings SET {settings_map[key]}=? WHERE id=1", (value,))
+            SETTINGS_CACHE[settings_map[key]] = value
+        conn.commit()
+
+def sync_get_top_referrers():
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id, total_referrals FROM users ORDER BY total_referrals DESC LIMIT 10")
+        return c.fetchall()
 
 def sync_create_withdraw(user_id, amount, method, account):
     with db_pool.get_connection() as conn:
@@ -354,7 +398,6 @@ def sync_update_withdraw_status(wd_id, status):
             c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
             if user_id in USER_INFO_CACHE: USER_INFO_CACHE[user_id]["balance"] += amount
         elif status == 'approved':
-            # 10% Withdrawal Referral Commission
             c.execute("SELECT referrer_id FROM users WHERE user_id=?", (user_id,))
             ref_row = c.fetchone()
             if ref_row and ref_row[0]:
@@ -368,12 +411,28 @@ def sync_update_withdraw_status(wd_id, status):
         conn.commit()
         return True, user_id, amount, referrer_id, ref_bonus
 
+def sync_add_s3_range(category, carrier_id, country_name):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO s3_ranges (category, carrier_id, country_name) VALUES (?, ?, ?)", (category, carrier_id, country_name))
+        conn.commit()
+
 def sync_get_s3_ranges(category=None):
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         if category: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges WHERE LOWER(category) = LOWER(?)", (category,))
         else: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges")
         return c.fetchall()
+
+def sync_delete_s3_range(range_id):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM s3_ranges WHERE id=?", (range_id,))
+        conn.commit()
+
+def sync_checkpoint():
+    with db_pool.get_connection() as conn:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
 
 # ==============================================================================
 # 🔐 AUTHENTICATION
@@ -398,7 +457,7 @@ async def auth_s1(force=False):
         if not force and time.time() - LAST_AUTH_S1 < 300 and S1_TOKEN: return True
         payload = {"email": S1_EMAIL, "password": S1_PASSWORD}
         headers = {
-            "User-Agent": BASE_USER_AGENT, "Accept": "application/json",
+            "User-Agent": BASE_USER_AGENT, "Accept": "application/json, text/plain, */*",
             "Content-Type": "application/json", "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"
         }
         try:
@@ -488,7 +547,7 @@ async def auth_s3(force=False):
             session = await get_session()
             data = aiohttp.FormData()
             data.add_field('email', S3_EMAIL); data.add_field('auth-token', S3_STATIC_TOKEN)
-            headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com"}
+            headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com", "Referer": "https://crackerjacksms.com/"}
             async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=15, ssl=False) as response:
                 if response.status == 200:
                     S3_TOKEN = S3_STATIC_TOKEN 
@@ -543,16 +602,13 @@ async def send_join_prompt(update, context):
             keyboard.append(row)
             row = []
     if row: keyboard.append(row)
-    
     keyboard.append([{"text": "✅ Join Done", "callback_data": "check_join", "style": "success"}])
     
     msg = "⛔ <b>You must join our channels to use this bot!</b>"
     reply_markup = {"inline_keyboard": keyboard}
     
-    if update.callback_query:
-        await tg_api_call("editMessageText", {"chat_id": update.callback_query.message.chat_id, "message_id": update.callback_query.message.message_id, "text": msg, "parse_mode": "HTML", "reply_markup": reply_markup})
-    else:
-        await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": msg, "parse_mode": "HTML", "reply_markup": reply_markup})
+    if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else: await update.message.reply_text(text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_user_banned_fast(update.effective_user.id):
@@ -560,6 +616,14 @@ async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYP
         else: await update.message.reply_text("🚫 <b>You have been banned.</b>", parse_mode=ParseMode.HTML)
         return True
     return False
+
+async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=None):
+    await asyncio.sleep(delay_seconds)
+    try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+    except Exception: pass
+    if user_msg_id:
+        try: await bot.delete_message(chat_id=chat_id, message_id=user_msg_id)
+        except Exception: pass
 
 # ==============================================================================
 # 🚀 ULTRA-FAST OTP POLLER & NEW UI INJECTION
@@ -583,7 +647,6 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     
     user_info_before = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
     old_bal = user_info_before['balance']
-    
     new_bal = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
 
     flag = get_flag(c_name)
@@ -614,7 +677,8 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         ]
     }
     
-    asyncio.create_task(tg_api_call("sendMessage", {"chat_id": chat_id, "text": user_msg, "parse_mode": "HTML", "reply_markup": user_markup}))
+    try: await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=user_markup, parse_mode=ParseMode.HTML)
+    except: pass
     
     # 🌟 MASSIVE PREMIUM OTP GROUP FORMAT 🌟
     masked_num = mask_number_group(full_num)
@@ -649,7 +713,8 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         ]
     }
     
-    asyncio.create_task(tg_api_call("sendMessage", {"chat_id": OTP_GROUP_ID, "text": group_msg, "parse_mode": "HTML", "reply_markup": group_markup}))
+    try: await context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=group_markup, parse_mode=ParseMode.HTML)
+    except: pass
 
 async def check_inbox(context, server_res, last_text, text_var_name):
     global LAST_INBOX_S1, LAST_INBOX_S2, LAST_INBOX_S3
@@ -824,20 +889,15 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
             f"╰─────────────────╯"
         )
         
-        num_kb = {
-            "inline_keyboard": [
-                [{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}] for n in fetched_numbers
-            ] + [
-                [{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}],
-                [{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}],
-                [{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}]
-            ]
-        }
+        num_kb = {"inline_keyboard": []}
+        for n in fetched_numbers:
+            num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
+            
+        num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
+        num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
+        num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}])
         
-        try:
-            await tg_api_call("editMessageText", {
-                "chat_id": chat_id, "message_id": msg.message_id, "text": txt, "parse_mode": "HTML", "reply_markup": num_kb
-            })
+        try: await msg.edit_text(text=txt, reply_markup=num_kb, parse_mode=ParseMode.HTML)
         except Exception: pass
         
         for n in fetched_numbers:
@@ -856,11 +916,10 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
         btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
         try:
-            await tg_api_call("editMessageText", {
-                "chat_id": chat_id, "message_id": msg.message_id, 
-                "text": f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}\n\nPlease try again.", 
-                "parse_mode": "HTML", "reply_markup": btn_back
-            })
+            await msg.edit_text(
+                text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}\n\nPlease try again.", 
+                reply_markup=btn_back, parse_mode=ParseMode.HTML
+            )
         except Exception: pass
 
 # ==============================================================================
@@ -883,7 +942,6 @@ async def show_live_traffic(update, context):
             if 'Facebook' in app: app = 'Facebook'
             elif 'Whatsapp' in app: app = 'WhatsApp'
             
-            # ONLY show Facebook and WhatsApp
             if app in ['Facebook', 'WhatsApp'] and c != 'Unknown':
                 counts[(app, c)] = counts.get((app, c), 0) + 1
                 
@@ -924,7 +982,7 @@ async def show_main_menu(update_obj, context):
         ["💳 BALANCE", "🎁 REFER"],
         ["🎧 LIVE SUPPORT"]
     ]
-    msg = f"👋 <b>Welcome, {html.escape(update_obj.effective_user.full_name)}</b>\n<b> Select An Option To continue -</b>"
+    msg = f"👋 <b>Welcome, {html.escape(update_obj.effective_user.full_name)}</b>\n\n<b>Select An option -</b>"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -933,10 +991,9 @@ async def show_main_menu(update_obj, context):
         except: pass
         await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
 
-# Handle 2FA via command
 async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['state'] = 'WAITING_FOR_2FA'
-    await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
 
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cat_kb = {
@@ -949,10 +1006,10 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
     txt = "<b>Select Category</b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
-        await tg_api_call("editMessageText", {"chat_id": update.callback_query.message.chat_id, "message_id": update.callback_query.message.message_id, "text": txt, "parse_mode": "HTML", "reply_markup": cat_kb})
+        await update.callback_query.edit_message_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
     else: 
         if update and hasattr(update, 'message') and update.message:
-            await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": txt, "parse_mode": "HTML", "reply_markup": cat_kb})
+            await update.message.reply_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CONSOLE_CACHE
@@ -998,11 +1055,10 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
 
     if not country_stats:
         btn_kb = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
-        await tg_api_call("editMessageText", {
-            "chat_id": query.message.chat_id, "message_id": query.message.message_id,
-            "text": f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
-            "parse_mode": "HTML", "reply_markup": btn_kb
-        })
+        await query.edit_message_text(
+            text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
+            reply_markup=btn_kb, parse_mode=ParseMode.HTML
+        )
         return
         
     sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
@@ -1028,11 +1084,10 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         
     kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
     
-    await tg_api_call("editMessageText", {
-        "chat_id": query.message.chat_id, "message_id": query.message.message_id,
-        "text": f"🌍 <b>Select a Country for {category.title()}</b>\n━━━━━━━━━━━━━━━━━━━━", 
-        "parse_mode": "HTML", "reply_markup": {"inline_keyboard": kb}
-    })
+    await query.edit_message_text(
+        text=f"🌍 <b>Select a Country for {category.title()}</b>\n━━━━━━━━━━━━━━━━━━━━", 
+        reply_markup={"inline_keyboard": kb}, parse_mode=ParseMode.HTML
+    )
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & ADMIN LOGIC
@@ -1295,7 +1350,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
             ]
         }
-        await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": msg, "parse_mode": "HTML", "reply_markup": markup})
+        await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
 
     elif text == "💳 BALANCE":
         loop = asyncio.get_event_loop()
@@ -1313,7 +1368,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]
             ]
         }
-        await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": msg, "parse_mode": "HTML", "reply_markup": markup})
+        await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
         
     elif text == "🎧 LIVE SUPPORT":
         user_data['state'] = 'WAITING_FOR_SUPPORT'
@@ -1329,7 +1384,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         ]
                     ]
                 }
-                await tg_api_call("sendMessage", {"chat_id": a_id, "text": f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", "parse_mode": "HTML", "reply_markup": markup})
+                await context.bot.send_message(chat_id=a_id, text=f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", parse_mode=ParseMode.HTML, reply_markup=markup)
             except: pass
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
         user_data['state'] = None
@@ -1458,10 +1513,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         }
         
-        await tg_api_call("editMessageText", {
-            "chat_id": query.message.chat_id, "message_id": query.message.message_id,
-            "text": "🏦 <b>Select Withdraw Method:</b>", "parse_mode": "HTML", "reply_markup": markup
-        })
+        await query.edit_message_text("🏦 <b>Select Withdraw Method:</b>", parse_mode=ParseMode.HTML, reply_markup=markup)
         
     elif data.startswith("wdm_"):
         method = data.replace("wdm_", "").replace("_", " ")
@@ -1601,7 +1653,7 @@ async def web_server_handler(request):
     return web.Response(text="✅ Premium OTP Bot Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
-    ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
+    ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-qf5h.onrender.com")
     if not ping_url or ping_url == "None": return
     url = f"{ping_url}&keepalive=true" if "?" in ping_url else f"{ping_url}?keepalive=true"
     try:
