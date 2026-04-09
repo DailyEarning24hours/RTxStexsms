@@ -659,7 +659,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     user_msg = (
         f"💬 <b>ɴᴇᴡ Oᴛᴘ Rᴇᴄɪᴠᴇᴅ</b>\n"
         f"╭─────────────────╮\n"
-        f"│  <b>+{full_num}</b>\n"
+        f"│  <code>+{full_num}</code>\n"
         f"╰─────────────────╯\n"
         f"🟢 <b>Sᴇʀᴠɪᴄᴇ » {svc_name_display}</b>\n"
         f"💰 <b>Bᴀʟᴀɴᴄᴇ - {old_bal:.2f} » {new_bal:.2f}</b>"
@@ -913,7 +913,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         context.user_data['server'] = server_id
         
     else:
-        err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
+        err_msg = "🔄 <b>Our high-speed servers are balancing the load. No numbers found right now.</b>"
         btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
         try:
             await msg.edit_text(
@@ -955,8 +955,17 @@ async def show_live_traffic(update, context):
     for (app, c), count in sorted_traffic:
         flag = get_flag(c)
         pct = (count / total) * 100
-        icon = "𒊹︎" if app == 'Facebook' else "💌"
-        txt += f"• {icon} <b>{app}</b> | {flag} <b>{c}</b> - <b>{pct:.1f}%</b>\n"
+        short_c = get_short_code(c)
+        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘᴘ"
+        
+        if pct >= 70:
+            color = "🟢"
+        elif pct >= 40:
+            color = "🟡"
+        else:
+            color = "🔴"
+            
+        txt += f"<b> ◁ {app_display} {flag} {short_c} {pct:.0f}% {color} ▷ </b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -982,7 +991,9 @@ async def show_main_menu(update_obj, context):
         ["💳 BALANCE", "🎁 REFER"],
         ["🎧 LIVE SUPPORT"]
     ]
-    msg = f"👋 <b>Wᴇᴄʟᴏᴍᴇ {html.escape(update_obj.effective_user.full_name)} Tᴏ Oᴜʀ ʙᴏᴛ</b>\n<b>Sᴇʟᴇᴄᴛ Aɴ Oᴘᴛɪᴏɴ Fᴏʀ ᴄᴏɴᴛɪɴᴜᴇ </b>"
+    
+    full_name = html.escape(update_obj.effective_user.full_name)
+    msg = f"<b>Welcome {full_name}</b>"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -998,7 +1009,7 @@ async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cat_kb = {
         "inline_keyboard": [
-            [{"text": "⚙️Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
+            [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
             [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp", "style": "success"}],
             [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main", "style": "danger"}]
         ]
@@ -1068,6 +1079,10 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     s2_suffix = SETTINGS_CACHE['s2_suffix']
     s3_suffix = SETTINGS_CACHE['s3_suffix']
     
+    pattern = [2, 1]
+    p_idx = 0
+    row = []
+    
     for key in sorted_keys:
         srv_id, c_name = key
         stats = country_stats[key]
@@ -1080,7 +1095,16 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         btn_text = f"{get_flag(c_name)} {display_name}"
         safe_c_name = str(c_name)[:15].replace(" ", "")
         
-        kb.append([{"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}])
+        btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
+        row.append(btn)
+        
+        if len(row) == pattern[p_idx]:
+            kb.append(row)
+            row = []
+            p_idx = (p_idx + 1) % 2
+            
+    if row:
+        kb.append(row)
         
     kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
     
@@ -1104,7 +1128,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await ensure_user_fast(user_id)
     
     menu_actions = ["📱 GET NUMBER", "📊 LIVE TRAFFIC", "💳 BALANCE", "🎁 REFER", "🎧 LIVE SUPPORT"]
-    admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
+    admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼 top 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
     
     is_main_menu_action = any(btn == text for btn in menu_actions)
     is_admin_action = any(btn in text for btn in admin_actions)
@@ -1320,8 +1344,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data = await resp.json()
                     code = data.get('code')
                     if code: 
-                        out = f"✅ <b>2FA CODE GENERATED!</b>\n🔢 <b>Code:</b> <code>{code}</code>\n<b>⚠️ Auto-delete in 5 mins.</b>"
-                        await msg.edit_text(out, parse_mode=ParseMode.HTML)
+                        out = f"✅ <b>2FA CODE GENERATED!</b>\n<b>⚠️ Auto-delete in 5 mins.</b>"
+                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}}]]}
+                        await msg.edit_text(out, reply_markup=user_markup, parse_mode=ParseMode.HTML)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
                     else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
                 else: await msg.edit_text("❌ <b>API Error!</b>", parse_mode=ParseMode.HTML)
@@ -1336,17 +1361,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         share_url = f"https://t.me/share/url?url={urllib.parse.quote(ref_link)}&text=Join%20Now!"
         
         msg = (
-            f"🟢 <b>Your Referral Dashboard</b>\n\n"
-            f"🖲️ <b>You Referred:</b> {user_info['total_referrals']} users\n"
-            f"💸 <b>Total Commission:</b> {user_info.get('ref_earnings', 0.0):.4f} ৳\n\n"
+            f"<b>🟢 Your Referral Dashboard</b>\n\n"
+            f"<b>🖲️ You Referred: {user_info['total_referrals']} users</b>\n"
+            f"<b>💸 Total Commission: {user_info.get('ref_earnings', 0.0):.4f} ৳</b>\n\n"
             f"<b>You will get 10% commission when your referral withdraws money!</b>\n\n"
-            f"🔗 <b>Referral Link:</b>\n<code>{ref_link}</code>"
+            f"<b>🔗 Referral Link:</b>\n<code>{ref_link}</code>"
         )
         
         markup = {
             "inline_keyboard": [
                 [
-                    {"text": "🚀 Refer Now", "url": share_url, "style": "success"}
+                    {"text": "🚀 Refer Now", "url": share_url}
                 ]
             ]
         }
@@ -1357,14 +1382,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         
         msg = (
-            f"💳 <b>Balance:</b> {user_info['balance']:.2f} ৳\n"
-            f"<b>Minimum Withdraw:</b> {SETTINGS_CACHE['min_withdraw']} ৳"
+            f"<b>💳 Balance: {user_info['balance']:.2f} ৳</b>\n"
+            f"<b>Minimum Withdraw: {SETTINGS_CACHE['min_withdraw']} ৳</b>"
         )
         
         markup = {
             "inline_keyboard": [
                 [
-                    {"text": "💳 Withdraw Balance", "callback_data": "req_withdraw", "style": "success"}
+                    {"text": "💳 Withdraw Balance", "callback_data": "req_withdraw"}
                 ]
             ]
         }
