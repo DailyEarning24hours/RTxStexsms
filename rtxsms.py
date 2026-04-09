@@ -28,31 +28,17 @@ from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
     ReplyKeyboardMarkup, 
-    ReplyKeyboardRemove,
-    CopyTextButton
+    ContextTypes, 
+    filters
 )
 from telegram.ext import (
     Application, 
     CommandHandler, 
     MessageHandler, 
-    CallbackQueryHandler, 
-    ContextTypes, 
-    filters, 
-    ConversationHandler
+    CallbackQueryHandler
 )
 from telegram.constants import ParseMode
 from aiohttp import web
-
-# ==============================================================================
-# 🔥 MONKEY-PATCH FOR COLORED INLINE BUTTONS (STYLE PARAMETER)
-# ==============================================================================
-_original_to_dict = InlineKeyboardButton.to_dict
-def _custom_to_dict(self):
-    d = _original_to_dict(self)
-    if hasattr(self, 'style'):
-        d['style'] = self.style
-    return d
-InlineKeyboardButton.to_dict = _custom_to_dict
 
 # ==============================================================================
 # ⚙️ CONFIGURATION & CREDENTIALS
@@ -75,22 +61,22 @@ S3_EMAIL = "mdrajaislam469@gmail.com"
 S3_STATIC_TOKEN = "ed49e203-6618-45ec-980d-21aaab1cfe45"
 S3_BASE_URL = "https://crackerjacksms.com"
 
+# 🔥 RAW TELEGRAM API FOR COLORED BUTTONS 🔥
+async def tg_api_call(method, payload):
+    url = f"https://api.telegram.org/bot{TOKEN}/{method}"
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            return await response.json()
+
 def get_cf_headers(origin_domain):
     return {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.164 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36",
         "Accept": "application/json, text/plain, */*",
         "Origin": f"https://{origin_domain}",
-        "sec-ch-ua": '"Chromium";v="146", "Not-A.Brand";v="24", "Android WebView";v="146"',
-        "sec-ch-ua-mobile": "?1",
-        "sec-ch-ua-platform": '"Android"',
         "sec-fetch-site": "same-origin",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
-        "x-requested-with": "mark.via.gp",
-        "Referer": f"https://{origin_domain}/",
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "accept-language": "en-US,en-VI;q=0.9,en;q=0.8,bn-BD;q=0.7,bn;q=0.6,en-CA;q=0.5",
-        "priority": "u=1, i"
+        "Referer": f"https://{origin_domain}/"
     }
 
 API_2FA = "https://2fa.cn/codes/{}"
@@ -119,7 +105,7 @@ LAST_INBOX_S2 = ""
 LAST_INBOX_S3 = ""
 
 START_TIME = datetime.datetime.now()
-BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 DB_POOL_SIZE = 15 
 DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=15)
@@ -129,7 +115,6 @@ logger = logging.getLogger(__name__)
 
 WAITING_OTPS = {}
 NUM_TO_HASH = {}
-BATCH_MSGS = {} 
 OTP_TIMEOUT_SECONDS = 1200  
 
 USER_CACHE = set()
@@ -143,19 +128,15 @@ SETTINGS_CACHE = {
     "otp_reward": 0.10,
     "ref_reward": 0.05,
     "min_withdraw": 50.0,
-    "ping_url": "https://rtxstexsms-dhno.onrender.com",
+    "ping_url": "https://rtxstexsms-qf5h.onrender.com",
     "s1_suffix": "",
     "s2_suffix": " XRT",
     "s3_suffix": " CJ"
 }
 
-# Exhaustive Flag & Code Mapping
+# Extensive Flag & Code Mapping
 COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
-}
-
-COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Togo":"TG", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW"
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominican Republic":"🇩🇴", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Moldova":"🇲🇩", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
 }
 
 def get_flag(country_name):
@@ -171,11 +152,7 @@ def get_flag(country_name):
 def get_short_code(country_name):
     clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "")
     clean_name = re.sub(r'(?i)\bpostpaid\b', '', clean_name).strip()
-    if clean_name in COUNTRY_CODES: return COUNTRY_CODES[clean_name]
     clean_no_space = clean_name.replace(" ", "").lower()
-    for name, code in COUNTRY_CODES.items():
-        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
-            return code
     return str(clean_name)[:2].upper()
 
 def clean_number(n: str) -> str:
@@ -254,13 +231,12 @@ def init_db():
             ref_earnings REAL DEFAULT 0.0
         )''')
         
-        # Safely migrate ref_earnings if it doesn't exist
         try: c.execute("ALTER TABLE users ADD COLUMN ref_earnings REAL DEFAULT 0.0")
         except: pass
         
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY, otp_reward REAL DEFAULT 0.10, ref_reward REAL DEFAULT 0.05, min_withdraw REAL DEFAULT 50.0, 
-            ping_url TEXT DEFAULT 'https://rtxstexsms-dhno.onrender.com',
+            ping_url TEXT DEFAULT 'https://rtxstexsms-qf5h.onrender.com',
             s1_suffix TEXT DEFAULT '', s2_suffix TEXT DEFAULT ' XRT', s3_suffix TEXT DEFAULT ' CJ'
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS channels (
@@ -326,32 +302,8 @@ async def ensure_user_fast(user_id, referrer_id=None):
         loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
-def sync_add_channel(username):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO channels (channel_username) VALUES (?)", (username,))
-        conn.commit()
-
-def sync_del_channel(username):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM channels WHERE channel_username=?", (username,))
-        conn.commit()
-
 def is_user_banned_fast(user_id): return user_id in BANNED_CACHE
 def get_total_users_count(): return len(USER_CACHE)
-
-def sync_set_ban_status_db(user_id, status):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("UPDATE users SET is_banned=? WHERE user_id=?", (status, user_id))
-        conn.commit()
-
-async def set_ban_status(user_id, status):
-    if status == 1: BANNED_CACHE.add(user_id)
-    else: BANNED_CACHE.discard(user_id)
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
 def sync_get_user_info(user_id):
     if user_id in USER_INFO_CACHE: return USER_INFO_CACHE[user_id]
@@ -374,21 +326,6 @@ def sync_add_balance(user_id, amount):
         if user_id in USER_INFO_CACHE: USER_INFO_CACHE[user_id]["balance"] = new_bal
         conn.commit()
         return new_bal
-
-def sync_update_setting(key, value):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        settings_map = {"otp": "otp_reward", "ref": "ref_reward", "min_withdraw": "min_withdraw", "ping_url": "ping_url", "s1_suffix": "s1_suffix", "s2_suffix": "s2_suffix", "s3_suffix": "s3_suffix"}
-        if key in settings_map:
-            c.execute(f"UPDATE settings SET {settings_map[key]}=? WHERE id=1", (value,))
-            SETTINGS_CACHE[settings_map[key]] = value
-        conn.commit()
-
-def sync_get_top_referrers():
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT user_id, total_referrals FROM users ORDER BY total_referrals DESC LIMIT 10")
-        return c.fetchall()
 
 def sync_create_withdraw(user_id, amount, method, account):
     with db_pool.get_connection() as conn:
@@ -431,28 +368,12 @@ def sync_update_withdraw_status(wd_id, status):
         conn.commit()
         return True, user_id, amount, referrer_id, ref_bonus
 
-def sync_add_s3_range(category, carrier_id, country_name):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("INSERT INTO s3_ranges (category, carrier_id, country_name) VALUES (?, ?, ?)", (category, carrier_id, country_name))
-        conn.commit()
-
 def sync_get_s3_ranges(category=None):
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         if category: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges WHERE LOWER(category) = LOWER(?)", (category,))
         else: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges")
         return c.fetchall()
-
-def sync_delete_s3_range(range_id):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM s3_ranges WHERE id=?", (range_id,))
-        conn.commit()
-
-def sync_checkpoint():
-    with db_pool.get_connection() as conn:
-        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
 
 # ==============================================================================
 # 🔐 AUTHENTICATION
@@ -477,7 +398,7 @@ async def auth_s1(force=False):
         if not force and time.time() - LAST_AUTH_S1 < 300 and S1_TOKEN: return True
         payload = {"email": S1_EMAIL, "password": S1_PASSWORD}
         headers = {
-            "User-Agent": BASE_USER_AGENT, "Accept": "application/json, text/plain, */*",
+            "User-Agent": BASE_USER_AGENT, "Accept": "application/json",
             "Content-Type": "application/json", "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"
         }
         try:
@@ -567,7 +488,7 @@ async def auth_s3(force=False):
             session = await get_session()
             data = aiohttp.FormData()
             data.add_field('email', S3_EMAIL); data.add_field('auth-token', S3_STATIC_TOKEN)
-            headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com", "Referer": "https://crackerjacksms.com/"}
+            headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com"}
             async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=15, ssl=False) as response:
                 if response.status == 200:
                     S3_TOKEN = S3_STATIC_TOKEN 
@@ -617,21 +538,21 @@ async def send_join_prompt(update, context):
     keyboard = []
     row = []
     for i, c in enumerate(CHANNELS_CACHE):
-        btn = InlineKeyboardButton(f"🔗 Join {i+1}", url=f"https://t.me/{c.replace('@', '')}")
-        btn.style = "primary"
-        row.append(btn)
+        row.append({"text": f"🔗 Join {i+1}", "url": f"https://t.me/{c.replace('@', '')}", "style": "primary"})
         if len(row) == 2:
             keyboard.append(row)
             row = []
     if row: keyboard.append(row)
     
-    chk_btn = InlineKeyboardButton("✅ Join Done", callback_data="check_join")
-    chk_btn.style = "success"
-    keyboard.append([chk_btn])
+    keyboard.append([{"text": "✅ Join Done", "callback_data": "check_join", "style": "success"}])
     
     msg = "⛔ <b>You must join our channels to use this bot!</b>"
-    if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    else: await update.message.reply_text(text=msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    reply_markup = {"inline_keyboard": keyboard}
+    
+    if update.callback_query:
+        await tg_api_call("editMessageText", {"chat_id": update.callback_query.message.chat_id, "message_id": update.callback_query.message.message_id, "text": msg, "parse_mode": "HTML", "reply_markup": reply_markup})
+    else:
+        await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": msg, "parse_mode": "HTML", "reply_markup": reply_markup})
 
 async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_user_banned_fast(update.effective_user.id):
@@ -639,14 +560,6 @@ async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYP
         else: await update.message.reply_text("🚫 <b>You have been banned.</b>", parse_mode=ParseMode.HTML)
         return True
     return False
-
-async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=None):
-    await asyncio.sleep(delay_seconds)
-    try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
-    except Exception: pass
-    if user_msg_id:
-        try: await bot.delete_message(chat_id=chat_id, message_id=user_msg_id)
-        except Exception: pass
 
 # ==============================================================================
 # 🚀 ULTRA-FAST OTP POLLER & NEW UI INJECTION
@@ -668,64 +581,75 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     loop = asyncio.get_event_loop()
     otp_reward = SETTINGS_CACHE["otp_reward"]
     
-    # Get balance BEFORE adding for UI
     user_info_before = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
     old_bal = user_info_before['balance']
     
-    # Silent balance add
     new_bal = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
 
     flag = get_flag(c_name)
     short_name = get_short_code(c_name)
     
-    # Standard format for INBOX
     svc_name_display = "Facebook" if "facebook" in custom_service_name.lower() else ("Whatsapp" if "whatsapp" in custom_service_name.lower() else custom_service_name.title())
-    
-    # Stylish format for OTP GROUP ONLY
     stylish_svc = "𝐹𝑏" if "facebook" in custom_service_name.lower() else ("𝑊𝑠" if "whatsapp" in custom_service_name.lower() else custom_service_name[:2].title())
     
-    # 🌟 NEW OTP LAYOUT (USER CHAT - INBOX) 🌟
+    # 🌟 NEW OTP LAYOUT (INBOX) 🌟
     user_msg = (
-        f"💬 New OTP Received\n"
+        f"💬 <b>ɴᴇᴡ Oᴛᴘ Rᴇᴄɪᴠᴇᴅ</b>\n"
         f"╭─────────────────╮\n"
-        f"│  +{full_num}\n"
+        f"│  <b>+{full_num}</b>\n"
         f"╰─────────────────╯\n"
-        f"🟢 Service » {svc_name_display}\n"
-        f"💰 Balance - {old_bal:.2f} » {new_bal:.2f}"
+        f"🟢 <b>Sᴇʀᴠɪᴄᴇ » {svc_name_display}</b>\n"
+        f"💰 <b>Bᴀʟᴀɴᴄᴇ - {old_bal:.2f} » {new_bal:.2f}</b>"
     )
     
-    # Primary (Blue) Button for Code
-    btn_code_inbox = InlineKeyboardButton(text=f"{code_only}", copy_text=CopyTextButton(text=code_only))
-    btn_code_inbox.style = "primary"
-    user_kb = [[btn_code_inbox]]
+    user_markup = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": str(code_only),
+                    "copy_text": {"text": str(code_only)},
+                    "style": "primary"
+                }
+            ]
+        ]
+    }
     
-    asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=InlineKeyboardMarkup(user_kb), parse_mode=ParseMode.HTML))
+    asyncio.create_task(tg_api_call("sendMessage", {"chat_id": chat_id, "text": user_msg, "parse_mode": "HTML", "reply_markup": user_markup}))
     
     # 🌟 MASSIVE PREMIUM OTP GROUP FORMAT 🌟
     masked_num = mask_number_group(full_num)
     
     group_msg = (
         f"╭─────────────────╮\n"
-        f"│  {flag} #{short_name} » {stylish_svc} {masked_num}\n"
+        f"│  <b>{flag} #{short_name} » {stylish_svc} {masked_num}</b>\n"
         f"╰─────────────────╯"
     )
     
-    # Group colored buttons
-    btn_code_group = InlineKeyboardButton(text=f"{code_only}", copy_text=CopyTextButton(text=code_only))
-    btn_code_group.style = "primary"
+    group_markup = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": str(code_only),
+                    "copy_text": {"text": str(code_only)},
+                    "style": "primary"
+                }
+            ],
+            [
+                {
+                    "text": "📢 Main Channel",
+                    "url": "https://t.me/EarnXtract",
+                    "style": "danger"
+                },
+                {
+                    "text": "🤖 Bot Link",
+                    "url": f"https://t.me/{(await context.bot.get_me()).username}",
+                    "style": "success"
+                }
+            ]
+        ]
+    }
     
-    btn_channel = InlineKeyboardButton("📢 Main Channel", url="https://t.me/EarnXtract")
-    btn_channel.style = "danger"
-    
-    btn_bot = InlineKeyboardButton("🤖 Bot Link", url=f"https://t.me/{context.bot.username}")
-    btn_bot.style = "success"
-    
-    group_kb = [
-        [btn_code_group],
-        [btn_channel, btn_bot]
-    ]
-    
-    asyncio.create_task(context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=InlineKeyboardMarkup(group_kb), parse_mode=ParseMode.HTML))
+    asyncio.create_task(tg_api_call("sendMessage", {"chat_id": OTP_GROUP_ID, "text": group_msg, "parse_mode": "HTML", "reply_markup": group_markup}))
 
 async def check_inbox(context, server_res, last_text, text_var_name):
     global LAST_INBOX_S1, LAST_INBOX_S2, LAST_INBOX_S3
@@ -801,7 +725,7 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION (INLINE BUTTON NUMBERS)
+# 🎯 HIGH-SPEED NUMBER GENERATION
 # ==============================================================================
 
 async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
@@ -815,7 +739,7 @@ async def safe_delayed_fetch(delay, func, *args, **kwargs):
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, NUM_TO_HASH
     
-    wait_txt = "⏳ <i>𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀...</i> 🚀"
+    wait_txt = "<b>⏳ 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀... 🚀</b>"
     if is_callback:
         user_id = update.callback_query.from_user.id
         chat_id = update.callback_query.message.chat_id
@@ -894,30 +818,26 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         custom_svc = context.user_data.get('service_name', api_svc.title())
         
         txt = (
-            f"{flag} <b>{display_country_name} Number Assigned:</b>\n"
+            f"<b>{flag} {display_country_name} Number Assigned:</b>\n"
             f"╭─────────────────╮\n"
             f"│  ⏳ <b>Waiting for OTP...</b>\n"
             f"╰─────────────────╯"
         )
         
-        num_kb = []
-        for n in fetched_numbers:
-            # Normal styles for number copy
-            num_kb.append([InlineKeyboardButton(text=f"⎘ +{n}", copy_text=CopyTextButton(text=n))])
-            
-        btn_ch_num = InlineKeyboardButton("🔄 Change Number", callback_data="change_num")
-        btn_ch_num.style = "danger" # Red
-        num_kb.append([btn_ch_num])
+        num_kb = {
+            "inline_keyboard": [
+                [{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}] for n in fetched_numbers
+            ] + [
+                [{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}],
+                [{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}],
+                [{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}]
+            ]
+        }
         
-        btn_ch_cnt = InlineKeyboardButton("🌍 Change Country", callback_data="go_cat")
-        btn_ch_cnt.style = "primary" # Blue
-        num_kb.append([btn_ch_cnt])
-        
-        btn_otp = InlineKeyboardButton("🗝️ Get OTP", url="https://t.me/RTxOtpX")
-        btn_otp.style = "success" # Green
-        num_kb.append([btn_otp])
-        
-        try: await msg.edit_text(text=txt, reply_markup=InlineKeyboardMarkup(num_kb), parse_mode=ParseMode.HTML)
+        try:
+            await tg_api_call("editMessageText", {
+                "chat_id": chat_id, "message_id": msg.message_id, "text": txt, "parse_mode": "HTML", "reply_markup": num_kb
+            })
         except Exception: pass
         
         for n in fetched_numbers:
@@ -934,14 +854,13 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         
     else:
         err_msg = "🔄 <i>Our high-speed servers are balancing the load. No numbers found right now.</i>"
-        btn_back = InlineKeyboardButton("🔙 Back", callback_data="go_cat")
-        btn_back.style = "primary"
+        btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
         try:
-            await msg.edit_text(
-                text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}\n\nPlease try again.", 
-                reply_markup=InlineKeyboardMarkup([[btn_back]]), 
-                parse_mode=ParseMode.HTML
-            )
+            await tg_api_call("editMessageText", {
+                "chat_id": chat_id, "message_id": msg.message_id, 
+                "text": f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}\n\nPlease try again.", 
+                "parse_mode": "HTML", "reply_markup": btn_back
+            })
         except Exception: pass
 
 # ==============================================================================
@@ -951,7 +870,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
 async def show_live_traffic(update, context):
     logs = CONSOLE_CACHE[1] + CONSOLE_CACHE[2]
     if not logs:
-        return await update.message.reply_text("⏳ Processing live traffic data. Please try again soon.")
+        return await update.message.reply_text("<b>⏳ Processing live traffic data. Please try again soon.</b>", parse_mode=ParseMode.HTML)
         
     counts = {}
     for log in logs:
@@ -964,12 +883,13 @@ async def show_live_traffic(update, context):
             if 'Facebook' in app: app = 'Facebook'
             elif 'Whatsapp' in app: app = 'WhatsApp'
             
-            if c != 'Unknown' and app != 'Unknown':
+            # ONLY show Facebook and WhatsApp
+            if app in ['Facebook', 'WhatsApp'] and c != 'Unknown':
                 counts[(app, c)] = counts.get((app, c), 0) + 1
                 
     total = sum(counts.values())
     if total == 0:
-        return await update.message.reply_text("⏳ No live traffic currently recorded.")
+        return await update.message.reply_text("<b>⏳ No Facebook/WhatsApp live traffic currently recorded.</b>", parse_mode=ParseMode.HTML)
         
     sorted_traffic = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:15]
     
@@ -977,8 +897,8 @@ async def show_live_traffic(update, context):
     for (app, c), count in sorted_traffic:
         flag = get_flag(c)
         pct = (count / total) * 100
-        icon = "📘" if app == 'Facebook' else "💬" if app == 'WhatsApp' else "📱"
-        txt += f"• {icon} {app} | {flag} {c} - {pct:.1f}%\n"
+        icon = "📘" if app == 'Facebook' else "💬"
+        txt += f"• {icon} <b>{app}</b> | {flag} <b>{c}</b> - <b>{pct:.1f}%</b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -1000,11 +920,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_main_menu(update_obj, context):
     kb = [
-        ["GET NUMBER", "LIVE TRAFFIC"], 
-        ["BALANCE", "REFER"],
-        ["LIVE SUPPORT"]
+        ["📱 GET NUMBER", "📊 LIVE TRAFFIC"], 
+        ["💳 BALANCE", "🎁 REFER"],
+        ["🎧 LIVE SUPPORT"]
     ]
-    msg = f"👋 𝗪𝗲𝗹𝗰𝗼𝗺𝗲, <b>{html.escape(update_obj.effective_user.full_name)}</b>\n\n𝗦𝗲𝗹𝗲𝗰𝘁 𝗔𝗻 𝗼𝗽𝘁𝗶𝗼𝗻 -"
+    msg = f"👋 <b>Welcome, {html.escape(update_obj.effective_user.full_name)}</b>\n<b> Select An Option To continue -</b>"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -1016,25 +936,23 @@ async def show_main_menu(update_obj, context):
 # Handle 2FA via command
 async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['state'] = 'WAITING_FOR_2FA'
-    await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
 
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    btn_fb = InlineKeyboardButton("📘 Facebook", callback_data="cat_facebook")
-    btn_fb.style = "primary"
-    
-    btn_ws = InlineKeyboardButton("💬 Whatsapp", callback_data="cat_whatsapp")
-    btn_ws.style = "success"
-    
-    btn_menu = InlineKeyboardButton("🔙 Main Menu", callback_data="go_main")
-    
-    kb = [[btn_fb], [btn_ws], [btn_menu]]
+    cat_kb = {
+        "inline_keyboard": [
+            [{"text": "📘 Facebook", "callback_data": "cat_facebook", "style": "primary"}],
+            [{"text": "💬 Whatsapp", "callback_data": "cat_whatsapp", "style": "success"}],
+            [{"text": "🔙 Main Menu", "callback_data": "go_main", "style": "danger"}]
+        ]
+    }
     txt = "<b>Select Category</b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
-        await update.callback_query.edit_message_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        await tg_api_call("editMessageText", {"chat_id": update.callback_query.message.chat_id, "message_id": update.callback_query.message.message_id, "text": txt, "parse_mode": "HTML", "reply_markup": cat_kb})
     else: 
         if update and hasattr(update, 'message') and update.message:
-            await update.message.reply_text(text=txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": txt, "parse_mode": "HTML", "reply_markup": cat_kb})
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CONSOLE_CACHE
@@ -1042,7 +960,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     category = query.data.split('_')[1].lower()
     context.user_data['service_name'] = category.title()
     
-    await query.edit_message_text(text="⚡ <i>𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</i>", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(text="<b>⚡ 𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</b>", parse_mode=ParseMode.HTML)
     await asyncio.sleep(0.01)
     
     country_stats = {}
@@ -1079,11 +997,12 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         if key not in country_stats: country_stats[key] = {'range': carrier_id, 'count': 100, 'c_name': c_name}
 
     if not country_stats:
-        btn = InlineKeyboardButton("🔙 Back", callback_data="go_cat")
-        await query.edit_message_text(
-            text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
-            reply_markup=InlineKeyboardMarkup([[btn]]), parse_mode=ParseMode.HTML
-        )
+        btn_kb = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
+        await tg_api_call("editMessageText", {
+            "chat_id": query.message.chat_id, "message_id": query.message.message_id,
+            "text": f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
+            "parse_mode": "HTML", "reply_markup": btn_kb
+        })
         return
         
     sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
@@ -1105,15 +1024,15 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         btn_text = f"{get_flag(c_name)} {display_name}"
         safe_c_name = str(c_name)[:15].replace(" ", "")
         
-        btn = InlineKeyboardButton(btn_text, callback_data=f"r_{srv_id}_{stats['range']}_{safe_c_name}")
-        btn.style = "primary"
-        kb.append([btn])
+        kb.append([{"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}])
         
-    btn_b = InlineKeyboardButton("🔙 Back", callback_data="go_cat")
-    btn_b.style = "danger"
-    kb.append([btn_b])
+    kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
     
-    await query.edit_message_text(text=f"🌍 <b>Select a Country for {category.title()}</b>\n━━━━━━━━━━━━━━━━━━━━", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    await tg_api_call("editMessageText", {
+        "chat_id": query.message.chat_id, "message_id": query.message.message_id,
+        "text": f"🌍 <b>Select a Country for {category.title()}</b>\n━━━━━━━━━━━━━━━━━━━━", 
+        "parse_mode": "HTML", "reply_markup": {"inline_keyboard": kb}
+    })
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & ADMIN LOGIC
@@ -1129,7 +1048,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     await ensure_user_fast(user_id)
     
-    menu_actions = ["GET NUMBER", "LIVE TRAFFIC", "BALANCE", "REFER", "LIVE SUPPORT"]
+    menu_actions = ["📱 GET NUMBER", "📊 LIVE TRAFFIC", "💳 BALANCE", "🎁 REFER", "🎧 LIVE SUPPORT"]
     admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
     
     is_main_menu_action = any(btn == text for btn in menu_actions)
@@ -1324,21 +1243,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_reply_user = user_data.get('admin_reply_target')
     if target_reply_user and not is_main_menu_action and not is_admin_action:
         try:
-            await context.bot.send_message(chat_id=int(target_reply_user), text=f"👨‍💻 <b>Admin Reply:</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=int(target_reply_user), text=f"👨‍💻 <b>Admin Reply:</b>\n━━━━━━━━━━━━━━━━━━━━\n<b>{text}</b>", parse_mode=ParseMode.HTML)
             await update.message.reply_text("✅ <b>Reply sent successfully.</b>", parse_mode=ParseMode.HTML)
         except Exception: await update.message.reply_text("❌ <b>Failed to send.</b>")
         user_data['admin_reply_target'] = None; return
 
     state = user_data.get('state')
     
-    if text == "GET NUMBER":
+    if text == "📱 GET NUMBER":
         if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
         else: await start_category_selection(update, context)
             
     elif state == 'WAITING_FOR_2FA':
         user_msg_id = update.message.message_id
         key = text.replace(" ", "").strip()
-        msg = await update.message.reply_text("⏳ <i>Generating...</i>", parse_mode=ParseMode.HTML)
+        msg = await update.message.reply_text("<b>⏳ Generating...</b>", parse_mode=ParseMode.HTML)
         try:
             session = await get_session()
             async with session.get(API_2FA.format(key), timeout=10) as resp:
@@ -1354,53 +1273,68 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception: await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
         user_data['state'] = None
 
-    elif text == "REFER":
+    elif text == "🎁 REFER":
         loop = asyncio.get_event_loop()
         user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+        share_url = f"https://t.me/share/url?url={urllib.parse.quote(ref_link)}&text=Join%20Now!"
         
         msg = (
-            f"🔥 Your Referral Dashboard 🔥\n\n"
-            f"👑 You Referred: {user_info['total_referrals']} users\n"
-            f"💸 Total Commission: {user_info.get('ref_earnings', 0.0):.4f} ৳\n\n"
-            f"You will get 10% commission when your referral withdraws money!\n\n"
-            f"🔗 Referral Link:\n<code>{ref_link}</code>"
+            f"🔥 <b>Your Referral Dashboard</b> 🔥\n\n"
+            f"👑 <b>You Referred:</b> {user_info['total_referrals']} users\n"
+            f"💸 <b>Total Commission:</b> {user_info.get('ref_earnings', 0.0):.4f} ৳\n\n"
+            f"<b>You will get 10% commission when your referral withdraws money!</b>\n\n"
+            f"🔗 <b>Referral Link:</b>\n<code>{ref_link}</code>"
         )
-        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+        
+        markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "🚀 Refer Now", "url": share_url, "style": "success"}
+                ]
+            ]
+        }
+        await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": msg, "parse_mode": "HTML", "reply_markup": markup})
 
-    elif text == "BALANCE":
+    elif text == "💳 BALANCE":
         loop = asyncio.get_event_loop()
         user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         
         msg = (
-            f"💳 Balance: {user_info['balance']:.2f} ৳\n"
-            f"Minimum Withdraw: {SETTINGS_CACHE['min_withdraw']} ৳"
+            f"💳 <b>Balance:</b> {user_info['balance']:.2f} ৳\n"
+            f"<b>Minimum Withdraw:</b> {SETTINGS_CACHE['min_withdraw']} ৳"
         )
-        btn = InlineKeyboardButton("💳 Withdraw Balance", callback_data="req_withdraw")
-        btn.style = "success"
-        kb = [[btn]]
-        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         
-    elif text == "LIVE SUPPORT":
+        markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "💳 Withdraw Balance", "callback_data": "req_withdraw", "style": "success"}
+                ]
+            ]
+        }
+        await tg_api_call("sendMessage", {"chat_id": update.effective_chat.id, "text": msg, "parse_mode": "HTML", "reply_markup": markup})
+        
+    elif text == "🎧 LIVE SUPPORT":
         user_data['state'] = 'WAITING_FOR_SUPPORT'
-        await update.message.reply_text("🎧 <b>Live Support</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Type your problem below.</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<b>আপনার সমস্যাটি বলুন:</b>", parse_mode=ParseMode.HTML)
         
     elif state == 'WAITING_FOR_SUPPORT':
         for a_id in ADMIN_IDS:
             try: 
-                btn = InlineKeyboardButton("💬 Reply", callback_data=f"admrep_{user_id}")
-                btn.style = "primary"
-                admin_kb = [[btn]]
-                await context.bot.send_message(
-                    chat_id=a_id, text=f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", 
-                    reply_markup=InlineKeyboardMarkup(admin_kb), parse_mode=ParseMode.HTML
-                )
+                markup = {
+                    "inline_keyboard": [
+                        [
+                            {"text": "💬 Reply", "callback_data": f"admrep_{user_id}", "style": "primary"}
+                        ]
+                    ]
+                }
+                await tg_api_call("sendMessage", {"chat_id": a_id, "text": f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", "parse_mode": "HTML", "reply_markup": markup})
             except: pass
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
         user_data['state'] = None
         
-    elif text == "LIVE TRAFFIC":
+    elif text == "📊 LIVE TRAFFIC":
         await show_live_traffic(update, context)
         
     elif state == 'WAIT_WITHDRAW_ACC':
@@ -1409,21 +1343,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif state == 'WAIT_WITHDRAW_AMT':
         try: amount = float(text)
-        except: return await update.message.reply_text("⚠️ Invalid amount. Try again.")
+        except: return await update.message.reply_text("<b>⚠️ Invalid amount. Try again.</b>", parse_mode=ParseMode.HTML)
         
-        if amount < SETTINGS_CACHE['min_withdraw']: return await update.message.reply_text(f"⚠️ Minimum withdraw is {SETTINGS_CACHE['min_withdraw']} ৳.")
+        if amount < SETTINGS_CACHE['min_withdraw']: return await update.message.reply_text(f"<b>⚠️ Minimum withdraw is {SETTINGS_CACHE['min_withdraw']} ৳.</b>", parse_mode=ParseMode.HTML)
             
         loop = asyncio.get_event_loop()
         user_info = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
         if user_info['balance'] < amount:
             user_data['state'] = None
-            return await update.message.reply_text("❌ Insufficient balance.", parse_mode=ParseMode.HTML)
+            return await update.message.reply_text("<b>❌ Insufficient balance.</b>", parse_mode=ParseMode.HTML)
             
         method = user_data.get('wd_method', 'Unknown')
         account = user_data.get('wd_account', 'Unknown')
         
         wd_id = await loop.run_in_executor(DB_EXECUTOR, sync_create_withdraw, user_id, amount, method, account)
-        await update.message.reply_text("✅ <b>Withdrawal Request Sent!</b>\n<i>Please wait for Admin approval.</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<b>✅ Withdrawal Request Sent!</b>\n<i>Please wait for Admin approval.</i>", parse_mode=ParseMode.HTML)
         
         admin_txt = (
             f"💳 <b>NEW WITHDRAW REQUEST</b> 💳\n"
@@ -1474,7 +1408,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data.get('range'):
             server_id = context.user_data.get('server', 1)
             await process_number_generation(update, context, context.user_data['range'], server_id, is_callback=True)
-        else: await query.edit_message_text("⚠️ <b>Session Expired.</b>\n<i>Please start again.</i>", parse_mode=ParseMode.HTML)
+        else: await query.edit_message_text("<b>⚠️ Session Expired.</b>\n<i>Please start again.</i>", parse_mode=ParseMode.HTML)
             
     elif data == "go_main": await show_main_menu(update, context)
     elif data == "go_cat": await start_category_selection(update, context)
@@ -1516,14 +1450,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         min_wd = SETTINGS_CACHE["min_withdraw"]
         if u_info['balance'] < min_wd: return await query.answer(f"⚠️ Minimum withdraw is {min_wd} ৳.", show_alert=True)
             
-        b1 = InlineKeyboardButton("Bkash", callback_data="wdm_Bkash")
-        b2 = InlineKeyboardButton("Nagad", callback_data="wdm_Nagad")
-        b3 = InlineKeyboardButton("Mobile Recharge", callback_data="wdm_Mobile_Recharge")
+        markup = {
+            "inline_keyboard": [
+                [{"text": "Bkash", "callback_data": "wdm_Bkash", "style": "primary"}],
+                [{"text": "Nagad", "callback_data": "wdm_Nagad", "style": "success"}],
+                [{"text": "Mobile Recharge", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
+            ]
+        }
         
-        b1.style = "primary"; b2.style = "success"; b3.style = "danger"
-        kb = [[b1], [b2], [b3]]
-        
-        await query.edit_message_text("🏦 <b>Select Withdraw Method:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        await tg_api_call("editMessageText", {
+            "chat_id": query.message.chat_id, "message_id": query.message.message_id,
+            "text": "🏦 <b>Select Withdraw Method:</b>", "parse_mode": "HTML", "reply_markup": markup
+        })
         
     elif data.startswith("wdm_"):
         method = data.replace("wdm_", "").replace("_", " ")
@@ -1663,7 +1601,7 @@ async def web_server_handler(request):
     return web.Response(text="✅ Premium OTP Bot Running perfectly!")
 
 async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
-    ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-qf5h.onrender.com")
+    ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-dhno.onrender.com")
     if not ping_url or ping_url == "None": return
     url = f"{ping_url}&keepalive=true" if "?" in ping_url else f"{ping_url}?keepalive=true"
     try:
