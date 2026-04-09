@@ -955,7 +955,7 @@ async def show_live_traffic(update, context):
     for (app, c), count in sorted_traffic:
         flag = get_flag(c)
         pct = (count / total) * 100
-        icon = "📘" if app == 'Facebook' else "💬"
+        icon = "𒊹︎" if app == 'Facebook' else "💌"
         txt += f"• {icon} <b>{app}</b> | {flag} <b>{c}</b> - <b>{pct:.1f}%</b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
@@ -982,7 +982,7 @@ async def show_main_menu(update_obj, context):
         ["💳 BALANCE", "🎁 REFER"],
         ["🎧 LIVE SUPPORT"]
     ]
-    msg = f"👋 <b>Welcome, {html.escape(update_obj.effective_user.full_name)}</b>\n\n<b>Select An option -</b>"
+    msg = f"👋 <b>Wᴇᴄʟᴏᴍᴇ {html.escape(update_obj.effective_user.full_name)} Tᴏ Oᴜʀ ʙᴏᴛ</b>\n<b>Sᴇʟᴇᴄᴛ Aɴ Oᴘᴛɪᴏɴ Fᴏʀ ᴄᴏɴᴛɪɴᴜᴇ </b>"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
@@ -998,12 +998,12 @@ async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cat_kb = {
         "inline_keyboard": [
-            [{"text": "📘 Facebook", "callback_data": "cat_facebook", "style": "primary"}],
-            [{"text": "💬 Whatsapp", "callback_data": "cat_whatsapp", "style": "success"}],
-            [{"text": "🔙 Main Menu", "callback_data": "go_main", "style": "danger"}]
+            [{"text": "⚙️Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
+            [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp", "style": "success"}],
+            [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main", "style": "danger"}]
         ]
     }
-    txt = "<b>Select Category</b>"
+    txt = "<b>Sᴇʟᴇᴄᴛ Yᴏᴜ ᴄᴀᴛᴀɢᴏʀʏ </b>"
     
     if update and hasattr(update, 'callback_query') and update.callback_query: 
         await update.callback_query.edit_message_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
@@ -1056,7 +1056,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     if not country_stats:
         btn_kb = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
         await query.edit_message_text(
-            text=f"📡 <b>Load Balancing...</b>\n<i>No immediate numbers found. Please try again.</i>", 
+            text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", 
             reply_markup=btn_kb, parse_mode=ParseMode.HTML
         )
         return
@@ -1085,7 +1085,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
     
     await query.edit_message_text(
-        text=f"🌍 <b>Select a Country for {category.title()}</b>\n━━━━━━━━━━━━━━━━━━━━", 
+        text=f"🌍 <b> Sᴇʟᴇᴄᴛ A Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
         reply_markup={"inline_keyboard": kb}, parse_mode=ParseMode.HTML
     )
 
@@ -1320,7 +1320,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data = await resp.json()
                     code = data.get('code')
                     if code: 
-                        out = f"✅ <b>2FA CODE GENERATED!</b>\n━━━━━━━━━━━━━━━━━━━━\n🔢 <b>Code:</b> <code>{code}</code>\n\n<i>⚠️ Auto-delete in 5 mins.</i>"
+                        out = f"✅ <b>2FA CODE GENERATED!</b>\n🔢 <b>Code:</b> <code>{code}</code>\n<b>⚠️ Auto-delete in 5 mins.</b>"
                         await msg.edit_text(out, parse_mode=ParseMode.HTML)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
                     else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
@@ -1336,8 +1336,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         share_url = f"https://t.me/share/url?url={urllib.parse.quote(ref_link)}&text=Join%20Now!"
         
         msg = (
-            f"🔥 <b>Your Referral Dashboard</b> 🔥\n\n"
-            f"👑 <b>You Referred:</b> {user_info['total_referrals']} users\n"
+            f"🟢 <b>Your Referral Dashboard</b>\n\n"
+            f"🖲️ <b>You Referred:</b> {user_info['total_referrals']} users\n"
             f"💸 <b>Total Commission:</b> {user_info.get('ref_earnings', 0.0):.4f} ৳\n\n"
             f"<b>You will get 10% commission when your referral withdraws money!</b>\n\n"
             f"🔗 <b>Referral Link:</b>\n<code>{ref_link}</code>"
@@ -1507,13 +1507,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         markup = {
             "inline_keyboard": [
-                [{"text": "Bkash", "callback_data": "wdm_Bkash", "style": "primary"}],
-                [{"text": "Nagad", "callback_data": "wdm_Nagad", "style": "success"}],
-                [{"text": "Mobile Recharge", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
+                [{"text": "Bᴋᴀsʜ ", "callback_data": "wdm_Bkash", "style": "primary"}],
+                [{"text": "Nᴀɢᴀᴅ ", "callback_data": "wdm_Nagad", "style": "success"}],
+                [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
             ]
         }
         
-        await query.edit_message_text("🏦 <b>Select Withdraw Method:</b>", parse_mode=ParseMode.HTML, reply_markup=markup)
+        await query.edit_message_text("🏦 <b>Sᴇʟᴇᴄᴛ Yᴏᴜʀ Wɪᴛʜᴅʀᴀᴡ Mᴀᴛʜᴏᴅ :</b>", parse_mode=ParseMode.HTML, reply_markup=markup)
         
     elif data.startswith("wdm_"):
         method = data.replace("wdm_", "").replace("_", " ")
