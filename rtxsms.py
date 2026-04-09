@@ -965,7 +965,7 @@ async def show_live_traffic(update, context):
         else:
             color = "🔴"
             
-        txt += f"<b> ◁ {app_display} {flag} {short_c} {pct:.0f}% {color} ▷ </b>\n"
+        txt += f"<b>{app_display} {flag} {short_c} {pct:.0f}% {color} </b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
@@ -1004,7 +1004,7 @@ async def show_main_menu(update_obj, context):
 
 async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['state'] = 'WAITING_FOR_2FA'
-    await update.message.reply_text("🔐 <b>2FA CODE GENERATOR</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Paste your Secret Key below:</i>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("🔐 <b>2Fᴀ Cᴏᴅᴇ Gᴇɴᴀʀᴇᴛᴏʀ ⚙️</b>\n━━━━━━━━━━━━━━━━━━━━\n<b>Pᴀsᴛ Yᴏᴜʀ Sᴇᴄʀᴇᴛ Kᴇʏ :</b>", parse_mode=ParseMode.HTML)
 
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cat_kb = {
@@ -1109,7 +1109,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
     
     await query.edit_message_text(
-        text=f"🌍 <b> Sᴇʟᴇᴄᴛ A Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
+        text=f"<b>Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
         reply_markup={"inline_keyboard": kb}, parse_mode=ParseMode.HTML
     )
 
@@ -1345,7 +1345,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     code = data.get('code')
                     if code: 
                         out = f"✅ <b>2FA CODE GENERATED!</b>\n<b>⚠️ Auto-delete in 5 mins.</b>"
-                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}}]]}
+                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}},"style": "primary"]]}
                         await msg.edit_text(out, reply_markup=user_markup, parse_mode=ParseMode.HTML)
                         asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
                     else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
@@ -1389,7 +1389,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         markup = {
             "inline_keyboard": [
                 [
-                    {"text": "💳 Withdraw Balance", "callback_data": "req_withdraw"}
+                    {"text": "💳 Withdraw Balance", "callback_data": "req_withdraw","style": "danger"}
                 ]
             ]
         }
