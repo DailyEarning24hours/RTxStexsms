@@ -72,13 +72,14 @@ def get_cf_headers(origin_domain):
         "sec-fetch-site": "same-origin",
         "sec-fetch-mode": "cors",
         "sec-fetch-dest": "empty",
-        "Referer": f"https://{origin_domain}/"
+        "Referer": f"https://{origin_domain}/",
+        "Connection": "keep-alive"
     }
 
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
-# 🛑 CACHING & MEMORY
+# 🛑 CACHING & MEMORY (ULTRA FAST)
 # ==============================================================================
 
 S1_TOKEN = None
@@ -103,8 +104,9 @@ LAST_INBOX_S3 = ""
 START_TIME = datetime.datetime.now()
 BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
-DB_POOL_SIZE = 15 
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=15)
+# 🔥 Thread Pool Increased for Render Free Plan to handle 30k users
+DB_POOL_SIZE = 50 
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=50)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -120,6 +122,7 @@ USER_INFO_CACHE = {}
 CHANNELS_CACHE = set()
 
 CONSOLE_CACHE = {1: [], 2: []}
+PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} # 🔥 INSTANT MENU CACHE
 
 SETTINGS_CACHE = {
     "otp_reward": 0.10,
@@ -211,14 +214,14 @@ def get_hash_key(number_str):
 DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=10):
+    def __init__(self, db_file, pool_size=50):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
     def get_connection(self):
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
-        conn.execute('PRAGMA journal_mode=DELETE;') 
-        conn.execute('PRAGMA synchronous=NORMAL;')
+        conn.execute('PRAGMA journal_mode=WAL;') # 🔥 WAL mode for speed
+        conn.execute('PRAGMA synchronous=OFF;')  # 🔥 Ultra fast DB operations
         conn.execute('PRAGMA temp_store=MEMORY;')
         conn.execute('PRAGMA mmap_size=300000000;') 
         try: yield conn
@@ -441,7 +444,7 @@ def sync_checkpoint():
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(limit=1000, keepalive_timeout=600, enable_cleanup_closed=True)
+        connector = aiohttp.TCPConnector(limit=5000, keepalive_timeout=1200, enable_cleanup_closed=True)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
     return GLOBAL_SESSION
 
@@ -478,13 +481,13 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
         try:
             if not S1_TOKEN and not await auth_s1(): continue
             session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}"}
-            timeout = aiohttp.ClientTimeout(total=15)
+            headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}", "Connection": "keep-alive"}
+            timeout = aiohttp.ClientTimeout(total=10)
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
             status = response.status
-            if status in [401, 403]: S1_TOKEN = None; await asyncio.sleep(0.5); continue
+            if status in [401, 403]: S1_TOKEN = None; await asyncio.sleep(0.1); continue
             if status == 200:
                 text_response = await response.text()
                 if return_text: return 200, text_response
@@ -496,7 +499,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
 
 async def get_s2_session():
     global S2_SESSION
-    if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome124")
+    if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome124", verify=False)
     return S2_SESSION
 
 async def auth_s2(force=False):
@@ -507,7 +510,7 @@ async def auth_s2(force=False):
         headers = get_cf_headers("acchub.io")
         try:
             session = await get_s2_session()
-            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=20)
+            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=15)
             if response.status_code in [200, 201]:
                 try: data = response.json()
                 except Exception: data = None
@@ -520,14 +523,14 @@ async def auth_s2(force=False):
 
 async def s2_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S2_TOKEN
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             if not S2_TOKEN and not await auth_s2(): continue
             session = await get_s2_session()
             headers = get_cf_headers("acchub.io")
             headers.update({"authorization": f"Bearer {S2_TOKEN}"})
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=20)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=20)
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=10)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=10)
 
             status = response.status_code
             if status in [401, 403]: S2_TOKEN = None; await auth_s2(force=True); continue
@@ -536,7 +539,7 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
                 try: return 200, response.json()
                 except: return 200, None
             return status, None
-        except Exception: await asyncio.sleep(1)
+        except Exception: await asyncio.sleep(0.2)
     return 500, None
 
 async def auth_s3(force=False):
@@ -548,7 +551,7 @@ async def auth_s3(force=False):
             data = aiohttp.FormData()
             data.add_field('email', S3_EMAIL); data.add_field('auth-token', S3_STATIC_TOKEN)
             headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com", "Referer": "https://crackerjacksms.com/"}
-            async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=15, ssl=False) as response:
+            async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=10, ssl=False) as response:
                 if response.status == 200:
                     S3_TOKEN = S3_STATIC_TOKEN 
                     LAST_AUTH_S3 = time.time()
@@ -558,12 +561,12 @@ async def auth_s3(force=False):
 
 async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
     global S3_TOKEN
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             if not S3_TOKEN and not await auth_s3(): continue
             session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com"}
-            timeout = aiohttp.ClientTimeout(total=15)
+            headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com", "Connection": "keep-alive"}
+            timeout = aiohttp.ClientTimeout(total=10)
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
             
@@ -574,7 +577,7 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
                 try: return 200, json.loads(text_response)
                 except: return 200, None
             return status, None
-        except Exception: await asyncio.sleep(1)
+        except Exception: await asyncio.sleep(0.2)
     return 500, None
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
@@ -655,7 +658,6 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     svc_name_display = "Facebook" if "facebook" in custom_service_name.lower() else ("Whatsapp" if "whatsapp" in custom_service_name.lower() else custom_service_name.title())
     stylish_svc = "𝐹𝑏" if "facebook" in custom_service_name.lower() else ("𝑊𝑠" if "whatsapp" in custom_service_name.lower() else custom_service_name[:2].title())
     
-    # 🌟 NEW OTP LAYOUT (INBOX) 🌟
     user_msg = (
         f"💬 <b>ɴᴇᴡ Oᴛᴘ Rᴇᴄɪᴠᴇᴅ</b>\n"
         f"╭─────────────────╮\n"
@@ -680,9 +682,7 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     try: await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=user_markup, parse_mode=ParseMode.HTML)
     except: pass
     
-    # 🌟 MASSIVE PREMIUM OTP GROUP FORMAT 🌟
     masked_num = mask_number_group(full_num)
-    
     group_msg = (
         f"╭─────────────────╮\n"
         f"│  <b>{flag} #{short_name} » {stylish_svc} {masked_num}</b>\n"
@@ -778,19 +778,22 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
         
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    s1_task = s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)
-    s2_task = s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)
+    s1_task = asyncio.create_task(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True))
+    s2_task = asyncio.create_task(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True))
     s3_url = f"{S3_BASE_URL}/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
-    s3_task = s3_api_request('GET', s3_url, return_text=True)
+    s3_task = asyncio.create_task(s3_api_request('GET', s3_url, return_text=True))
     
-    results = await asyncio.gather(s1_task, s2_task, s3_task, return_exceptions=True)
-
-    await check_inbox(context, results[0], LAST_INBOX_S1, "s1")
-    await check_inbox(context, results[1], LAST_INBOX_S2, "s2")
-    await check_inbox(context, results[2], LAST_INBOX_S3, "s3")
+    # 🔥 SUPER FAST AS-COMPLETED PROCESSING (Processes whichever API replies first without waiting for others)
+    for completed_task in asyncio.as_completed([s1_task, s2_task, s3_task]):
+        try:
+            res = await completed_task
+            if res == s1_task.result() if s1_task.done() else None: await check_inbox(context, res, LAST_INBOX_S1, "s1")
+            elif res == s2_task.result() if s2_task.done() else None: await check_inbox(context, res, LAST_INBOX_S2, "s2")
+            else: await check_inbox(context, res, LAST_INBOX_S3, "s3")
+        except: pass
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION
+# 🎯 HIGH-SPEED NUMBER GENERATION (FIRST-COMPLETED RACE ENGINE)
 # ==============================================================================
 
 async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
@@ -814,64 +817,70 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
     
-    await asyncio.sleep(0.01)
-    
-    fetched_numbers = []
     country_name = context.user_data.get('real_country_name', 'Unknown')
     country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
     
     raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
     api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
-    results = []
+    fetched_numbers = []
     
-    if server_id == 1:
-        range_val = str(range_val).strip()
-        if not range_val.upper().endswith("XXX"): range_val += "XXX"
-        payload = {"range": range_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-        tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.15, _fetch_number_s1, payload), safe_delayed_fetch(0.30, _fetch_number_s1, payload)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+    # 🔥 ENTERPRISE RETRY ENGINE: Try up to 2 times instantly if 0 numbers found
+    for attempt in range(2):
+        if len(fetched_numbers) >= 2: break
         
-    elif server_id == 2:
-        rv = str(range_val).replace('X', '|')
-        parts = rv.split('|')
-        if len(parts) >= 2:
-            payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-            tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.15, _fetch_number_s2, payload), safe_delayed_fetch(0.30, _fetch_number_s2, payload)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    elif server_id == 3:
-        url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-        tasks = [_fetch_number_s3(url), safe_delayed_fetch(0.5, _fetch_number_s3, url), safe_delayed_fetch(1.0, _fetch_number_s3, url)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    if results:
-        for res in results:
-            if isinstance(res, tuple):
-                status, resp = res
-                if status in [200, 201] and isinstance(resp, dict):
-                    num = ""
-                    if server_id == 2 and resp.get('status') in ['success', 200, True]:
-                        data_obj = resp.get('data', {})
-                        if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
-                        elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
-                            
-                    elif server_id == 3 and str(resp.get('meta')) == '200':
-                        data_obj = resp.get('data', {})
-                        if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
-                            
-                    elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
-                        num = str(resp['data']['number'])
-                        if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
-                        country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
-                    
-                    if num and num != "None": 
-                        clean_n = num.replace('+', '')
-                        if clean_n not in fetched_numbers: 
-                            fetched_numbers.append(clean_n)
-                            if len(fetched_numbers) == 2: break
-            elif isinstance(res, Exception): logger.error(f"API Error in fetch task: {res}")
+        tasks = set()
+        if server_id == 1:
+            r_val = str(range_val).strip()
+            if not r_val.upper().endswith("XXX"): r_val += "XXX"
+            payload = {"range": r_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
+            # 🔥 Fire 4 requests instantly (No delay)
+            tasks = {asyncio.create_task(_fetch_number_s1(payload)) for _ in range(4)}
             
+        elif server_id == 2:
+            rv = str(range_val).replace('X', '|')
+            parts = rv.split('|')
+            if len(parts) >= 2:
+                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
+                tasks = {asyncio.create_task(_fetch_number_s2(payload)) for _ in range(4)}
+
+        elif server_id == 3:
+            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
+            tasks = {asyncio.create_task(_fetch_number_s3(url)) for _ in range(4)}
+
+        # 🔥 FIRST-COMPLETED RACE: Return the moment ANY server replies with a number!
+        while tasks and len(fetched_numbers) < 2:
+            done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, timeout=2.5)
+            for task in done:
+                try:
+                    res = task.result()
+                    if isinstance(res, tuple):
+                        status, resp = res
+                        if status in [200, 201] and isinstance(resp, dict):
+                            num = ""
+                            if server_id == 2 and resp.get('status') in ['success', 200, True]:
+                                data_obj = resp.get('data', {})
+                                if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
+                                elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
+                                    
+                            elif server_id == 3 and str(resp.get('meta')) == '200':
+                                data_obj = resp.get('data', {})
+                                if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
+                                    
+                            elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
+                                num = str(resp['data']['number'])
+                                if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
+                                country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
+                            
+                            if num and num != "None": 
+                                clean_n = num.replace('+', '')
+                                if clean_n not in fetched_numbers: 
+                                    fetched_numbers.append(clean_n)
+                except Exception as e: logger.error(f"Race Task Error: {e}")
+                
+        # Cancel remaining pending tasks instantly to free RAM
+        for t in tasks: t.cancel()
+
     if fetched_numbers:
         s_suffix = ""
         if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
@@ -956,7 +965,7 @@ async def show_live_traffic(update, context):
         flag = get_flag(c)
         pct = (count / total) * 100
         short_c = get_short_code(c)
-        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘᴘ"
+        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘ force"
         
         if pct >= 70:
             color = "🟢"
@@ -1023,95 +1032,23 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global CONSOLE_CACHE
+    global PRECOMPUTED_MENUS
     query = update.callback_query
     category = query.data.split('_')[1].lower()
     context.user_data['service_name'] = category.title()
     
-    await query.edit_message_text(text="<b>⚡ 𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</b>", parse_mode=ParseMode.HTML)
-    await asyncio.sleep(0.01)
-    
-    country_stats = {}
-    
-    def process_logs(logs, srv_id):
-        if not logs: return
-        for log in logs:
-            if isinstance(log, dict):
-                if srv_id == 2:
-                    c = log.get('country_name', 'Unknown')
-                    r = f"{log.get('country_id')}|{log.get('operator_id')}"
-                    app_name = str(log.get('provider', '')).lower()
-                else:
-                    c = log.get('country', 'Unknown')
-                    r = log.get('range')
-                    app_name = str(log.get('app_name', '')).lower()
-
-                c = re.sub(r'(?i)\bpostpaid\b', '', c).strip()
-
-                if category in app_name and c and r and 'None' not in r:
-                    key = (srv_id, c)
-                    if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c}
-                    country_stats[key]['count'] += 1
-
-    process_logs(CONSOLE_CACHE[1], 1)
-    process_logs(CONSOLE_CACHE[2], 2)
-
-    loop = asyncio.get_event_loop()
-    s3_ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, category)
-    for s3r in s3_ranges:
-        r_id, r_cat, carrier_id, c_name = s3r
-        c_name = re.sub(r'(?i)\bpostpaid\b', '', c_name).strip()
-        key = (3, c_name)
-        if key not in country_stats: country_stats[key] = {'range': carrier_id, 'count': 100, 'c_name': c_name}
-
-    if not country_stats:
-        btn_kb = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
+    # 🔥 INSTANT CACHE FETCH (0.001s response time)
+    if PRECOMPUTED_MENUS.get(category):
         await query.edit_message_text(
-            text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", 
-            reply_markup=btn_kb, parse_mode=ParseMode.HTML
+            text=f"<b>Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
+            reply_markup=PRECOMPUTED_MENUS[category], parse_mode=ParseMode.HTML
         )
         return
-        
-    sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
-    
-    kb = []
-    s1_suffix = SETTINGS_CACHE['s1_suffix']
-    s2_suffix = SETTINGS_CACHE['s2_suffix']
-    s3_suffix = SETTINGS_CACHE['s3_suffix']
-    
-    pattern = [2, 1]
-    p_idx = 0
-    row = []
-    
-    for key in sorted_keys:
-        srv_id, c_name = key
-        stats = country_stats[key]
-        
-        display_name = c_name
-        if srv_id == 1: display_name += s1_suffix
-        elif srv_id == 2: display_name += s2_suffix
-        elif srv_id == 3: display_name += s3_suffix
-            
-        btn_text = f"{get_flag(c_name)} {display_name}"
-        safe_c_name = str(c_name)[:15].replace(" ", "")
-        
-        btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
-        row.append(btn)
-        
-        if len(row) == pattern[p_idx]:
-            kb.append(row)
-            row = []
-            p_idx = (p_idx + 1) % 2
-            
-    if row:
-        kb.append(row)
-        
-    kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
-    
-    await query.edit_message_text(
-        text=f"<b>Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
-        reply_markup={"inline_keyboard": kb}, parse_mode=ParseMode.HTML
-    )
+
+    # Fallback if cache is completely empty
+    await query.edit_message_text(text="<b>⚡ 𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</b>", parse_mode=ParseMode.HTML)
+    btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
+    await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
 
 # ==============================================================================
 # 🎮 TEXT HANDLER & ADMIN LOGIC
@@ -1204,7 +1141,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text:
             if not CHANNELS_CACHE: return await update.message.reply_text("📭 <i>No channels found.</i>", parse_mode=ParseMode.HTML)
             kb = [[InlineKeyboardButton(f"❌ {ch}", callback_data=f"delch_{ch}")] for ch in CHANNELS_CACHE]
-            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝗿𝗲𝗺𝗼𝘃𝗲:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝗿𝗲𝗺𝗼𝘃োম:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
         elif "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀" in text or "Top Referrers" in text:
             loop = asyncio.get_event_loop()
@@ -1600,7 +1537,7 @@ async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(DB_EXECUTOR, sync_checkpoint)
-        if os.path.exists(DB_FILE): await update.message.reply_document(document=open(DB_FILE, 'rb'), filename=DB_FILE, caption="☁️ <b>𝗠𝗮𝗻𝘂𝗮𝗹 𝗗𝗮𝘁𝗮𝗯𝗮𝘀𝗲 𝗕𝗮𝗰𝗸𝘂𝗽</b>\n\n<i>To restore, reply to this file with /restore</i>", parse_mode=ParseMode.HTML)
+        if os.path.exists(DB_FILE): await update.message.reply_document(document=open(DB_FILE, 'rb'), filename=DB_FILE, caption="☁️ <b>𝗠𝗮𝗻𝘂𝗮𝗹 𝗗𝗮𝘁𝗮𝗯𝗮𝘀𝗲 𝗕𝗮𝗰𝗸𝘂 সপ্তাহে</b>\n\n<i>To restore, reply to this file with /restore</i>", parse_mode=ParseMode.HTML)
         else: await update.message.reply_text("⚠️ No database file found yet.")
     except Exception as e: await update.message.reply_text(f"❌ Backup failed: {e}")
 
@@ -1643,11 +1580,11 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e: logger.error(f"Auto Backup Failed: {e}")
 
 # ==============================================================================
-# 🌐 BACKGROUND CACHE UPDATER
+# 🌐 BACKGROUND CACHE UPDATER & MENU PRE-COMPUTER (SUPER FAST)
 # ==============================================================================
 
 async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
-    global CONSOLE_CACHE
+    global CONSOLE_CACHE, PRECOMPUTED_MENUS
     try:
         gc.collect()
         s1_tasks = [s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info?page={i}") for i in range(1, 4)]
@@ -1665,6 +1602,67 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
                 
         if s1_logs: CONSOLE_CACHE[1] = s1_logs[:150]
         if s2_logs: CONSOLE_CACHE[2] = s2_logs[:150]
+
+        # 🔥 PRECOMPUTE MENUS SO USERS DON'T WAIT
+        for cat in ["facebook", "whatsapp"]:
+            country_stats = {}
+            def process_logs_local(logs, srv_id):
+                if not logs: return
+                for log in logs:
+                    if isinstance(log, dict):
+                        if srv_id == 2:
+                            c = log.get('country_name', 'Unknown')
+                            r = f"{log.get('country_id')}|{log.get('operator_id')}"
+                            app_name = str(log.get('provider', '')).lower()
+                        else:
+                            c = log.get('country', 'Unknown')
+                            r = log.get('range')
+                            app_name = str(log.get('app_name', '')).lower()
+                        c = re.sub(r'(?i)\bpostpaid\b', '', c).strip()
+                        if cat in app_name and c and r and 'None' not in r:
+                            key = (srv_id, c)
+                            if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c}
+                            country_stats[key]['count'] += 1
+
+            process_logs_local(CONSOLE_CACHE[1], 1)
+            process_logs_local(CONSOLE_CACHE[2], 2)
+
+            loop = asyncio.get_event_loop()
+            s3_ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, cat)
+            for s3r in s3_ranges:
+                r_id, r_cat, carrier_id, c_name = s3r
+                c_name = re.sub(r'(?i)\bpostpaid\b', '', c_name).strip()
+                key = (3, c_name)
+                if key not in country_stats: country_stats[key] = {'range': carrier_id, 'count': 100, 'c_name': c_name}
+
+            if country_stats:
+                sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
+                kb = []
+                s1_suffix = SETTINGS_CACHE['s1_suffix']
+                s2_suffix = SETTINGS_CACHE['s2_suffix']
+                s3_suffix = SETTINGS_CACHE['s3_suffix']
+                pattern = [2, 1]
+                p_idx = 0
+                row = []
+                for key in sorted_keys:
+                    srv_id, c_name = key
+                    stats = country_stats[key]
+                    display_name = c_name
+                    if srv_id == 1: display_name += s1_suffix
+                    elif srv_id == 2: display_name += s2_suffix
+                    elif srv_id == 3: display_name += s3_suffix
+                    btn_text = f"{get_flag(c_name)} {display_name}"
+                    safe_c_name = str(c_name)[:15].replace(" ", "")
+                    btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
+                    row.append(btn)
+                    if len(row) == pattern[p_idx]:
+                        kb.append(row)
+                        row = []
+                        p_idx = (p_idx + 1) % 2
+                if row: kb.append(row)
+                kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
+                PRECOMPUTED_MENUS[cat] = {"inline_keyboard": kb}
+
     except Exception: pass
 
 # ==============================================================================
@@ -1717,11 +1715,11 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    app.job_queue.run_repeating(global_otp_checker_job,  interval=2,    first=2)
+    app.job_queue.run_repeating(global_otp_checker_job,  interval=1.5,  first=2)
     app.job_queue.run_repeating(update_cache_job,         interval=15,   first=2)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300,  first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=1200, first=1200)
     
-    logger.info("✨ VERSION 83 ENTERPRISE RUNNING ✨")
+    logger.info("✨ VERSION 84 ENTERPRISE RUNNING (SUPER FAST EDITION) ✨")
     app.run_polling(drop_pending_updates=True)
