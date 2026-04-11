@@ -80,7 +80,7 @@ def get_cf_headers(origin_domain):
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
-# 🛑 CACHING & MEMORY (RENDER OPTIMIZED)
+# 🛑 CACHING & MEMORY (RENDER OPTIMIZED FOR 100K USERS)
 # ==============================================================================
 
 S1_TOKEN = None
@@ -105,12 +105,12 @@ LAST_INBOX_S3 = set() # To store already processed S3 OTP signatures
 START_TIME = datetime.datetime.now()
 BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
-# 🔥 OPTIMIZED FOR RENDER FREE
-DB_POOL_SIZE = 15
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=15, thread_name_prefix="db_worker")
+# 🔥 OPTIMIZED FOR RENDER FREE (VPS LIKE SPEED)
+DB_POOL_SIZE = 30
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=30, thread_name_prefix="db_worker")
 
-# 🔥 SEMAPHORE: max 50 concurrent number-generation tasks (prevents RAM spike)
-GENERATION_SEMAPHORE = asyncio.Semaphore(50)
+# 🔥 SEMAPHORE: max 100 concurrent number-generation tasks (prevents RAM spike)
+GENERATION_SEMAPHORE = asyncio.Semaphore(100)
 
 # 🔥 OTP POLLING LOCK (Prevents overlap if API is slow)
 OTP_CHECK_LOCK = asyncio.Lock()
@@ -178,8 +178,8 @@ BANNED_CACHE = set()
 CHANNELS_CACHE = set()
 
 # 🔥 24 HOUR SUBSCRIPTION CACHE (Super Fast Speeds)
-USER_INFO_CACHE      = BoundedTTLCache(max_size=50_000, ttl=1800)   # 30 min
-SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=50_000, ttl=86400)  # 🔥 24 HOURS (86400s)
+USER_INFO_CACHE      = BoundedTTLCache(max_size=100_000, ttl=1800)   # 30 min
+SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=100_000, ttl=86400)  # 🔥 24 HOURS (86400s)
 
 CONSOLE_CACHE = {1: [], 2: []}
 PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} 
@@ -268,22 +268,23 @@ def get_hash_key(number_str):
     return clean_str[-8:] if clean_str else "UNKNOWN"
 
 # ==============================================================================
-# 🗄️ DATABASE (SAFE & ULTRA FAST)
+# 🗄️ DATABASE (SAFE & ULTRA FAST - VPS LEVEL CONFIG)
 # ==============================================================================
 
 DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=15):
+    def __init__(self, db_file, pool_size=30):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
     def get_connection(self):
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
         conn.execute('PRAGMA journal_mode=WAL;') 
-        conn.execute('PRAGMA synchronous=NORMAL;')  
+        conn.execute('PRAGMA synchronous=OFF;')  # 🔥 Extreme speed for rendering 100k+ writes
         conn.execute('PRAGMA temp_store=MEMORY;')
-        conn.execute('PRAGMA cache_size=-64000;')   
+        conn.execute('PRAGMA cache_size=-10000;')   
+        conn.execute('PRAGMA mmap_size=3000000000;') # 🔥 Memory map support
         try: yield conn
         finally: conn.close()
 
@@ -687,11 +688,12 @@ async def auth_s3(force=False):
             logger.error(f"S3 Login Error: {e}")
         return False
 
-# 🔥 FETCH S3 SMS DATA DIRECTLY
+# 🔥 FETCH S3 SMS DATA DIRECTLY (FIXED FOR WRONG SERVER TIMEZONE & DATE)
 async def fetch_s3_data():
     if not S3_SESSION and not await auth_s3(): return []
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
-    url = f"{NEW_S3_BASE}/ints/agent/res/data_smscdr.php?fdate1={today}%2000:00:00&fdate2={today}%2023:59:59&iDisplayLength=50"
+    
+    # 🔥 FIXED: Bypassing wrong server year (e.g. 2026) by requesting a very wide timeline
+    url = f"{NEW_S3_BASE}/ints/agent/res/data_smscdr.php?fdate1=2020-01-01%2000:00:00&fdate2=2030-12-31%2023:59:59&iDisplayLength=50"
     headers = {"X-Requested-With": "XMLHttpRequest", "Referer": f"{NEW_S3_BASE}/ints/agent/SMSCDRStats", "User-Agent": BASE_USER_AGENT}
     
     try:
@@ -854,18 +856,22 @@ async def check_inbox(context, server_res, last_text, text_var_name):
                         await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg, len(rcv_set) > 1, waiter.get('country_name', 'Unknown'))
         except Exception: pass
 
-# 🔥 NEW S3 SMS CHECKER
+# 🔥 NEW S3 SMS CHECKER (HIGHLY ROBUST PARSER)
 async def check_s3_inbox(context):
     global LAST_INBOX_S3
     s3_data = await fetch_s3_data()
     for row in s3_data:
-        if not isinstance(row, list) or len(row) < 6: continue
+        if not isinstance(row, list) or len(row) < 4: continue
         if isinstance(row[0], str) and row[0].startswith("0.09"): continue # Skip footer row
         
         number = str(row[2]).strip().replace('+', '')
         service = str(row[3]).strip()
-        raw_msg = str(row[5]).strip()
         
+        # 🔥 SAFELY GET MESSAGE (S3 Panels usually store msg in col 5, but if array is small, check 4)
+        raw_msg = str(row[5]).strip() if len(row) > 5 else (str(row[4]).strip() if len(row) > 4 else "")
+        if not raw_msg:
+            raw_msg = " ".join([str(x) for x in row[3:]]) # Fallback concat
+            
         msg_sig = f"{number}_{raw_msg}"
         if msg_sig in LAST_INBOX_S3: continue
         
@@ -958,12 +964,13 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
           if len(fetched_numbers) >= 2: break
           
           if server_id == 3:
-              # 🔥 DIRECTLY GET FROM DB FOR S3
+              # 🔥 DIRECTLY GET 2 NUMBERS FROM DB FOR S3
               loop = asyncio.get_event_loop()
-              num = await loop.run_in_executor(DB_EXECUTOR, sync_get_unused_s3_number, api_svc, country_name, user_id)
-              if num:
-                  fetched_numbers.append(num)
-                  break # S3 only gives 1 number at a time
+              for _ in range(2 - len(fetched_numbers)):
+                  num = await loop.run_in_executor(DB_EXECUTOR, sync_get_unused_s3_number, api_svc, country_name, user_id)
+                  if num and num not in fetched_numbers:
+                      fetched_numbers.append(num)
+              break # Break attempt loop because DB search finishes immediately
           else:
               tasks = []
               if server_id == 1:
