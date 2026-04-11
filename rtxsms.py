@@ -103,7 +103,7 @@ LAST_INBOX_S2 = ""
 LAST_INBOX_S3 = set() # To store already processed S3 OTP signatures
 
 START_TIME = datetime.datetime.now()
-BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.164 Mobile Safari/537.36"
 
 # 🔥 OPTIMIZED FOR RENDER FREE (VPS LIKE SPEED)
 DB_POOL_SIZE = 30
@@ -196,7 +196,7 @@ SETTINGS_CACHE = {
 
 # Extensive Flag & Code Mapping 
 COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"TM", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
 }
 
 COUNTRY_CODES = {
@@ -658,7 +658,7 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
         except Exception: await asyncio.sleep(0.1)
     return 500, None
 
-# 🔥 NEW S3 CUSTOM PANEL AUTHENTICATION
+# 🔥 NEW S3 CUSTOM PANEL AUTHENTICATION WITH DYNAMIC AUTO CAPTCHA SOLVER
 async def auth_s3(force=False):
     global S3_SESSION, LAST_AUTH_S3
     async with AUTH_LOCK_S3:
@@ -673,28 +673,51 @@ async def auth_s3(force=False):
             # Step 1: GET Login Page to solve captcha
             async with S3_SESSION.get(f"{NEW_S3_BASE}/ints/login", timeout=10) as resp:
                 html_text = await resp.text()
-                match = re.search(r'(\d+)\s*\+\s*(\d+)', html_text)
-                if not match: return False
-                captcha = int(match.group(1)) + int(match.group(2))
+                # 🔥 DYNAMIC CAPTCHA SOLVER (Will calculate any number combination like 5+7, 10+1, 1+1 etc.)
+                match = re.search(r'(\d+)\s*[\+]\s*(\d+)', html_text)
+                if match:
+                    captcha_val = int(match.group(1)) + int(match.group(2))
+                else:
+                    captcha_val = 0 # Fallback 
             
-            # Step 2: POST Login
-            payload = {'username': NEW_S3_USERNAME, 'password': NEW_S3_PASSWORD, 'capt': captcha}
-            async with S3_SESSION.post(f"{NEW_S3_BASE}/ints/signin", data=payload, timeout=10) as res:
-                res_text = await res.text()
-                if 'dashboard' in res_text.lower() or 'logout' in res_text.lower():
+            # Step 2: POST Login with exact Headers & FormData
+            headers = {
+                "Origin": NEW_S3_BASE,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Upgrade-Insecure-Requests": "1",
+                "User-Agent": BASE_USER_AGENT,
+                "Referer": f"{NEW_S3_BASE}/ints/login",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+            }
+            
+            payload = {
+                'username': NEW_S3_USERNAME,
+                'password': NEW_S3_PASSWORD,
+                'capt': str(captcha_val)
+            }
+            
+            async with S3_SESSION.post(f"{NEW_S3_BASE}/ints/signin", data=payload, headers=headers, timeout=10) as res:
+                # 302 Found or 200 OK means successful login usually in these panels
+                if res.status in [200, 302]:
                     LAST_AUTH_S3 = time.time()
                     return True
         except Exception as e:
             logger.error(f"S3 Login Error: {e}")
         return False
 
-# 🔥 FETCH S3 SMS DATA DIRECTLY (FIXED FOR WRONG SERVER TIMEZONE & DATE)
+# 🔥 FETCH S3 SMS DATA DIRECTLY (WITH PROPER HEADERS & BYPASSING SERVER TIMEZONE)
 async def fetch_s3_data():
     if not S3_SESSION and not await auth_s3(): return []
     
-    # 🔥 FIXED: Bypassing wrong server year (e.g. 2026) by requesting a very wide timeline
-    url = f"{NEW_S3_BASE}/ints/agent/res/data_smscdr.php?fdate1=2020-01-01%2000:00:00&fdate2=2030-12-31%2023:59:59&iDisplayLength=50"
-    headers = {"X-Requested-With": "XMLHttpRequest", "Referer": f"{NEW_S3_BASE}/ints/agent/SMSCDRStats", "User-Agent": BASE_USER_AGENT}
+    # 🔥 Using explicit parameters provided in the curl/HTTP request to ensure it returns accurate JSON.
+    url = f"{NEW_S3_BASE}/ints/agent/res/data_smscdr.php?fdate1=2020-01-01%2000:00:00&fdate2=2030-12-31%2023:59:59&frange=&fclient=&fnum=&fcli=&fgdate=&fgmonth=&fgrange=&fgclient=&fgnumber=&fgcli=&fg=0&sesskey=Q05RR0FSUEJCVw==&sEcho=1&iColumns=9&sColumns=%2C%2C%2C%2C%2C%2C%2C%2C&iDisplayStart=0&iDisplayLength=25"
+    
+    headers = {
+        "X-Requested-With": "XMLHttpRequest", 
+        "Referer": f"{NEW_S3_BASE}/ints/agent/SMSCDRReports", 
+        "User-Agent": BASE_USER_AGENT,
+        "Accept": "application/json, text/javascript, */*; q=0.01"
+    }
     
     try:
         async with S3_SESSION.get(url, headers=headers, timeout=6.0) as res:
@@ -856,21 +879,23 @@ async def check_inbox(context, server_res, last_text, text_var_name):
                         await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg, len(rcv_set) > 1, waiter.get('country_name', 'Unknown'))
         except Exception: pass
 
-# 🔥 NEW S3 SMS CHECKER (HIGHLY ROBUST PARSER)
+# 🔥 NEW S3 SMS CHECKER (EXACT INDEX PARSING FROM JSON DATA)
 async def check_s3_inbox(context):
     global LAST_INBOX_S3
     s3_data = await fetch_s3_data()
     for row in s3_data:
-        if not isinstance(row, list) or len(row) < 4: continue
-        if isinstance(row[0], str) and row[0].startswith("0.09"): continue # Skip footer row
+        # Check if row is list and has valid items
+        if not isinstance(row, list) or len(row) < 6: continue
+        if isinstance(row[0], str) and row[0].startswith("0.09"): continue # Skip footer row if exist
+        
+        # Exact Index mapping based on your JSON structure:
+        # Index 2: "959662837552" (Number)
+        # Index 3: "TikTok" (Service)
+        # Index 5: "[#][TikTok] 7721 is your verification code..." (Message)
         
         number = str(row[2]).strip().replace('+', '')
         service = str(row[3]).strip()
-        
-        # 🔥 SAFELY GET MESSAGE (S3 Panels usually store msg in col 5, but if array is small, check 4)
-        raw_msg = str(row[5]).strip() if len(row) > 5 else (str(row[4]).strip() if len(row) > 4 else "")
-        if not raw_msg:
-            raw_msg = " ".join([str(x) for x in row[3:]]) # Fallback concat
+        raw_msg = str(row[5]).strip()
             
         msg_sig = f"{number}_{raw_msg}"
         if msg_sig in LAST_INBOX_S3: continue
