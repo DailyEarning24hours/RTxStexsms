@@ -105,21 +105,80 @@ START_TIME = datetime.datetime.now()
 BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 # 🔥 OPTIMIZED FOR RENDER FREE (Prevents DB Locking/Memory Thrashing)
-DB_POOL_SIZE = 20 
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+DB_POOL_SIZE = 15
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=15, thread_name_prefix="db_worker")
+
+# 🔥 SEMAPHORE: max 50 concurrent number-generation tasks (prevents RAM spike)
+GENERATION_SEMAPHORE = asyncio.Semaphore(50)
+
+# 🔥 OTP POLLING LOCK (Prevents overlap if API is slow)
+OTP_CHECK_LOCK = asyncio.Lock()
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ==============================================================================
+# 🧠 SMART LRU CACHE — RAM সবসময় controlled থাকবে
+# ==============================================================================
+
+class BoundedTTLCache:
+    __slots__ = ('_cache', '_max_size', '_ttl')
+
+    def __init__(self, max_size: int, ttl: float):
+        self._cache = {}
+        self._max_size = max_size
+        self._ttl = ttl
+
+    def get(self, key, default=None):
+        entry = self._cache.get(key)
+        if entry is None:
+            return default
+        value, exp = entry
+        if time.time() > exp:
+            del self._cache[key]
+            return default
+        self._cache[key] = (value, exp)
+        return value
+
+    def set(self, key, value):
+        if key in self._cache:
+            del self._cache[key]
+        elif len(self._cache) >= self._max_size:
+            try:
+                oldest = next(iter(self._cache))
+                del self._cache[oldest]
+            except StopIteration:
+                pass
+        self._cache[key] = (value, time.time() + self._ttl)
+
+    def delete(self, key):
+        self._cache.pop(key, None)
+
+    def __contains__(self, key):
+        return self.get(key) is not None
+
+    def __len__(self):
+        return len(self._cache)
+
+    def purge_expired(self):
+        now = time.time()
+        expired = [k for k, (_, exp) in self._cache.items() if now > exp]
+        for k in expired:
+            del self._cache[k]
+        return len(expired)
+
 WAITING_OTPS = {}
 NUM_TO_HASH = {}
-BATCH_MSGS = {} 
-OTP_TIMEOUT_SECONDS = 1200  
+BATCH_MSGS = {}
+OTP_TIMEOUT_SECONDS = 1200
 
 USER_CACHE = set()
 BANNED_CACHE = set()
-USER_INFO_CACHE = {} 
 CHANNELS_CACHE = set()
+
+# 🔥 BoundedTTLCache for 100k Users (Keeps memory under limits)
+USER_INFO_CACHE      = BoundedTTLCache(max_size=50_000, ttl=1800)   # 30 min
+SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=50_000, ttl=300)    # 5 min
 
 CONSOLE_CACHE = {1: [], 2: []}
 PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} 
@@ -134,7 +193,7 @@ SETTINGS_CACHE = {
     "s3_suffix": " CJ"
 }
 
-# Extensive Flag & Code Mapping
+# Extensive Flag & Code Mapping (Fully restored)
 COUNTRY_FLAGS = {
     "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
 }
@@ -214,14 +273,14 @@ def get_hash_key(number_str):
 DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=20):
+    def __init__(self, db_file, pool_size=15):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
     def get_connection(self):
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
         conn.execute('PRAGMA journal_mode=WAL;') 
-        conn.execute('PRAGMA synchronous=OFF;')  
+        conn.execute('PRAGMA synchronous=NORMAL;')  
         conn.execute('PRAGMA temp_store=MEMORY;')
         conn.execute('PRAGMA mmap_size=300000000;') 
         try: yield conn
@@ -284,12 +343,12 @@ def init_db():
             
         conn.commit()
         
-        c.execute("SELECT user_id, is_banned, balance, referrer_id, total_referrals, ref_earnings FROM users")
-        USER_CACHE.clear(); BANNED_CACHE.clear(); USER_INFO_CACHE.clear()
+        # 🔥 LAZY LOAD
+        c.execute("SELECT user_id, is_banned FROM users")
+        USER_CACHE.clear(); BANNED_CACHE.clear()
         for row in c.fetchall():
             USER_CACHE.add(row[0])
             if row[1] == 1: BANNED_CACHE.add(row[0])
-            USER_INFO_CACHE[row[0]] = {"balance": row[2], "referrer_id": row[3], "total_referrals": row[4], "ref_earnings": row[5]}
 
 def sync_register_user_db(user_id, referrer_id=None):
     with db_pool.get_connection() as conn:
@@ -297,17 +356,22 @@ def sync_register_user_db(user_id, referrer_id=None):
         c.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
         if not c.fetchone():
             c.execute("INSERT INTO users (user_id, join_date, referrer_id) VALUES (?, CURRENT_TIMESTAMP, ?)", (user_id, referrer_id))
-            USER_INFO_CACHE[user_id] = {"balance": 0.0, "referrer_id": referrer_id, "total_referrals": 0, "ref_earnings": 0.0}
+            USER_INFO_CACHE.set(user_id, {"balance": 0.0, "referrer_id": referrer_id, "total_referrals": 0, "ref_earnings": 0.0})
             if referrer_id: 
                 c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
-                if referrer_id in USER_INFO_CACHE: USER_INFO_CACHE[referrer_id]["total_referrals"] += 1
+                _ref_data = USER_INFO_CACHE.get(referrer_id)
+                if _ref_data: 
+                    _ref_data["total_referrals"] += 1
+                    USER_INFO_CACHE.set(referrer_id, _ref_data)
         conn.commit()
 
 async def ensure_user_fast(user_id, referrer_id=None):
-    if user_id not in USER_CACHE:
-        USER_CACHE.add(user_id)
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
+    if user_id in USER_CACHE: return True
+    USER_CACHE.add(user_id)
+    if user_id not in USER_INFO_CACHE:
+        USER_INFO_CACHE.set(user_id, {"balance": 0.0, "referrer_id": referrer_id, "total_referrals": 0, "ref_earnings": 0.0})
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
 def sync_add_channel(username):
@@ -338,14 +402,15 @@ async def set_ban_status(user_id, status):
     loop.run_in_executor(DB_EXECUTOR, sync_set_ban_status_db, user_id, status)
 
 def sync_get_user_info(user_id):
-    if user_id in USER_INFO_CACHE: return USER_INFO_CACHE[user_id]
+    cached = USER_INFO_CACHE.get(user_id)
+    if cached is not None: return cached
     with db_pool.get_connection() as conn:
         c = conn.cursor()
         c.execute("SELECT balance, total_referrals, referrer_id, ref_earnings FROM users WHERE user_id=?", (user_id,))
         row = c.fetchone()
         if row: 
             data = {"balance": row[0], "total_referrals": row[1], "referrer_id": row[2], "ref_earnings": row[3]}
-            USER_INFO_CACHE[user_id] = data
+            USER_INFO_CACHE.set(user_id, data)
             return data
         return {"balance": 0.0, "total_referrals": 0, "referrer_id": None, "ref_earnings": 0.0}
 
@@ -355,7 +420,10 @@ def sync_add_balance(user_id, amount):
         c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
         c.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
         new_bal = c.fetchone()[0]
-        if user_id in USER_INFO_CACHE: USER_INFO_CACHE[user_id]["balance"] = new_bal
+        _d = USER_INFO_CACHE.get(user_id)
+        if _d: 
+            _d["balance"] = new_bal
+            USER_INFO_CACHE.set(user_id, _d)
         conn.commit()
         return new_bal
 
@@ -381,7 +449,10 @@ def sync_create_withdraw(user_id, amount, method, account):
         c.execute("INSERT INTO withdrawals (user_id, amount, method, account, status) VALUES (?, ?, ?, ?, 'pending')", (user_id, amount, method, account))
         wid = c.lastrowid
         conn.commit()
-        if user_id in USER_INFO_CACHE: USER_INFO_CACHE[user_id]["balance"] -= amount
+        _d = USER_INFO_CACHE.get(user_id)
+        if _d:
+            _d["balance"] -= amount
+            USER_INFO_CACHE.set(user_id, _d)
         return wid
 
 def sync_update_withdraw_status(wd_id, status):
@@ -399,7 +470,10 @@ def sync_update_withdraw_status(wd_id, status):
         
         if status == 'rejected':
             c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
-            if user_id in USER_INFO_CACHE: USER_INFO_CACHE[user_id]["balance"] += amount
+            _d = USER_INFO_CACHE.get(user_id)
+            if _d: 
+                _d["balance"] += amount
+                USER_INFO_CACHE.set(user_id, _d)
         elif status == 'approved':
             c.execute("SELECT referrer_id FROM users WHERE user_id=?", (user_id,))
             ref_row = c.fetchone()
@@ -407,9 +481,11 @@ def sync_update_withdraw_status(wd_id, status):
                 referrer_id = ref_row[0]
                 ref_bonus = amount * 0.10
                 c.execute("UPDATE users SET balance = balance + ?, ref_earnings = ref_earnings + ? WHERE user_id=?", (ref_bonus, ref_bonus, referrer_id))
-                if referrer_id in USER_INFO_CACHE: 
-                    USER_INFO_CACHE[referrer_id]["balance"] += ref_bonus
-                    USER_INFO_CACHE[referrer_id]["ref_earnings"] += ref_bonus
+                _rd = USER_INFO_CACHE.get(referrer_id)
+                if _rd:
+                    _rd["balance"] += ref_bonus
+                    _rd["ref_earnings"] += ref_bonus
+                    USER_INFO_CACHE.set(referrer_id, _rd)
 
         conn.commit()
         return True, user_id, amount, referrer_id, ref_bonus
@@ -444,8 +520,11 @@ def sync_checkpoint():
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(limit=500, keepalive_timeout=600, enable_cleanup_closed=True)
-        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True))
+        connector = aiohttp.TCPConnector(
+            limit=200, limit_per_host=50, keepalive_timeout=300, enable_cleanup_closed=True, ttl_dns_cache=600, use_dns_cache=True
+        )
+        timeout = aiohttp.ClientTimeout(total=8, connect=2, sock_read=6)
+        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True), timeout=timeout)
     return GLOBAL_SESSION
 
 async def parse_response_safely(response):
@@ -483,8 +562,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}", "Connection": "keep-alive"}
             
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
+            timeout = aiohttp.ClientTimeout(total=3.5, connect=1.5)
             
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
@@ -533,9 +611,8 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
             headers = get_cf_headers("acchub.io")
             headers.update({"authorization": f"Bearer {S2_TOKEN}"})
             
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=4.0)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=4.0)
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=3.5)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=3.5)
 
             status = response.status_code
             if status in [401, 403]: S2_TOKEN = None; await auth_s2(force=True); continue
@@ -572,8 +649,7 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com", "Connection": "keep-alive"}
             
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
+            timeout = aiohttp.ClientTimeout(total=3.5, connect=1.5)
             
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
@@ -591,18 +667,40 @@ async def s3_api_request(method: str, url: str, json_payload=None, return_text=F
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     await asyncio.gather(auth_s1(force=True), auth_s2(force=True), auth_s3(force=True), return_exceptions=True)
 
+async def memory_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
+    """প্রতি ৫ মিনিটে expired cache entry মুছে RAM ফাঁকা রাখে"""
+    try:
+        SUBSCRIPTION_CACHE.purge_expired()
+        USER_INFO_CACHE.purge_expired()
+        gc.collect()
+    except Exception as e:
+        logger.warning(f"Cleanup error: {e}")
+
 # ==============================================================================
 # 🔒 MIDDLEWARES & UI
 # ==============================================================================
 
-async def check_subscription(user_id, bot):
+async def check_subscription(user_id, bot, force=False):
     if not CHANNELS_CACHE: return True
-    for channel in CHANNELS_CACHE:
-        try:
-            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
-            if member.status in ['left', 'kicked']: return False
-        except Exception: return False
-    return True
+    if not force:
+        cached = SUBSCRIPTION_CACHE.get(user_id)
+        if cached is not None:
+            return cached 
+
+    try:
+        checks = await asyncio.gather(
+            *[bot.get_chat_member(chat_id=ch, user_id=user_id) for ch in CHANNELS_CACHE],
+            return_exceptions=True
+        )
+        for result in checks:
+            if isinstance(result, Exception) or result.status in ["left", "kicked"]:
+                SUBSCRIPTION_CACHE.set(user_id, False)
+                return False
+        SUBSCRIPTION_CACHE.set(user_id, True)
+        return True
+    except Exception:
+        SUBSCRIPTION_CACHE.set(user_id, False)
+        return False
 
 async def send_join_prompt(update, context):
     keyboard = []
@@ -769,35 +867,37 @@ async def check_inbox(context, server_res, last_text, text_var_name):
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     global WAITING_OTPS, NUM_TO_HASH
-    gc.collect()
-    if not WAITING_OTPS: return 
     
-    current_time = time.time()
-    expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
+    if not WAITING_OTPS: return 
+    if OTP_CHECK_LOCK.locked(): return # 🔥 Prevent API overlapping
+
+    async with OTP_CHECK_LOCK:
+        current_time = time.time()
+        expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
+                
+        for h_key in expired_keys:
+            u_data = WAITING_OTPS.pop(h_key, None)
+            if u_data:
+                NUM_TO_HASH.pop(clean_number(u_data['full_num']), None)
+                try: await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
+                except: pass
+
+        if not WAITING_OTPS: return 
             
-    for h_key in expired_keys:
-        u_data = WAITING_OTPS.pop(h_key, None)
-        if u_data:
-            NUM_TO_HASH.pop(clean_number(u_data['full_num']), None)
-            try: await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
-            except: pass
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-    if not WAITING_OTPS: return 
+        s1_task = asyncio.create_task(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True))
+        s2_task = asyncio.create_task(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True))
+        s3_url = f"{S3_BASE_URL}/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
+        s3_task = asyncio.create_task(s3_api_request('GET', s3_url, return_text=True))
         
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    s1_task = asyncio.create_task(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True))
-    s2_task = asyncio.create_task(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True))
-    s3_url = f"{S3_BASE_URL}/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
-    s3_task = asyncio.create_task(s3_api_request('GET', s3_url, return_text=True))
-    
-    for completed_task in asyncio.as_completed([s1_task, s2_task, s3_task]):
-        try:
-            res = await completed_task
-            if res == s1_task.result() if s1_task.done() else None: await check_inbox(context, res, LAST_INBOX_S1, "s1")
-            elif res == s2_task.result() if s2_task.done() else None: await check_inbox(context, res, LAST_INBOX_S2, "s2")
-            else: await check_inbox(context, res, LAST_INBOX_S3, "s3")
-        except: pass
+        for completed_task in asyncio.as_completed([s1_task, s2_task, s3_task]):
+            try:
+                res = await completed_task
+                if res == s1_task.result() if s1_task.done() else None: await check_inbox(context, res, LAST_INBOX_S1, "s1")
+                elif res == s2_task.result() if s2_task.done() else None: await check_inbox(context, res, LAST_INBOX_S2, "s2")
+                else: await check_inbox(context, res, LAST_INBOX_S3, "s3")
+            except: pass
 
 # ==============================================================================
 # 🎯 HIGH-SPEED NUMBER GENERATION (STRICT ANTI-HANG ENGINE)
@@ -814,6 +914,7 @@ async def safe_delayed_fetch(delay, func, *args, **kwargs):
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, NUM_TO_HASH
     
+    # 🔥 UI UPDATES INSTANTLY
     wait_txt = "<b>⏳ 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀... 🚀</b>"
     if is_callback:
         user_id = update.callback_query.from_user.id
@@ -823,122 +924,122 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
-    
-    country_name = context.user_data.get('real_country_name', 'Unknown')
-    country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
-    
-    raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
-    api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
+        
+    # 🔥 Handle 50k users concurrent requests gracefully
+    async with GENERATION_SEMAPHORE:
+      
+      country_name = context.user_data.get('real_country_name', 'Unknown')
+      country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
+      
+      raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
+      api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
-    fetched_numbers = []
-    
-    # 🔥 ANTI-HANG GUARANTEE: Try fast parallel approach, but NEVER wait more than 3.5 seconds!
-    for attempt in range(2):
-        if len(fetched_numbers) >= 2: break
-        
-        tasks = []
-        if server_id == 1:
-            r_val = str(range_val).strip()
-            if not r_val.upper().endswith("XXX"): r_val += "XXX"
-            payload = {"range": r_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-            # Only 2 requests slightly staggered to avoid rate limits
-            tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
-            
-        elif server_id == 2:
-            rv = str(range_val).replace('X', '|')
-            parts = rv.split('|')
-            if len(parts) >= 2:
-                payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-                tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.2, _fetch_number_s2, payload)]
+      fetched_numbers = []
+      
+      for attempt in range(2):
+          if len(fetched_numbers) >= 2: break
+          
+          tasks = []
+          if server_id == 1:
+              r_val = str(range_val).strip()
+              if not r_val.upper().endswith("XXX"): r_val += "XXX"
+              payload = {"range": r_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
+              tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
+              
+          elif server_id == 2:
+              rv = str(range_val).replace('X', '|')
+              parts = rv.split('|')
+              if len(parts) >= 2:
+                  payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
+                  tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.2, _fetch_number_s2, payload)]
 
-        elif server_id == 3:
-            url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-            tasks = [_fetch_number_s3(url), safe_delayed_fetch(0.2, _fetch_number_s3, url)]
+          elif server_id == 3:
+              url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
+              tasks = [_fetch_number_s3(url), safe_delayed_fetch(0.2, _fetch_number_s3, url)]
 
-        if tasks:
-            try:
-                # 🔥 STRICT TIMEOUT: Forces bot to move on if API gets stuck
-                results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
-                
-                for res in results:
-                    if isinstance(res, tuple):
-                        status, resp = res
-                        if status in [200, 201] and isinstance(resp, dict):
-                            num = ""
-                            if server_id == 2 and resp.get('status') in ['success', 200, True]:
-                                data_obj = resp.get('data', {})
-                                if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
-                                elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
-                                    
-                            elif server_id == 3 and str(resp.get('meta')) == '200':
-                                data_obj = resp.get('data', {})
-                                if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
-                                    
-                            elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
-                                num = str(resp['data']['number'])
-                                if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
-                                country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
-                            
-                            if num and num != "None": 
-                                clean_n = num.replace('+', '')
-                                if clean_n not in fetched_numbers: 
-                                    fetched_numbers.append(clean_n)
-                                    if len(fetched_numbers) == 2: break
-            except asyncio.TimeoutError:
-                logger.warning(f"Server {server_id} timed out. Preventing hang.")
-                pass # Move gracefully to next attempt or fail instantly
-            except Exception as e:
-                logger.error(f"Generation error: {e}")
+          if tasks:
+              try:
+                  results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
+                  
+                  for res in results:
+                      if isinstance(res, tuple):
+                          status, resp = res
+                          if status in [200, 201] and isinstance(resp, dict):
+                              num = ""
+                              if server_id == 2 and resp.get('status') in ['success', 200, True]:
+                                  data_obj = resp.get('data', {})
+                                  if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
+                                  elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
+                                      
+                              elif server_id == 3 and str(resp.get('meta')) == '200':
+                                  data_obj = resp.get('data', {})
+                                  if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
+                                      
+                              elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
+                                  num = str(resp['data']['number'])
+                                  if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
+                                  country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
+                              
+                              if num and num != "None": 
+                                  clean_n = num.replace('+', '')
+                                  if clean_n not in fetched_numbers: 
+                                      fetched_numbers.append(clean_n)
+                                      if len(fetched_numbers) == 2: break
+              except asyncio.TimeoutError:
+                  logger.warning(f"Server {server_id} timed out. Preventing hang.")
+                  pass 
+              except Exception as e:
+                  logger.error(f"Generation error: {e}")
 
-    if fetched_numbers:
-        s_suffix = ""
-        if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
-        elif server_id == 2: s_suffix = SETTINGS_CACHE['s2_suffix']
-        elif server_id == 3: s_suffix = SETTINGS_CACHE['s3_suffix']
-        
-        display_country_name = f"{country_name}{s_suffix}".strip()
-        flag = get_flag(country_name)
-        custom_svc = context.user_data.get('service_name', api_svc.title())
-        
-        txt = (
-            f"<b>{flag} {display_country_name} Number Assigned:</b>\n"
-            f"╭─────────────────╮\n"
-            f"│  ⏳ <b>Waiting for OTP...</b>\n"
-            f"╰─────────────────╯"
-        )
-        
-        num_kb = {"inline_keyboard": []}
-        for n in fetched_numbers:
-            num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
-            
-        num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
-        num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
-        num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}])
-        
-        try: await msg.edit_text(text=txt, reply_markup=num_kb, parse_mode=ParseMode.HTML)
-        except Exception: pass
-        
-        for n in fetched_numbers:
-            hash_key = get_hash_key(n)
-            WAITING_OTPS[hash_key] = {
-                'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
-                'time': time.time(), 'received_codes': set(), 
-                'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
-            }
-            NUM_TO_HASH[clean_number(n)] = hash_key
-            
-        context.user_data['range'] = range_val 
-        context.user_data['server'] = server_id
-        
-    else:
-        err_msg = "🔄 <b>No numbers found right now. Please try again.</b>"
-        btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
-        try:
-            await msg.edit_text(
-                text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", 
-                reply_markup=btn_back, parse_mode=ParseMode.HTML
-            )
-        except Exception: pass
+      if fetched_numbers:
+          s_suffix = ""
+          if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
+          elif server_id == 2: s_suffix = SETTINGS_CACHE['s2_suffix']
+          elif server_id == 3: s_suffix = SETTINGS_CACHE['s3_suffix']
+          
+          display_country_name = f"{country_name}{s_suffix}".strip()
+          flag = get_flag(country_name)
+          custom_svc = context.user_data.get('service_name', api_svc.title())
+          
+          txt = (
+              f"<b>{flag} {display_country_name} Number Assigned:</b>\n"
+              f"╭─────────────────╮\n"
+              f"│  ⏳ <b>Waiting for OTP...</b>\n"
+              f"╰─────────────────╯"
+          )
+          
+          num_kb = {"inline_keyboard": []}
+          for n in fetched_numbers:
+              num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
+              
+          num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
+          num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
+          num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}])
+          
+          try: await msg.edit_text(text=txt, reply_markup=num_kb, parse_mode=ParseMode.HTML)
+          except Exception: pass
+          
+          for n in fetched_numbers:
+              hash_key = get_hash_key(n)
+              WAITING_OTPS[hash_key] = {
+                  'full_num': n, 'user_id': user_id, 'chat_id': chat_id, 'msg_id': msg.message_id, 
+                  'time': time.time(), 'received_codes': set(), 
+                  'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
+              }
+              NUM_TO_HASH[clean_number(n)] = hash_key
+              
+          context.user_data['range'] = range_val 
+          context.user_data['server'] = server_id
+          
+      else:
+          err_msg = "🔄 <b>No numbers found right now. Please try again.</b>"
+          btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
+          try:
+              await msg.edit_text(
+                  text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", 
+                  reply_markup=btn_back, parse_mode=ParseMode.HTML
+              )
+          except Exception: pass
 
 # ==============================================================================
 # 📋 MENUS & UI
@@ -976,16 +1077,19 @@ async def show_live_traffic(update, context):
         short_c = get_short_code(c)
         app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘᴘ"
         
-        if pct >= 70:
-            color = "🟢"
-        elif pct >= 40:
-            color = "🟡"
-        else:
-            color = "🔴"
+        if pct >= 70: color = "🟢"
+        elif pct >= 40: color = "🟡"
+        else: color = "🔴"
             
         txt += f"<b>{app_display} {flag} {short_c} {pct:.0f}% {color} </b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+
+# 🔥 PRECOMPUTED MAIN MENU
+_MAIN_MENU_KB = ReplyKeyboardMarkup(
+    [["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]], 
+    resize_keyboard=True
+)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): return
@@ -997,28 +1101,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except: pass
         if referrer_id == user_id: referrer_id = None
         
-    await ensure_user_fast(user_id, referrer_id)
     context.user_data.clear()
     
-    if not await check_subscription(user_id, context.bot): await send_join_prompt(update, context)
+    # 🔥 PARALLEL: register user + check subscription at same time, no sequential wait
+    is_sub, _ = await asyncio.gather(
+        check_subscription(user_id, context.bot),
+        ensure_user_fast(user_id, referrer_id)
+    )
+    
+    if not is_sub: await send_join_prompt(update, context)
     else: await show_main_menu(update, context)
 
 async def show_main_menu(update_obj, context):
-    kb = [
-        ["📱 GET NUMBER", "📊 LIVE TRAFFIC"], 
-        ["💳 BALANCE", "🎁 REFER"],
-        ["🎧 LIVE SUPPORT"]
-    ]
-    
     full_name = html.escape(update_obj.effective_user.full_name)
     msg = f"<b>Welcome {full_name}</b>"
     
     if hasattr(update_obj, 'message') and update_obj.message: 
-        await update_obj.message.reply_text(msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
+        await update_obj.message.reply_text(msg, reply_markup=_MAIN_MENU_KB, parse_mode=ParseMode.HTML)
     elif hasattr(update_obj, 'callback_query') and update_obj.callback_query:
         try: await update_obj.callback_query.message.delete()
         except: pass
-        await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=ReplyKeyboardMarkup(kb, resize_keyboard=True), parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=update_obj.effective_chat.id, text=msg, reply_markup=_MAIN_MENU_KB, parse_mode=ParseMode.HTML)
 
 async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['state'] = 'WAITING_FOR_2FA'
@@ -1058,7 +1161,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
 
 # ==============================================================================
-# 🎮 TEXT HANDLER & ADMIN LOGIC
+# 🎮 TEXT HANDLER & FULL ADMIN LOGIC (Fully Restored)
 # ==============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1069,7 +1172,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = raw_text.strip()
     
     user_data = context.user_data
-    await ensure_user_fast(user_id)
+    # 🔥 Fire-and-forget user logic
+    if user_id not in USER_CACHE: asyncio.ensure_future(ensure_user_fast(user_id))
     
     menu_actions = ["📱 GET NUMBER", "📊 LIVE TRAFFIC", "💳 BALANCE", "🎁 REFER", "🎧 LIVE SUPPORT"]
     admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼 top 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
@@ -1164,18 +1268,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         state = user_data.get('state')
+        # 🔥 ENTERPRISE BROADCAST (100k Users safe implementation)
         if state == 'ADMIN_BROADCAST':
             users = list(USER_CACHE)
             msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users...</i>", parse_mode=ParseMode.HTML)
-            success, failed = 0, 0
-            for u_id in users:
-                try:
-                    await context.bot.send_message(chat_id=u_id, text=f"📢 <b>𝗔𝗗𝗠𝗜𝗡 𝗕𝗥𝗢𝗔𝗗𝗖𝗔𝗦𝗧</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML)
-                    success += 1
-                except: failed += 1
-                await asyncio.sleep(0.05) 
-            await msg.edit_text(f"✅ <b>𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁 𝗖𝗼𝗺plete𝗱!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
             user_data['state'] = None
+            
+            async def safe_broadcast():
+                success, failed = 0, 0
+                batch_size = 25 # Telegram strict limit is 30/sec
+                for i in range(0, len(users), batch_size):
+                    batch = users[i:i+batch_size]
+                    tasks = [context.bot.send_message(chat_id=u, text=f"📢 <b>𝗔𝗗𝗠𝗜𝗡 𝗕𝗥𝗢𝗔𝗗𝗖𝗔𝗦𝗧</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML) for u in batch]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    for r in results:
+                        if isinstance(r, Exception): failed += 1
+                        else: success += 1
+                    
+                    if i > 0 and i % 500 == 0:
+                        try: await msg.edit_text(f"⏳ <b>Broadcasting...</b>\n✅ {success} | ❌ {failed} | 📋 {i}/{len(users)}", parse_mode=ParseMode.HTML)
+                        except: pass
+                    await asyncio.sleep(1.1) # 1.1s sleep ensures safe broadcast without Ban
+                await msg.edit_text(f"✅ <b>𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁 𝗖𝗼𝗺plete𝗱!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
+            
+            asyncio.create_task(safe_broadcast())
             return
             
         elif state == 'ADMIN_ADD_CHANNEL':
@@ -1410,19 +1526,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    await ensure_user_fast(user_id)
     
-    if data == "ignore": return await query.answer()
-    elif data == "check_join":
-        if await check_subscription(user_id, context.bot): 
+    # 🔥 INSTANT UI FEEDBACK
+    if data != "ignore" and not data.startswith("cat_") and not data.startswith("r_"):
+        try: await query.answer()
+        except: pass
+        
+    # 🔥 Fire-and-forget
+    if user_id not in USER_CACHE: asyncio.ensure_future(ensure_user_fast(user_id))
+    
+    if data == "check_join":
+        if await check_subscription(user_id, context.bot, force=True):
             try: await query.message.delete()
             except: pass
-            await show_main_menu(query, context)
+            await context.bot.send_message(
+                chat_id=query.message.chat_id, 
+                text=f"<b>Welcome {html.escape(query.from_user.full_name)}</b>", 
+                reply_markup=_MAIN_MENU_KB, 
+                parse_mode=ParseMode.HTML
+            )
         else: await query.answer("⚠️ Please join all channels first.", show_alert=True)
 
-    elif data.startswith("cat_"): await handle_category_click(update, context)
+    elif data.startswith("cat_"): 
+        await query.answer()
+        await handle_category_click(update, context)
         
     elif data.startswith("r_"):
+        await query.answer()
         parts = data.split("_")
         server_id, range_val = int(parts[1]), parts[2]
         if len(parts) > 3: context.user_data['real_country_name'] = parts[3]
@@ -1466,7 +1596,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = data.split("_")[1]
         context.user_data['admin_reply_target'] = target_user_id
         await query.message.reply_text(f"✍️ <b>Type reply for:</b> <code>{target_user_id}</code>\n<i>(Type message normally)</i>", parse_mode=ParseMode.HTML)
-        await query.answer()
 
     elif data == "req_withdraw":
         loop = asyncio.get_event_loop()
@@ -1481,7 +1610,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
             ]
         }
-        
         await query.edit_message_text("🏦 <b>Sᴇʟᴇᴄᴛ Yᴏᴜʀ Wɪᴛʜᴅʀᴀᴡ Mᴀᴛʜᴏᴅ :</b>", parse_mode=ParseMode.HTML, reply_markup=markup)
         
     elif data.startswith("wdm_"):
@@ -1593,7 +1721,6 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
 async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
     global CONSOLE_CACHE, PRECOMPUTED_MENUS
     try:
-        gc.collect()
         s1_tasks = [s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info?page={i}") for i in range(1, 4)]
         s2_tasks = [s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page={i}&limit=50") for i in range(1, 4)]
         results = await asyncio.gather(*s1_tasks, *s2_tasks, return_exceptions=True)
@@ -1672,7 +1799,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
     except Exception: pass
 
 # ==============================================================================
-# 🌐 RENDER LONG-POLLING ANTI-SLEEP
+# 🌐 RENDER LONG-POLLING ANTI-SLEEP & WEB SERVER
 # ==============================================================================
 
 async def web_server_handler(request):
@@ -1710,7 +1837,20 @@ async def post_init(app: Application):
 
 if __name__ == "__main__":
     init_db()
-    app = Application.builder().token(TOKEN).post_init(post_init).build()
+    
+    # 🔥 ULTIMATE PARALLEL CONFIGURATION FOR 100K USERS
+    app = (
+        Application.builder()
+        .token(TOKEN)
+        .post_init(post_init)
+        .concurrent_updates(True)        # 🔥 Handle multiple users truly in parallel
+        .connection_pool_size(256)       # 🔥 Maximize connection pool for Telegram API
+        .connect_timeout(5)
+        .read_timeout(10)
+        .write_timeout(10)
+        .pool_timeout(5)
+        .build()
+    )
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin_panel))
@@ -1726,6 +1866,7 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(auto_relogin_job,         interval=300,  first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=1200, first=1200)
+    app.job_queue.run_repeating(memory_cleanup_job,       interval=300,  first=60)
     
-    logger.info("✨ VERSION 85 ENTERPRISE RUNNING (ANTI-HANG EDITION) ✨")
-    app.run_polling(drop_pending_updates=True)
+    logger.info("✨ VERSION 87 FULL-SCALE ENTERPRISE RUNNING (ANTI-HANG EDITION) ✨")
+    app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query"])
