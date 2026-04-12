@@ -60,9 +60,8 @@ S2_EMAIL = "rtxraja01@gmail.com"
 S2_PASSWORD = "Raja1234"
 S2_BASE_URL = "https://sms.acchub.io"
 
-S3_EMAIL = "mdrajaislam469@gmail.com"
-S3_STATIC_TOKEN = "ed49e203-6618-45ec-980d-21aaab1cfe45"
-S3_BASE_URL = "https://crackerjacksms.com"
+# 🔥 NEW S3 API (DIRECT OTP CHECK)
+S3_API_URL = "http://147.135.212.197/crapi/had/viewstats?token=RVBXQzRSQnZhlIpGQ1J4RENjjEmElZlUgl-TfGGVikl6kFZGi1Rm&records=25"
 
 def get_cf_headers(origin_domain):
     return {
@@ -79,56 +78,50 @@ def get_cf_headers(origin_domain):
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
-# 🛑 CACHING & MEMORY (RENDER OPTIMIZED)
+# 🛑 CACHING & MEMORY (RENDER OPTIMIZED FOR 100K USERS)
 # ==============================================================================
 
 S1_TOKEN = None
 S2_TOKEN = None
-S3_TOKEN = None
 
 GLOBAL_SESSION = None 
 S2_SESSION = None
 
 AUTH_LOCK_S1 = asyncio.Lock() 
 AUTH_LOCK_S2 = asyncio.Lock()
-AUTH_LOCK_S3 = asyncio.Lock()
 
 LAST_AUTH_S1 = 0
 LAST_AUTH_S2 = 0
-LAST_AUTH_S3 = 0
 
 LAST_INBOX_S1 = ""
 LAST_INBOX_S2 = ""
-LAST_INBOX_S3 = ""
+LAST_INBOX_S3 = set() # To store already processed S3 OTP signatures
 
 START_TIME = datetime.datetime.now()
-BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.7680.164 Mobile Safari/537.36"
 
-# 🔥 OPTIMIZED FOR RENDER FREE (Prevents DB Locking/Memory Thrashing)
-DB_POOL_SIZE = 10
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="db_worker")
+# 🔥 OPTIMIZED FOR RENDER FREE (VPS LIKE SPEED)
+DB_POOL_SIZE = 30
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=30, thread_name_prefix="db_worker")
 
-# 🔥 SEMAPHORE: max 50 concurrent number-generation tasks (prevents RAM spike)
-GENERATION_SEMAPHORE = asyncio.Semaphore(50)
+# 🔥 SEMAPHORE: max 100 concurrent number-generation tasks
+GENERATION_SEMAPHORE = asyncio.Semaphore(100)
+
+# 🔥 OTP POLLING LOCK
+OTP_CHECK_LOCK = asyncio.Lock()
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
-# 🧠 SMART LRU CACHE — RAM সবসময় controlled, কখনো ভরবে না
+# 🧠 SMART LRU CACHE 
 # ==============================================================================
 
 class BoundedTTLCache:
-    """
-    LRU + TTL combined cache।
-    - max_size: এর বেশি entry হলে সবচেয়ে পুরনো (Least Recently Used) বের করে দেয়
-    - ttl: এই সময়ের পর entry expire হয়
-    ১ লাখ ইউজার হলেও RAM নির্দিষ্ট সীমার মধ্যে থাকবে।
-    """
     __slots__ = ('_cache', '_max_size', '_ttl')
 
     def __init__(self, max_size: int, ttl: float):
-        self._cache = {}          # key -> (value, expire_time)
+        self._cache = {}
         self._max_size = max_size
         self._ttl = ttl
 
@@ -140,7 +133,6 @@ class BoundedTTLCache:
         if time.time() > exp:
             del self._cache[key]
             return default
-        # LRU: re-insert to move to end (OrderedDict behavior via dict in Python 3.7+)
         self._cache[key] = (value, exp)
         return value
 
@@ -148,7 +140,6 @@ class BoundedTTLCache:
         if key in self._cache:
             del self._cache[key]
         elif len(self._cache) >= self._max_size:
-            # Evict oldest entry (first inserted = first key in dict)
             try:
                 oldest = next(iter(self._cache))
                 del self._cache[oldest]
@@ -166,29 +157,24 @@ class BoundedTTLCache:
         return len(self._cache)
 
     def purge_expired(self):
-        """Expired entry মুছে RAM ফাঁকা করে — background job থেকে call হয়"""
         now = time.time()
         expired = [k for k, (_, exp) in self._cache.items() if now > exp]
         for k in expired:
             del self._cache[k]
         return len(expired)
 
-
 WAITING_OTPS = {}
 NUM_TO_HASH = {}
 BATCH_MSGS = {}
-OTP_TIMEOUT_SECONDS = 1200
+OTP_TIMEOUT_SECONDS = 1200 # 🔥 20 MINUTES WAIT TIME
 
 USER_CACHE = set()
 BANNED_CACHE = set()
 CHANNELS_CACHE = set()
 
-# 🔥 BoundedTTLCache ব্যবহার:
-# USER_INFO_CACHE  — max 50,000 active user info, 30 min TTL (বাকিরা DB থেকে লোড হবে)
-# SUBSCRIPTION_CACHE — max 50,000, 5 min TTL (চ্যানেল জয়েন status)
-USER_INFO_CACHE      = BoundedTTLCache(max_size=50_000, ttl=1800)   # 30 min
-SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=50_000, ttl=300)    # 5 min
-SUBSCRIPTION_CACHE_TTL = 300  # kept for compatibility
+# 🔥 12 HOUR SUBSCRIPTION CACHE (EXTREME SPEED FOR BUTTONS)
+USER_INFO_CACHE      = BoundedTTLCache(max_size=100_000, ttl=1800)   # 30 min
+SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=100_000, ttl=43200)  # 🔥 12 HOURS 
 
 CONSOLE_CACHE = {1: [], 2: []}
 PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} 
@@ -203,9 +189,9 @@ SETTINGS_CACHE = {
     "s3_suffix": " CJ"
 }
 
-# Extensive Flag & Code Mapping
+# Extensive Flag & Code Mapping 
 COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"TM", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
 }
 
 COUNTRY_CODES = {
@@ -245,10 +231,13 @@ def mask_number_group(number: str) -> str:
 
 def extract_code(message):
     msg = str(message)
+    # 1. Check for WhatsApp format XXX-XXX
     wa_match = re.search(r'\b(\d{3})-(\d{3})\b', msg)
     if wa_match: return wa_match.group(1) + wa_match.group(2)
+    # 2. Check for explicit keywords followed by code (Facebook, generic)
     kw = re.search(r'(?:otp|code|verification|verify|pin|passcode|password)[^0-9]{0,25}(\d{4,8})', msg, re.IGNORECASE)
     if kw: return kw.group(1)
+    # 3. Fallback to just finding any 4-8 digit number
     fb = re.search(r'\b(\d{4,8})\b', msg)
     return fb.group(1) if fb else "See Msg"
 
@@ -277,22 +266,23 @@ def get_hash_key(number_str):
     return clean_str[-8:] if clean_str else "UNKNOWN"
 
 # ==============================================================================
-# 🗄️ DATABASE
+# 🗄️ DATABASE (SAFE & ULTRA FAST - VPS LEVEL CONFIG)
 # ==============================================================================
 
 DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=20):
+    def __init__(self, db_file, pool_size=30):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
     def get_connection(self):
         conn = sqlite3.connect(self.db_file, timeout=60.0, check_same_thread=False)
         conn.execute('PRAGMA journal_mode=WAL;') 
-        conn.execute('PRAGMA synchronous=OFF;')  
+        conn.execute('PRAGMA synchronous=OFF;')  # 🔥 Extreme speed for rendering 100k+ writes
         conn.execute('PRAGMA temp_store=MEMORY;')
-        conn.execute('PRAGMA mmap_size=300000000;') 
+        conn.execute('PRAGMA cache_size=-10000;')   
+        conn.execute('PRAGMA mmap_size=3000000000;') # 🔥 Memory map support
         try: yield conn
         finally: conn.close()
 
@@ -316,12 +306,18 @@ def init_db():
             ping_url TEXT DEFAULT 'https://rtxstexsms-qf5h.onrender.com',
             s1_suffix TEXT DEFAULT '', s2_suffix TEXT DEFAULT ' XRT', s3_suffix TEXT DEFAULT ' CJ'
         )''')
+        
         c.execute('''CREATE TABLE IF NOT EXISTS channels (
             id INTEGER PRIMARY KEY AUTOINCREMENT, channel_username TEXT UNIQUE
         )''')
-        c.execute('''CREATE TABLE IF NOT EXISTS s3_ranges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, carrier_id TEXT, country_name TEXT
+        
+        # 🔥 MANUAL S3 NUMBERS TABLE FOR FILE UPLOADS
+        c.execute('''CREATE TABLE IF NOT EXISTS s3_numbers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, country_name TEXT, 
+            phone_number TEXT UNIQUE, is_used INTEGER DEFAULT 0, 
+            assigned_user_id INTEGER DEFAULT NULL, assigned_time TEXT
         )''')
+        
         c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL,
             method TEXT, account TEXT, status TEXT DEFAULT 'pending', date TEXT DEFAULT CURRENT_TIMESTAMP
@@ -353,14 +349,11 @@ def init_db():
             
         conn.commit()
         
-        # 🔥 LAZY LOAD: শুধু user_id set আর banned list load হয় startup-এ
-        # USER_INFO_CACHE (balance, referrals etc.) on-demand লোড হবে — ১ লাখ row একসাথে RAM-এ নেই
         c.execute("SELECT user_id, is_banned FROM users")
         USER_CACHE.clear(); BANNED_CACHE.clear()
         for row in c.fetchall():
             USER_CACHE.add(row[0])
             if row[1] == 1: BANNED_CACHE.add(row[0])
-        logger.info(f"✅ DB loaded: {len(USER_CACHE)} users, {len(BANNED_CACHE)} banned")
 
 def sync_register_user_db(user_id, referrer_id=None):
     with db_pool.get_connection() as conn:
@@ -372,17 +365,18 @@ def sync_register_user_db(user_id, referrer_id=None):
             if referrer_id: 
                 c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
                 _ref_data = USER_INFO_CACHE.get(referrer_id)
-                if _ref_data: _ref_data["total_referrals"] += 1; USER_INFO_CACHE.set(referrer_id, _ref_data)
+                if _ref_data: 
+                    _ref_data["total_referrals"] += 1
+                    USER_INFO_CACHE.set(referrer_id, _ref_data)
         conn.commit()
 
 async def ensure_user_fast(user_id, referrer_id=None):
-    # 🔥 INSTANT: already known user = zero work, zero await
     if user_id in USER_CACHE: return True
     USER_CACHE.add(user_id)
     if user_id not in USER_INFO_CACHE:
         USER_INFO_CACHE.set(user_id, {"balance": 0.0, "referrer_id": referrer_id, "total_referrals": 0, "ref_earnings": 0.0})
-    # DB write is fire-and-forget in background thread, never blocks response
-    asyncio.get_event_loop().run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
 def sync_add_channel(username):
@@ -419,7 +413,7 @@ def sync_get_user_info(user_id):
         c = conn.cursor()
         c.execute("SELECT balance, total_referrals, referrer_id, ref_earnings FROM users WHERE user_id=?", (user_id,))
         row = c.fetchone()
-        if row:
+        if row: 
             data = {"balance": row[0], "total_referrals": row[1], "referrer_id": row[2], "ref_earnings": row[3]}
             USER_INFO_CACHE.set(user_id, data)
             return data
@@ -432,7 +426,9 @@ def sync_add_balance(user_id, amount):
         c.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
         new_bal = c.fetchone()[0]
         _d = USER_INFO_CACHE.get(user_id)
-        if _d: _d["balance"] = new_bal; USER_INFO_CACHE.set(user_id, _d)
+        if _d: 
+            _d["balance"] = new_bal
+            USER_INFO_CACHE.set(user_id, _d)
         conn.commit()
         return new_bal
 
@@ -459,7 +455,9 @@ def sync_create_withdraw(user_id, amount, method, account):
         wid = c.lastrowid
         conn.commit()
         _d = USER_INFO_CACHE.get(user_id)
-        if _d: _d["balance"] -= amount; USER_INFO_CACHE.set(user_id, _d)
+        if _d:
+            _d["balance"] -= amount
+            USER_INFO_CACHE.set(user_id, _d)
         return wid
 
 def sync_update_withdraw_status(wd_id, status):
@@ -478,7 +476,9 @@ def sync_update_withdraw_status(wd_id, status):
         if status == 'rejected':
             c.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, user_id))
             _d = USER_INFO_CACHE.get(user_id)
-            if _d: _d["balance"] += amount; USER_INFO_CACHE.set(user_id, _d)
+            if _d: 
+                _d["balance"] += amount
+                USER_INFO_CACHE.set(user_id, _d)
         elif status == 'approved':
             c.execute("SELECT referrer_id FROM users WHERE user_id=?", (user_id,))
             ref_row = c.fetchone()
@@ -488,29 +488,57 @@ def sync_update_withdraw_status(wd_id, status):
                 c.execute("UPDATE users SET balance = balance + ?, ref_earnings = ref_earnings + ? WHERE user_id=?", (ref_bonus, ref_bonus, referrer_id))
                 _rd = USER_INFO_CACHE.get(referrer_id)
                 if _rd:
-                    _rd["balance"] += ref_bonus; _rd["ref_earnings"] += ref_bonus
+                    _rd["balance"] += ref_bonus
+                    _rd["ref_earnings"] += ref_bonus
                     USER_INFO_CACHE.set(referrer_id, _rd)
 
         conn.commit()
         return True, user_id, amount, referrer_id, ref_bonus
 
-def sync_add_s3_range(category, carrier_id, country_name):
+# 🔥 S3 MANUAL FILE UPLOAD DB LOGIC
+def sync_insert_s3_numbers(category, country, numbers):
+    inserted = 0
     with db_pool.get_connection() as conn:
         c = conn.cursor()
-        c.execute("INSERT INTO s3_ranges (category, carrier_id, country_name) VALUES (?, ?, ?)", (category, carrier_id, country_name))
+        for num in numbers:
+            try:
+                c.execute("INSERT INTO s3_numbers (category, country_name, phone_number) VALUES (?, ?, ?)", (category, country, num))
+                inserted += 1
+            except sqlite3.IntegrityError:
+                pass # skip duplicates
         conn.commit()
+    return inserted
 
-def sync_get_s3_ranges(category=None):
+def sync_get_s3_stock(category):
     with db_pool.get_connection() as conn:
         c = conn.cursor()
-        if category: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges WHERE LOWER(category) = LOWER(?)", (category,))
-        else: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges")
+        c.execute("SELECT category, country_name, COUNT(*) FROM s3_numbers WHERE is_used=0 AND LOWER(category)=LOWER(?) GROUP BY country_name", (category,))
         return c.fetchall()
 
-def sync_delete_s3_range(range_id):
+def sync_get_unused_s3_number(category, country, user_id):
     with db_pool.get_connection() as conn:
         c = conn.cursor()
-        c.execute("DELETE FROM s3_ranges WHERE id=?", (range_id,))
+        c.execute("SELECT phone_number FROM s3_numbers WHERE LOWER(category)=LOWER(?) AND LOWER(country_name)=LOWER(?) AND is_used=0 LIMIT 1", (category, country))
+        row = c.fetchone()
+        if row:
+            num = row[0]
+            now_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            c.execute("UPDATE s3_numbers SET is_used=1, assigned_user_id=?, assigned_time=? WHERE phone_number=?", (user_id, now_time, num))
+            conn.commit()
+            return num
+    return None
+
+def sync_get_all_s3_ranges():
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT category, country_name, COUNT(*) FROM s3_numbers WHERE is_used=0 GROUP BY category, country_name")
+        return c.fetchall()
+
+def sync_delete_s3_range(category, country_name):
+    with db_pool.get_connection() as conn:
+        c = conn.cursor()
+        if category == "ALL": c.execute("DELETE FROM s3_numbers WHERE country_name=?", (country_name,))
+        else: c.execute("DELETE FROM s3_numbers WHERE category=? AND country_name=?", (category, country_name))
         conn.commit()
 
 def sync_checkpoint():
@@ -518,26 +546,17 @@ def sync_checkpoint():
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
 
 # ==============================================================================
-# 🔐 AUTHENTICATION
+# 🔐 AUTHENTICATION & API REQUESTS
 # ==============================================================================
 
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
         connector = aiohttp.TCPConnector(
-            limit=200,
-            limit_per_host=50,
-            keepalive_timeout=300,
-            enable_cleanup_closed=True,
-            ttl_dns_cache=600,
-            use_dns_cache=True,
+            limit=200, limit_per_host=50, keepalive_timeout=300, enable_cleanup_closed=True, ttl_dns_cache=600, use_dns_cache=True
         )
-        timeout = aiohttp.ClientTimeout(total=10, connect=3, sock_read=8)
-        GLOBAL_SESSION = aiohttp.ClientSession(
-            connector=connector,
-            cookie_jar=aiohttp.CookieJar(unsafe=True),
-            timeout=timeout,
-        )
+        timeout = aiohttp.ClientTimeout(total=8, connect=2, sock_read=6)
+        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True), timeout=timeout)
     return GLOBAL_SESSION
 
 async def parse_response_safely(response):
@@ -575,8 +594,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
             session = await get_session()
             headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}", "Connection": "keep-alive"}
             
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
+            timeout = aiohttp.ClientTimeout(total=3.5, connect=1.5)
             
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
@@ -625,9 +643,8 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
             headers = get_cf_headers("acchub.io")
             headers.update({"authorization": f"Bearer {S2_TOKEN}"})
             
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=4.0)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=4.0)
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=3.5)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=3.5)
 
             status = response.status_code
             if status in [401, 403]: S2_TOKEN = None; await auth_s2(force=True); continue
@@ -639,61 +656,28 @@ async def s2_api_request(method: str, url: str, json_payload=None, return_text=F
         except Exception: await asyncio.sleep(0.1)
     return 500, None
 
-async def auth_s3(force=False):
-    global S3_TOKEN, LAST_AUTH_S3
-    async with AUTH_LOCK_S3:
-        if not force and time.time() - LAST_AUTH_S3 < 3600 and S3_TOKEN: return True
-        try:
-            session = await get_session()
-            data = aiohttp.FormData()
-            data.add_field('email', S3_EMAIL); data.add_field('auth-token', S3_STATIC_TOKEN)
-            headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com", "Referer": "https://crackerjacksms.com/"}
-            async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=10, ssl=False) as response:
-                if response.status == 200:
-                    S3_TOKEN = S3_STATIC_TOKEN 
-                    LAST_AUTH_S3 = time.time()
-                    return True
-        except Exception: pass
-        return False
-
-async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
-    global S3_TOKEN
-    for attempt in range(2):
-        try:
-            if not S3_TOKEN and not await auth_s3(): continue
-            session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com", "Connection": "keep-alive"}
-            
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
-            
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
-            
-            status = response.status
-            if status == 200:
-                text_response = await response.text()
-                if return_text: return 200, text_response
-                try: return 200, json.loads(text_response)
-                except: return 200, None
-            return status, None
-        except Exception: await asyncio.sleep(0.1)
-    return 500, None
+# 🔥 FETCH S3 OTP FROM NEW JSON API
+async def fetch_s3_data():
+    try:
+        session = await get_session()
+        async with session.get(S3_API_URL, timeout=6.0) as res:
+            if res.status == 200:
+                data = await res.json()
+                if data.get("status") == "success":
+                    return data.get("data", [])
+    except Exception as e:
+        pass
+    return []
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
-    await asyncio.gather(auth_s1(force=True), auth_s2(force=True), auth_s3(force=True), return_exceptions=True)
+    await asyncio.gather(auth_s1(force=True), auth_s2(force=True), return_exceptions=True)
 
 async def memory_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
-    """প্রতি ৫ মিনিটে expired cache entry মুছে RAM ফাঁকা রাখে"""
     try:
-        sub_purged  = SUBSCRIPTION_CACHE.purge_expired()
-        info_purged = USER_INFO_CACHE.purge_expired()
+        SUBSCRIPTION_CACHE.purge_expired()
+        USER_INFO_CACHE.purge_expired()
         gc.collect()
-        logger.info(f"🧹 Cache cleanup: sub={sub_purged} info={info_purged} freed | "
-                    f"sub_size={len(SUBSCRIPTION_CACHE)} info_size={len(USER_INFO_CACHE)} "
-                    f"waiting_otps={len(WAITING_OTPS)}")
-    except Exception as e:
-        logger.warning(f"Cleanup error: {e}")
+    except Exception: pass
 
 # ==============================================================================
 # 🔒 MIDDLEWARES & UI
@@ -701,12 +685,11 @@ async def memory_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
 
 async def check_subscription(user_id, bot, force=False):
     if not CHANNELS_CACHE: return True
-    # 🔥 BoundedTTLCache: auto-expires, auto-evicts oldest when full
     if not force:
         cached = SUBSCRIPTION_CACHE.get(user_id)
         if cached is not None:
-            return cached  # True or False, already stored as plain bool
-    # All channels checked in parallel (not sequential)
+            return cached 
+
     try:
         checks = await asyncio.gather(
             *[bot.get_chat_member(chat_id=ch, user_id=user_id) for ch in CHANNELS_CACHE],
@@ -793,129 +776,117 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"💰 <b>Bᴀʟᴀɴᴄᴇ - {old_bal:.2f} » {new_bal:.2f}</b>"
     )
     
-    user_markup = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": str(code_only),
-                    "copy_text": {"text": str(code_only)},
-                    "style": "primary"
-                }
-            ]
-        ]
-    }
-    
+    user_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}, "style": "primary"}]]}
     try: await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=user_markup, parse_mode=ParseMode.HTML)
     except: pass
     
     masked_num = mask_number_group(full_num)
-    group_msg = (
-        f"╭─────────────────╮\n"
-        f"│  <b>{flag} #{short_name} » {stylish_svc} {masked_num}</b>\n"
-        f"╰─────────────────╯"
-    )
-    
+    group_msg = f"╭─────────────────╮\n│  <b>{flag} #{short_name} » {stylish_svc} {masked_num}</b>\n╰─────────────────╯"
     group_markup = {
         "inline_keyboard": [
-            [
-                {
-                    "text": str(code_only),
-                    "copy_text": {"text": str(code_only)},
-                    "style": "primary"
-                }
-            ],
-            [
-                {
-                    "text": "📢 Main Channel",
-                    "url": "https://t.me/EarnXtract",
-                    "style": "danger"
-                },
-                {
-                    "text": "🤖 Bot Link",
-                    "url": f"https://t.me/{(await context.bot.get_me()).username}",
-                    "style": "success"
-                }
-            ]
+            [{"text": str(code_only), "copy_text": {"text": str(code_only)}, "style": "primary"}],
+            [{"text": "📢 Main Channel", "url": "https://t.me/EarnXtract", "style": "danger"}, {"text": "🤖 Bot Link", "url": f"https://t.me/{(await context.bot.get_me()).username}", "style": "success"}]
         ]
     }
-    
     try: await context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=group_markup, parse_mode=ParseMode.HTML)
     except: pass
 
 async def check_inbox(context, server_res, last_text, text_var_name):
-    global LAST_INBOX_S1, LAST_INBOX_S2, LAST_INBOX_S3
+    global LAST_INBOX_S1, LAST_INBOX_S2
     if isinstance(server_res, tuple) and server_res[0] == 200 and server_res[1] and server_res[1] != last_text:
         text_data = server_res[1]
         if text_var_name == "s1": LAST_INBOX_S1 = text_data
         elif text_var_name == "s2": LAST_INBOX_S2 = text_data
-        elif text_var_name == "s3": LAST_INBOX_S3 = text_data
 
         try:
             api_res = json.loads(text_data) if isinstance(text_data, str) else text_data
-            items = []
-            if text_var_name in ["s2", "s3"]: items = api_res.get('data', [])
-            else:
-                data_field = api_res.get('data', {})
-                items = data_field if isinstance(data_field, list) else (data_field.get('numbers') or data_field.get('otps') or [])
+            items = api_res.get('data', []) if text_var_name == "s2" else (api_res.get('data', {}) if isinstance(api_res.get('data'), list) else (api_res.get('data', {}).get('numbers') or api_res.get('data', {}).get('otps') or []))
             
             for item in items:
                 if not isinstance(item, dict): continue
-                
-                if text_var_name == "s3":
-                    if item.get('status') != 'Success' or not item.get('otp'): continue
-                    num_raw = str(item.get('did', '')).replace('+', '')
-                    raw_msg = str(item.get('otp', ''))
-                    svc_name = "Service" 
-                else:
-                    num_raw = get_number_from_item(item)
-                    raw_msg = get_sms_from_item(item)
-                    svc_name = get_service_from_item(item)
+                num_raw = get_number_from_item(item)
+                raw_msg = get_sms_from_item(item)
+                svc_name = get_service_from_item(item)
                     
                 if not num_raw or not raw_msg: continue
-                
                 hash_key, waiter = _find_waiter(num_raw)
                 if hash_key:
-                    code_val = extract_code(raw_msg) if text_var_name == "s3" else get_code_from_item(item, raw_msg)
+                    code_val = get_code_from_item(item, raw_msg)
                     msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
                     rcv_set = waiter.setdefault('received_codes', set())
-                    
                     if msg_sig not in rcv_set:
                         rcv_set.add(msg_sig)
-                        is_multi = len(rcv_set) > 1
-                        await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg, is_multi, waiter.get('country_name', 'Unknown'))
+                        await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg, len(rcv_set) > 1, waiter.get('country_name', 'Unknown'))
         except Exception: pass
+
+# 🔥 NEW S3 SMS CHECKER (EXTRACT FROM API JSON)
+async def check_s3_inbox(context):
+    global LAST_INBOX_S3
+    s3_data = await fetch_s3_data()
+    
+    for row in s3_data:
+        if not isinstance(row, dict): continue
+            
+        number = str(row.get("num", "")).strip().replace('+', '')
+        service = str(row.get("cli", "Service")).strip()
+        raw_msg = str(row.get("message", "")).strip()
+            
+        if not number or not raw_msg: continue
+            
+        msg_sig = f"{number}_{raw_msg}"
+        if msg_sig in LAST_INBOX_S3: continue
+        
+        hash_key, waiter = _find_waiter(number)
+        if hash_key:
+            code_val = extract_code(raw_msg)
+            rcv_set = waiter.setdefault('received_codes', set())
+            if msg_sig not in rcv_set:
+                rcv_set.add(msg_sig)
+                LAST_INBOX_S3.add(msg_sig)
+                if len(LAST_INBOX_S3) > 5000: LAST_INBOX_S3.pop() # Keep Memory Clean
+                await process_found_otp(context, hash_key, waiter['full_num'], code_val, service, raw_msg, len(rcv_set) > 1, waiter.get('country_name', 'Unknown'))
 
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     global WAITING_OTPS, NUM_TO_HASH
-    gc.collect()
-    if not WAITING_OTPS: return 
     
-    current_time = time.time()
-    expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
-            
-    for h_key in expired_keys:
-        u_data = WAITING_OTPS.pop(h_key, None)
-        if u_data:
-            NUM_TO_HASH.pop(clean_number(u_data['full_num']), None)
-            try: await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
-            except: pass
-
     if not WAITING_OTPS: return 
+    if OTP_CHECK_LOCK.locked(): return
+
+    async with OTP_CHECK_LOCK:
+        current_time = time.time()
+        expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
+                
+        for h_key in expired_keys:
+            u_data = WAITING_OTPS.pop(h_key, None)
+            if u_data:
+                NUM_TO_HASH.pop(clean_number(u_data['full_num']), None)
+                try: await context.bot.delete_message(chat_id=u_data['chat_id'], message_id=u_data['msg_id'])
+                except: pass
+
+        if not WAITING_OTPS: return 
         
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        # 🔥 SMART ACTIVE POLLING (Prevents Hanging)
+        needs_s1 = any(d['server_id'] == 1 for d in WAITING_OTPS.values())
+        needs_s2 = any(d['server_id'] == 2 for d in WAITING_OTPS.values())
+        needs_s3 = any(d['server_id'] == 3 for d in WAITING_OTPS.values())
 
-    s1_task = asyncio.create_task(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True))
-    s2_task = asyncio.create_task(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True))
-    s3_url = f"{S3_BASE_URL}/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
-    s3_task = asyncio.create_task(s3_api_request('GET', s3_url, return_text=True))
-    
-    for completed_task in asyncio.as_completed([s1_task, s2_task, s3_task]):
-        try:
-            res = await completed_task
-            if res == s1_task.result() if s1_task.done() else None: await check_inbox(context, res, LAST_INBOX_S1, "s1")
-            elif res == s2_task.result() if s2_task.done() else None: await check_inbox(context, res, LAST_INBOX_S2, "s2")
-            else: await check_inbox(context, res, LAST_INBOX_S3, "s3")
-        except: pass
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Only spawn tasks if someone is actually waiting for that server.
+        s1_task = asyncio.create_task(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True)) if needs_s1 else None
+        s2_task = asyncio.create_task(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True)) if needs_s2 else None
+        s3_task = asyncio.create_task(check_s3_inbox(context)) if needs_s3 else None
+        
+        active_tasks = [t for t in [s1_task, s2_task, s3_task] if t is not None]
+        if not active_tasks: return
+        
+        for completed_task in asyncio.as_completed(active_tasks):
+            try:
+                res = await completed_task
+                if s1_task and completed_task == s1_task: await check_inbox(context, res, LAST_INBOX_S1, "s1")
+                elif s2_task and completed_task == s2_task: await check_inbox(context, res, LAST_INBOX_S2, "s2")
+                # S3 task processes internally inside check_s3_inbox
+            except: pass
 
 # ==============================================================================
 # 🎯 HIGH-SPEED NUMBER GENERATION (STRICT ANTI-HANG ENGINE)
@@ -923,7 +894,6 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
 
 async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
 async def _fetch_number_s2(payload): return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
-async def _fetch_number_s3(url): return await s3_api_request('GET', url)
 
 async def safe_delayed_fetch(delay, func, *args, **kwargs):
     if delay > 0: await asyncio.sleep(delay)
@@ -931,89 +901,77 @@ async def safe_delayed_fetch(delay, func, *args, **kwargs):
 
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, NUM_TO_HASH
+    
+    wait_txt = "<b>⏳ 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀... 🚀</b>"
+    if is_callback:
+        user_id = update.callback_query.from_user.id
+        chat_id = update.callback_query.message.chat_id
+        msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
+    else:
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
+        
     async with GENERATION_SEMAPHORE:
-      
-      wait_txt = "<b>⏳ 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀... 🚀</b>"
-      if is_callback:
-          user_id = update.callback_query.from_user.id
-          chat_id = update.callback_query.message.chat_id
-          msg = await update.callback_query.edit_message_text(text=wait_txt, parse_mode=ParseMode.HTML)
-      else:
-          user_id = update.effective_user.id
-          chat_id = update.effective_chat.id
-          msg = await update.message.reply_text(text=wait_txt, parse_mode=ParseMode.HTML)
-      
       country_name = context.user_data.get('real_country_name', 'Unknown')
       country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
-      
       raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
       api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
 
       fetched_numbers = []
       
-      # 🔥 ANTI-HANG GUARANTEE: Try fast parallel approach, but NEVER wait more than 3.5 seconds!
       for attempt in range(2):
           if len(fetched_numbers) >= 2: break
           
-          tasks = []
-          if server_id == 1:
-              r_val = str(range_val).strip()
-              if not r_val.upper().endswith("XXX"): r_val += "XXX"
-              payload = {"range": r_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
-              tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
-              
-          elif server_id == 2:
-              rv = str(range_val).replace('X', '|')
-              parts = rv.split('|')
-              if len(parts) >= 2:
-                  payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-                  tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.2, _fetch_number_s2, payload)]
+          if server_id == 3:
+              # 🔥 DIRECTLY GET 2 NUMBERS FROM DB FOR S3
+              loop = asyncio.get_event_loop()
+              for _ in range(2 - len(fetched_numbers)):
+                  num = await loop.run_in_executor(DB_EXECUTOR, sync_get_unused_s3_number, api_svc, country_name, user_id)
+                  if num and num not in fetched_numbers:
+                      fetched_numbers.append(num)
+              break # Break attempt loop because DB search finishes immediately
+          else:
+              tasks = []
+              if server_id == 1:
+                  r_val = str(range_val).strip()
+                  if not r_val.upper().endswith("XXX"): r_val += "XXX"
+                  payload = {"range": r_val, "app": api_svc, "service": api_svc, "is_national": False, "remove_plus": False}
+                  tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
+              elif server_id == 2:
+                  rv = str(range_val).replace('X', '|')
+                  parts = rv.split('|')
+                  if len(parts) >= 2:
+                      payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
+                      tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.2, _fetch_number_s2, payload)]
 
-          elif server_id == 3:
-              url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-              tasks = [_fetch_number_s3(url), safe_delayed_fetch(0.2, _fetch_number_s3, url)]
-
-          if tasks:
-              try:
-                  # 🔥 STRICT TIMEOUT: Forces bot to move on if API gets stuck
-                  results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
-                  
-                  for res in results:
-                      if isinstance(res, tuple):
-                          status, resp = res
-                          if status in [200, 201] and isinstance(resp, dict):
-                              num = ""
-                              if server_id == 2 and resp.get('status') in ['success', 200, True]:
-                                  data_obj = resp.get('data', {})
-                                  if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
-                                  elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
-                                      
-                              elif server_id == 3 and str(resp.get('meta')) == '200':
-                                  data_obj = resp.get('data', {})
-                                  if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
-                                      
-                              elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
-                                  num = str(resp['data']['number'])
-                                  if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
-                                  country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
-                              
-                              if num and num != "None": 
-                                  clean_n = num.replace('+', '')
-                                  if clean_n not in fetched_numbers: 
-                                      fetched_numbers.append(clean_n)
-                                      if len(fetched_numbers) == 2: break
-              except asyncio.TimeoutError:
-                  logger.warning(f"Server {server_id} timed out. Preventing hang.")
-                  pass
-              except Exception as e:
-                  logger.error(f"Generation error: {e}")
+              if tasks:
+                  try:
+                      results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
+                      for res in results:
+                          if isinstance(res, tuple):
+                              status, resp = res
+                              if status in [200, 201] and isinstance(resp, dict):
+                                  num = ""
+                                  if server_id == 2 and resp.get('status') in ['success', 200, True]:
+                                      data_obj = resp.get('data', {})
+                                      if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
+                                      elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
+                                  elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
+                                      num = str(resp['data']['number'])
+                                      if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
+                                      country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
+                                  
+                                  if num and num != "None": 
+                                      clean_n = num.replace('+', '')
+                                      if clean_n not in fetched_numbers: 
+                                          fetched_numbers.append(clean_n)
+                                          if len(fetched_numbers) == 2: break
+                  except asyncio.TimeoutError: pass 
+                  except Exception: pass
 
       if fetched_numbers:
-          s_suffix = ""
-          if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
-          elif server_id == 2: s_suffix = SETTINGS_CACHE['s2_suffix']
-          elif server_id == 3: s_suffix = SETTINGS_CACHE['s3_suffix']
-          
+          s_suffix = SETTINGS_CACHE[f's{server_id}_suffix']
           display_country_name = f"{country_name}{s_suffix}".strip()
           flag = get_flag(country_name)
           custom_svc = context.user_data.get('service_name', api_svc.title())
@@ -1094,16 +1052,15 @@ async def show_live_traffic(update, context):
         short_c = get_short_code(c)
         app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘᴘ"
         
-        if pct >= 70:
-            color = "🟢"
-        elif pct >= 40:
-            color = "🟡"
-        else:
-            color = "🔴"
+        if pct >= 70: color = "🟢"
+        elif pct >= 40: color = "🟡"
+        else: color = "🔴"
             
         txt += f"<b>{app_display} {flag} {short_c} {pct:.0f}% {color} </b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
+
+_MAIN_MENU_KB = ReplyKeyboardMarkup([["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): return
@@ -1114,28 +1071,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try: referrer_id = int(context.args[0].replace("ref_", ""))
         except: pass
         if referrer_id == user_id: referrer_id = None
-    
-    # 🔥 PARALLEL: register user + check subscription at same time, no sequential wait
+        
     context.user_data.clear()
-    is_sub, _ = await asyncio.gather(
-        check_subscription(user_id, context.bot),
-        ensure_user_fast(user_id, referrer_id)
-    )
     
+    is_sub, _ = await asyncio.gather(check_subscription(user_id, context.bot), ensure_user_fast(user_id, referrer_id))
     if not is_sub: await send_join_prompt(update, context)
     else: await show_main_menu(update, context)
 
-# 🔥 PRECOMPUTED MAIN MENU KEYBOARD — built once, reused for every user
-_MAIN_MENU_KB = ReplyKeyboardMarkup(
-    [["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]],
-    resize_keyboard=True
-)
-
 async def show_main_menu(update_obj, context):
-    full_name = html.escape(update_obj.effective_user.full_name)
-    msg = f"<b>Welcome {full_name}</b>"
-    
-    if hasattr(update_obj, 'message') and update_obj.message:
+    msg = f"<b>Welcome {html.escape(update_obj.effective_user.full_name)}</b>"
+    if hasattr(update_obj, 'message') and update_obj.message: 
         await update_obj.message.reply_text(msg, reply_markup=_MAIN_MENU_KB, parse_mode=ParseMode.HTML)
     elif hasattr(update_obj, 'callback_query') and update_obj.callback_query:
         try: await update_obj.callback_query.message.delete()
@@ -1155,12 +1100,8 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
         ]
     }
     txt = "<b>Sᴇʟᴇᴄᴛ Yᴏᴜ ᴄᴀᴛᴀɢᴏʀʏ </b>"
-    
-    if update and hasattr(update, 'callback_query') and update.callback_query: 
-        await update.callback_query.edit_message_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
-    else: 
-        if update and hasattr(update, 'message') and update.message:
-            await update.message.reply_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
+    if update.callback_query: await update.callback_query.edit_message_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
+    else: await update.message.reply_text(text=txt, reply_markup=cat_kb, parse_mode=ParseMode.HTML)
 
 async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global PRECOMPUTED_MENUS
@@ -1169,31 +1110,48 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['service_name'] = category.title()
     
     if PRECOMPUTED_MENUS.get(category):
-        await query.edit_message_text(
-            text=f"<b>Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", 
-            reply_markup=PRECOMPUTED_MENUS[category], parse_mode=ParseMode.HTML
-        )
-        return
-
-    await query.edit_message_text(text="<b>⚡ 𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</b>", parse_mode=ParseMode.HTML)
-    btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
-    await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
+        await query.edit_message_text(text=f"<b>Sᴇʟᴇᴄᴛ Cᴏᴜɴᴛʀʏ Fᴏʀ {category.title()}</b>", reply_markup=PRECOMPUTED_MENUS[category], parse_mode=ParseMode.HTML)
+    else:
+        await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup={"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}, parse_mode=ParseMode.HTML)
 
 # ==============================================================================
-# 🎮 TEXT HANDLER & ADMIN LOGIC
+# 🎮 TEXT HANDLER & FULL ADMIN LOGIC
 # ==============================================================================
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): return
     user_id = update.effective_user.id
+    user_data = context.user_data
+    
+    # 🔥 S3 MANUAL NUMBER TXT FILE UPLOAD LOGIC
+    if update.message.document:
+        doc = update.message.document
+        state = user_data.get('state')
+        if state == 'ADMIN_S3_ADD_FILE' and user_id in ADMIN_IDS:
+            if not doc.file_name.endswith('.txt'):
+                return await update.message.reply_text("⚠️ <b>Please upload a .txt file!</b>", parse_mode=ParseMode.HTML)
+            
+            msg = await update.message.reply_text("⏳ <i>Processing TXT file...</i>", parse_mode=ParseMode.HTML)
+            file = await context.bot.get_file(doc.file_id)
+            content = await file.download_as_bytearray()
+            text_content = content.decode('utf-8', errors='ignore')
+            
+            numbers = [clean_number(line) for line in text_content.split('\n') if clean_number(line)]
+            cat = user_data.get('s3_tmp_cat', 'facebook')
+            country = user_data.get('s3_tmp_country', 'Unknown')
+            
+            loop = asyncio.get_event_loop()
+            inserted = await loop.run_in_executor(DB_EXECUTOR, sync_insert_s3_numbers, cat, country, numbers)
+            user_data['state'] = None
+            
+            return await msg.edit_text(f"✅ <b>Successfully inserted {inserted} valid numbers into DB!</b>\n\n🛒 <b>Category:</b> {cat.title()}\n🌍 <b>Country:</b> {country}", parse_mode=ParseMode.HTML)
+        return
+
     raw_text = update.message.text
     if not raw_text: return
     text = raw_text.strip()
     
-    user_data = context.user_data
-    # 🔥 Fire-and-forget - never delays message response
-    if user_id not in USER_CACHE:
-        asyncio.ensure_future(ensure_user_fast(user_id))
+    if user_id not in USER_CACHE: asyncio.ensure_future(ensure_user_fast(user_id))
     
     menu_actions = ["📱 GET NUMBER", "📊 LIVE TRAFFIC", "💳 BALANCE", "🎁 REFER", "🎧 LIVE SUPPORT"]
     admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼 top 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
@@ -1256,13 +1214,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         elif "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲" in text:
             user_data['state'] = 'ADMIN_S3_ADD_CAT'
-            return await update.message.reply_text("➕ <b>𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲</b>\nSend Category (<code>facebook</code> or <code>whatsapp</code>):", parse_mode=ParseMode.HTML)
+            return await update.message.reply_text("➕ <b>𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲 (TXT File)</b>\nSend Category (<code>facebook</code> or <code>whatsapp</code>):", parse_mode=ParseMode.HTML)
             
         elif "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲" in text:
             loop = asyncio.get_event_loop()
-            ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
-            if not ranges: return await update.message.reply_text("📭 <i>No S3 Ranges found.</i>", parse_mode=ParseMode.HTML)
-            kb = [[InlineKeyboardButton(f"❌ {r[1].title()} | {r[3]} ({r[2]})", callback_data=f"dels3_{r[0]}")] for r in ranges]
+            ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_all_s3_ranges)
+            if not ranges: return await update.message.reply_text("📭 <i>No S3 Stock found.</i>", parse_mode=ParseMode.HTML)
+            kb = [[InlineKeyboardButton(f"❌ {r[0].title()} | {r[1]} ({r[2]} left)", callback_data=f"dels3_{r[0]}_{r[1]}")] for r in ranges]
             return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗿𝗮𝗻𝗴𝗲 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝗱𝗲𝗹𝗲𝘁𝗲 𝗶𝘁:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
         elif "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text:
@@ -1291,19 +1249,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if state == 'ADMIN_BROADCAST':
             users = list(USER_CACHE)
             msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users...</i>", parse_mode=ParseMode.HTML)
-            success, failed = 0, 0
-            # 🔥 Chunked broadcast: 30 msg/sec max (Telegram limit), update progress every 500
-            for i, u_id in enumerate(users):
-                try:
-                    await context.bot.send_message(chat_id=u_id, text=f"📢 <b>𝗔𝗗𝗠𝗜𝗡 𝗕𝗥𝗢𝗔𝗗𝗖𝗔𝗦𝗧</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML)
-                    success += 1
-                except: failed += 1
-                if i % 25 == 0: await asyncio.sleep(1)   # 🔥 25 msg then 1s pause = safe from flood ban
-                elif i % 500 == 0 and i > 0:
-                    try: await msg.edit_text(f"⏳ <b>Broadcasting...</b>\n✅ {success} | ❌ {failed} | 📋 {i}/{len(users)}", parse_mode=ParseMode.HTML)
-                    except: pass
-            await msg.edit_text(f"✅ <b>𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁 Complete𝗱!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
             user_data['state'] = None
+            async def safe_broadcast():
+                success, failed = 0, 0
+                batch_size = 25 
+                for i in range(0, len(users), batch_size):
+                    batch = users[i:i+batch_size]
+                    tasks = [context.bot.send_message(chat_id=u, text=f"{text}", parse_mode=ParseMode.HTML) for u in batch]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    for r in results:
+                        if isinstance(r, Exception): failed += 1
+                        else: success += 1
+                    if i > 0 and i % 500 == 0:
+                        try: await msg.edit_text(f"⏳ <b>Broadcasting...</b>\n✅ {success} | ❌ {failed} | 📋 {i}/{len(users)}", parse_mode=ParseMode.HTML)
+                        except: pass
+                    await asyncio.sleep(1.1) 
+                await msg.edit_text(f"✅ <b>𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁 𝗖𝗼𝗺plete𝗱!</b>\n🟢 Delivered: {success}\n🔴 Failed: {failed}", parse_mode=ParseMode.HTML)
+            asyncio.create_task(safe_broadcast())
             return
             
         elif state == 'ADMIN_ADD_CHANNEL':
@@ -1376,25 +1338,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif state == 'ADMIN_S3_ADD_CAT':
             cat = text.strip().lower()
             if cat not in ['facebook', 'whatsapp']: return await update.message.reply_text("⚠️ Please send either `facebook` or `whatsapp`.", parse_mode=ParseMode.HTML)
-            user_data['s3_tmp_cat'] = cat; user_data['state'] = 'ADMIN_S3_ADD_CARRIER'
-            return await update.message.reply_text("✅ Category Set.\nNow send the <b>𝗖𝗮𝗿𝗿𝗶𝗲𝗿 𝗜𝗗</b> (e.g. `95-1324`):", parse_mode=ParseMode.HTML)
-
-        elif state == 'ADMIN_S3_ADD_CARRIER':
-            user_data['s3_tmp_car'] = text.strip(); user_data['state'] = 'ADMIN_S3_ADD_COUNTRY'
-            return await update.message.reply_text("✅ Carrier ID Set.\nNow send the <b>𝗖𝗼𝘂𝗻𝘁𝗿𝘆 𝗡𝗮𝗺𝗲</b> (e.g. `Myanmar`):", parse_mode=ParseMode.HTML)
+            user_data['s3_tmp_cat'] = cat; user_data['state'] = 'ADMIN_S3_ADD_COUNTRY'
+            return await update.message.reply_text("✅ Category Set.\nNow send the <b>𝗖𝗼𝘂𝗻𝘁𝗿𝘆 𝗡𝗮𝗺𝗲</b> (e.g. `Myanmar`):", parse_mode=ParseMode.HTML)
 
         elif state == 'ADMIN_S3_ADD_COUNTRY':
-            c_name = text.strip().title(); cat = user_data.get('s3_tmp_cat'); car = user_data.get('s3_tmp_car')
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(DB_EXECUTOR, sync_add_s3_range, cat, car, c_name)
-            await update.message.reply_text(f"✅ <b>𝗦𝟯 𝗥𝗮𝗻𝗴𝗲 𝗔𝗱𝗱𝗲𝗱 𝗦𝘂𝗰𝗰𝗲𝘀𝘀𝗳𝘂𝗹𝗹𝘆!</b>\n\n🌍 {get_flag(c_name)} {c_name}\n🛒 {cat.title()}\n🆔 {car}", parse_mode=ParseMode.HTML)
-            user_data['state'] = None; return
+            user_data['s3_tmp_country'] = text.strip().title(); user_data['state'] = 'ADMIN_S3_ADD_FILE'
+            return await update.message.reply_text("✅ Country Set.\nNow send the <b>TXT File</b> containing numbers (1 per line):", parse_mode=ParseMode.HTML)
 
     # --- USER CONTROLS & STATES ---
     target_reply_user = user_data.get('admin_reply_target')
     if target_reply_user and not is_main_menu_action and not is_admin_action:
         try:
-            await context.bot.send_message(chat_id=int(target_reply_user), text=f"👨‍💻 <b>Admin Reply:</b>\n━━━━━━━━━━━━━━━━━━━━\n<b>{text}</b>", parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=int(target_reply_user), text=f"<b>{text}</b>", parse_mode=ParseMode.HTML)
             await update.message.reply_text("✅ <b>Reply sent successfully.</b>", parse_mode=ParseMode.HTML)
         except Exception: await update.message.reply_text("❌ <b>Failed to send.</b>")
         user_data['admin_reply_target'] = None; return
@@ -1538,30 +1493,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    # 🔥 Fire-and-forget user registration - never blocks button response
-    if user_id not in USER_CACHE:
-        asyncio.ensure_future(ensure_user_fast(user_id))
     
-    if data == "ignore": return await query.answer()
-    elif data == "check_join":
+    if data != "ignore" and not data.startswith("cat_") and not data.startswith("r_"):
+        try: await query.answer()
+        except: pass
+        
+    if user_id not in USER_CACHE: asyncio.ensure_future(ensure_user_fast(user_id))
+    
+    if data == "check_join":
         if await check_subscription(user_id, context.bot, force=True):
-            await query.answer("✅ সব চ্যানেলে জয়েন হয়েছেন! স্বাগতম 🎉", show_alert=False)
             try: await query.message.delete()
             except: pass
             await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text=f"<b>Welcome {html.escape(query.from_user.full_name)}</b>",
-                reply_markup=ReplyKeyboardMarkup(
-                    [["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]],
-                    resize_keyboard=True
-                ),
+                chat_id=query.message.chat_id, 
+                text=f"<b>Welcome {html.escape(query.from_user.full_name)}</b>", 
+                reply_markup=_MAIN_MENU_KB, 
                 parse_mode=ParseMode.HTML
             )
         else: await query.answer("⚠️ Please join all channels first.", show_alert=True)
 
-    elif data.startswith("cat_"): await handle_category_click(update, context)
+    elif data.startswith("cat_"): 
+        await query.answer()
+        await handle_category_click(update, context)
         
     elif data.startswith("r_"):
+        await query.answer()
         parts = data.split("_")
         server_id, range_val = int(parts[1]), parts[2]
         if len(parts) > 3: context.user_data['real_country_name'] = parts[3]
@@ -1578,14 +1534,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif data.startswith("dels3_"):
         if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
-        r_id = int(data.split("_")[1])
+        parts = data.split("_")
+        cat, c_name = parts[1], parts[2]
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(DB_EXECUTOR, sync_delete_s3_range, r_id)
+        await loop.run_in_executor(DB_EXECUTOR, sync_delete_s3_range, cat, c_name)
         await query.answer("✅ S3 Range Deleted!")
-        ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
+        ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_all_s3_ranges)
         if not ranges: await query.edit_message_text("📭 <i>All S3 Ranges deleted.</i>", parse_mode=ParseMode.HTML)
         else:
-            kb = [[InlineKeyboardButton(f"❌ {r[1].title()} | {r[3]} ({r[2]})", callback_data=f"dels3_{r[0]}")] for r in ranges]
+            kb = [[InlineKeyboardButton(f"❌ {r[0].title()} | {r[1]} ({r[2]} left)", callback_data=f"dels3_{r[0]}_{r[1]}")] for r in ranges]
             await query.edit_message_text("🗑️ <b>Click a range below to delete it:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
     elif data.startswith("delch_"):
@@ -1605,7 +1562,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = data.split("_")[1]
         context.user_data['admin_reply_target'] = target_user_id
         await query.message.reply_text(f"✍️ <b>Type reply for:</b> <code>{target_user_id}</code>\n<i>(Type message normally)</i>", parse_mode=ParseMode.HTML)
-        await query.answer()
 
     elif data == "req_withdraw":
         loop = asyncio.get_event_loop()
@@ -1620,7 +1576,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
             ]
         }
-        
         await query.edit_message_text("🏦 <b>Sᴇʟᴇᴄᴛ Yᴏᴜʀ Wɪᴛʜᴅʀᴀᴡ Mᴀᴛʜᴏᴅ :</b>", parse_mode=ParseMode.HTML, reply_markup=markup)
         
     elif data.startswith("wdm_"):
@@ -1732,7 +1687,6 @@ async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
 async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
     global CONSOLE_CACHE, PRECOMPUTED_MENUS
     try:
-        gc.collect()
         s1_tasks = [s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info?page={i}") for i in range(1, 4)]
         s2_tasks = [s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page={i}&limit=50") for i in range(1, 4)]
         results = await asyncio.gather(*s1_tasks, *s2_tasks, return_exceptions=True)
@@ -1773,12 +1727,13 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
             process_logs_local(CONSOLE_CACHE[2], 2)
 
             loop = asyncio.get_event_loop()
-            s3_ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, cat)
-            for s3r in s3_ranges:
-                r_id, r_cat, carrier_id, c_name = s3r
-                c_name = re.sub(r'(?i)\bpostpaid\b', '', c_name).strip()
+            s3_stock = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_stock, cat)
+            for s3r in s3_stock:
+                c_name = re.sub(r'(?i)\bpostpaid\b', '', s3r[1]).strip()
+                count = s3r[2]
                 key = (3, c_name)
-                if key not in country_stats: country_stats[key] = {'range': carrier_id, 'count': 100, 'c_name': c_name}
+                if key not in country_stats: 
+                    country_stats[key] = {'range': 'db', 'count': count, 'c_name': c_name}
 
             if country_stats:
                 sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
@@ -1796,7 +1751,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
                     if srv_id == 1: display_name += s1_suffix
                     elif srv_id == 2: display_name += s2_suffix
                     elif srv_id == 3: display_name += s3_suffix
-                    btn_text = f"{get_flag(c_name)} {display_name}"
+                    btn_text = f"{get_flag(c_name)} {display_name} ({stats['count'] if srv_id==3 else 'On'})" if srv_id==3 else f"{get_flag(c_name)} {display_name}"
                     safe_c_name = str(c_name)[:15].replace(" ", "")
                     btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
                     row.append(btn)
@@ -1845,16 +1800,16 @@ async def post_init(app: Application):
     asyncio.create_task(start_dummy_server())
     asyncio.create_task(auth_s1(force=True))
     asyncio.create_task(auth_s2(force=True))
-    asyncio.create_task(auth_s3(force=True))
 
 if __name__ == "__main__":
     init_db()
+    
     app = (
         Application.builder()
         .token(TOKEN)
         .post_init(post_init)
-        .concurrent_updates(True)        # 🔥 Handle multiple users truly in parallel
-        .connection_pool_size(128)       # 🔥 128 concurrent Telegram API connections
+        .concurrent_updates(True)        
+        .connection_pool_size(256)       
         .connect_timeout(5)
         .read_timeout(10)
         .write_timeout(10)
@@ -1869,17 +1824,14 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("2fa", cmd_2fa))
     
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler((filters.TEXT | filters.Document.ALL) & ~filters.COMMAND, handle_message))
     
     app.job_queue.run_repeating(global_otp_checker_job,  interval=1.5,  first=2)
     app.job_queue.run_repeating(update_cache_job,         interval=15,   first=2)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300,  first=300)
     app.job_queue.run_repeating(self_ping_job,            interval=120,  first=10)
     app.job_queue.run_repeating(auto_backup_job,          interval=1200, first=1200)
-    app.job_queue.run_repeating(memory_cleanup_job,       interval=300,  first=60)   # 🧹 Every 5 min
+    app.job_queue.run_repeating(memory_cleanup_job,       interval=300,  first=60)
     
-    logger.info("✨ VERSION 86 MILLISECOND EDITION — CONCURRENT PARALLEL ENGINE ✨")
-    app.run_polling(
-        drop_pending_updates=True,
-        allowed_updates=["message", "callback_query"],  # 🔥 Only process needed update types
-    )
+    logger.info("✨ VERSION 90 FULL-SCALE ENTERPRISE RUNNING (API & DB HYBRID) ✨")
+    app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query"])
