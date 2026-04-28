@@ -20,16 +20,12 @@ try:
 except ImportError:
     pass
 
-# 🔥 curl_cffi for CF bypass
-from curl_cffi.requests import AsyncSession as CurlAsyncSession
-
 from telegram import (
     Update, 
     InlineKeyboardButton, 
     InlineKeyboardMarkup, 
     ReplyKeyboardMarkup, 
-    ReplyKeyboardRemove,
-    CopyTextButton
+    ReplyKeyboardRemove
 )
 from telegram.ext import (
     Application, 
@@ -37,11 +33,9 @@ from telegram.ext import (
     MessageHandler, 
     CallbackQueryHandler, 
     ContextTypes, 
-    filters, 
-    ConversationHandler
+    filters
 )
 from telegram.constants import ParseMode
-from aiohttp import web
 
 # ==============================================================================
 # ⚙️ CONFIGURATION & CREDENTIALS
@@ -52,185 +46,122 @@ ADMIN_IDS = [6031032502]
 
 OTP_GROUP_ID = -1003830374258
 
+# SERVER 1 (STEX SMS)
 S1_EMAIL = "mdrajaislam469@gmail.com"
 S1_PASSWORD = "Raja1234@#"
 S1_BASE_URL = "https://stexsms.com/mapi/v1"
 
-S2_EMAIL = "rtxraja01@gmail.com"
-S2_PASSWORD = "Raja1234"
-S2_BASE_URL = "https://sms.acchub.io"
-
-S3_EMAIL = "mdrajaislam469@gmail.com"
-S3_STATIC_TOKEN = "ed49e203-6618-45ec-980d-21aaab1cfe45"
-S3_BASE_URL = "https://crackerjacksms.com"
-
-def get_cf_headers(origin_domain):
-    return {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Origin": f"https://{origin_domain}",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-dest": "empty",
-        "Referer": f"https://{origin_domain}/",
-        "Connection": "keep-alive"
-    }
+# SERVER 2 (CRACKERJACK SMS - NEW PANEL)
+S2_EMAIL = "rtx.raja.rt@gmail.com"
+S2_STATIC_TOKEN = "e7f26541-bded-4138-b0ac-0d9cff7b1838"
+S2_BASE_URL = "https://crackerjacksms.com"
 
 API_2FA = "https://2fa.cn/codes/{}"
 
 # ==============================================================================
-# 🛑 CACHING & MEMORY (RENDER OPTIMIZED)
+# 🛑 CACHING & MEMORY (VPS ENTERPRISE LEVEL)
 # ==============================================================================
 
 S1_TOKEN = None
-S2_TOKEN = None
-S3_TOKEN = None
 
 GLOBAL_SESSION = None 
-S2_SESSION = None
-
 AUTH_LOCK_S1 = asyncio.Lock() 
-AUTH_LOCK_S2 = asyncio.Lock()
-AUTH_LOCK_S3 = asyncio.Lock()
-
 LAST_AUTH_S1 = 0
-LAST_AUTH_S2 = 0
-LAST_AUTH_S3 = 0
 
 LAST_INBOX_S1 = ""
 LAST_INBOX_S2 = ""
-LAST_INBOX_S3 = ""
 
 START_TIME = datetime.datetime.now()
-BASE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+BASE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; SM-A135F Build/UP1A.231005.007) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.55 Mobile Safari/537.36"
 
-# 🔥 OPTIMIZED FOR RENDER FREE (Prevents DB Locking/Memory Thrashing)
-DB_POOL_SIZE = 10
-DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="db_worker")
+# 🔥 OPTIMIZED FOR VPS & MASSIVE TRAFFIC
+DB_POOL_SIZE = 30
+DB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=30, thread_name_prefix="db_worker")
 
-# 🔥 SEMAPHORE: max 50 concurrent number-generation tasks (prevents RAM spike)
-GENERATION_SEMAPHORE = asyncio.Semaphore(50)
+# Max 100 concurrent number generation tasks
+GENERATION_SEMAPHORE = asyncio.Semaphore(100)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
-# 🧠 SMART LRU CACHE — RAM সবসময় controlled, কখনো ভরবে না
+# 🧠 SMART LRU CACHE 
 # ==============================================================================
 
 class BoundedTTLCache:
-    """
-    LRU + TTL combined cache।
-    - max_size: এর বেশি entry হলে সবচেয়ে পুরনো (Least Recently Used) বের করে দেয়
-    - ttl: এই সময়ের পর entry expire হয়
-    ১ লাখ ইউজার হলেও RAM নির্দিষ্ট সীমার মধ্যে থাকবে।
-    """
     __slots__ = ('_cache', '_max_size', '_ttl')
-
     def __init__(self, max_size: int, ttl: float):
-        self._cache = {}          # key -> (value, expire_time)
+        self._cache = {}
         self._max_size = max_size
         self._ttl = ttl
-
     def get(self, key, default=None):
         entry = self._cache.get(key)
-        if entry is None:
-            return default
+        if entry is None: return default
         value, exp = entry
         if time.time() > exp:
             del self._cache[key]
             return default
-        # LRU: re-insert to move to end (OrderedDict behavior via dict in Python 3.7+)
         self._cache[key] = (value, exp)
         return value
-
     def set(self, key, value):
-        if key in self._cache:
-            del self._cache[key]
+        if key in self._cache: del self._cache[key]
         elif len(self._cache) >= self._max_size:
-            # Evict oldest entry (first inserted = first key in dict)
             try:
                 oldest = next(iter(self._cache))
                 del self._cache[oldest]
-            except StopIteration:
-                pass
+            except StopIteration: pass
         self._cache[key] = (value, time.time() + self._ttl)
-
     def delete(self, key):
         self._cache.pop(key, None)
-
     def __contains__(self, key):
         return self.get(key) is not None
-
-    def __len__(self):
-        return len(self._cache)
-
     def purge_expired(self):
-        """Expired entry মুছে RAM ফাঁকা করে — background job থেকে call হয়"""
         now = time.time()
         expired = [k for k, (_, exp) in self._cache.items() if now > exp]
-        for k in expired:
-            del self._cache[k]
+        for k in expired: del self._cache[k]
         return len(expired)
-
 
 WAITING_OTPS = {}
 NUM_TO_HASH = {}
-BATCH_MSGS = {}
-OTP_TIMEOUT_SECONDS = 1200
+OTP_TIMEOUT_SECONDS = 1200 # 20 Mins
 
 USER_CACHE = set()
 BANNED_CACHE = set()
 CHANNELS_CACHE = set()
 
-# 🔥 BoundedTTLCache ব্যবহার:
-# USER_INFO_CACHE  — max 50,000 active user info, 30 min TTL (বাকিরা DB থেকে লোড হবে)
-# SUBSCRIPTION_CACHE — max 50,000, 5 min TTL (চ্যানেল জয়েন status)
-USER_INFO_CACHE      = BoundedTTLCache(max_size=50_000, ttl=1800)   # 30 min
-SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=50_000, ttl=300)    # 5 min
-SUBSCRIPTION_CACHE_TTL = 300  # kept for compatibility
+# Increased Size for 50,000+ Users
+USER_INFO_CACHE      = BoundedTTLCache(max_size=100_000, ttl=3600)
+SUBSCRIPTION_CACHE   = BoundedTTLCache(max_size=100_000, ttl=43200) # 12 Hours
 
 CONSOLE_CACHE = {1: [], 2: []}
-PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None} 
+PRECOMPUTED_MENUS = {"facebook": None, "whatsapp": None, "telegram": None} 
 
 SETTINGS_CACHE = {
     "otp_reward": 0.10,
     "ref_reward": 0.05,
     "min_withdraw": 50.0,
-    "ping_url": "https://rtxstexsms-qf5h.onrender.com",
     "s1_suffix": "",
-    "s2_suffix": " XRT",
-    "s3_suffix": " CJ"
+    "s2_suffix": " CJ",
 }
 
-# Extensive Flag & Code Mapping
-COUNTRY_FLAGS = {
-    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tonga":"🇹🇴", "Trinidad and Tobago":"🇹🇹", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"🇹🇲", "Tuvalu":"🇹🇻", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
-}
+# ==============================================================================
+# 🌍 COUNTRY & DIAL CODE MAPPINGS
+# ==============================================================================
 
-COUNTRY_CODES = {
-    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Togo":"TG", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW"
+COUNTRY_DIAL_CODES = {
+    "Afghanistan": "93", "Albania": "355", "Algeria": "213", "Andorra": "376", "Angola": "244", "Argentina": "54", "Armenia": "374", "Australia": "61", "Austria": "43", "Azerbaijan": "994", "Bahamas": "1", "Bahrain": "973", "Bangladesh": "880", "Barbados": "1", "Belarus": "375", "Belgium": "32", "Belize": "501", "Benin": "229", "Bhutan": "975", "Bolivia": "591", "Bosnia": "387", "Botswana": "267", "Brazil": "55", "Bulgaria": "359", "Burkina Faso": "226", "Burundi": "257", "Cambodia": "855", "Cameroon": "237", "Canada": "1", "Chad": "235", "Chile": "56", "China": "86", "Colombia": "57", "Comoros": "269", "Congo": "242", "Costa Rica": "506", "Croatia": "385", "Cuba": "53", "Cyprus": "357", "Czechia": "420", "Denmark": "45", "Djibouti": "253", "Ecuador": "593", "Egypt": "20", "El Salvador": "503", "Estonia": "372", "Ethiopia": "251", "Fiji": "679", "Finland": "358", "France": "33", "Gabon": "241", "Gambia": "220", "Georgia": "995", "Germany": "49", "Ghana": "233", "Greece": "30", "Guatemala": "502", "Guinea": "224", "Guyana": "592", "Haiti": "509", "Honduras": "504", "Hungary": "36", "Iceland": "354", "India": "91", "Indonesia": "62", "Iran": "98", "Iraq": "964", "Ireland": "353", "Israel": "972", "Italy": "39", "Ivory Coast": "225", "Jamaica": "1", "Japan": "81", "Jordan": "962", "Kazakhstan": "7", "Kenya": "254", "Kuwait": "965", "Kyrgyzstan": "996", "Laos": "856", "Latvia": "371", "Lebanon": "961", "Liberia": "231", "Libya": "218", "Lithuania": "370", "Luxembourg": "352", "Madagascar": "261", "Malawi": "265", "Malaysia": "60", "Maldives": "960", "Mali": "223", "Malta": "356", "Mauritania": "222", "Mauritius": "230", "Mexico": "52", "Moldova": "373", "Monaco": "377", "Mongolia": "976", "Montenegro": "382", "Morocco": "212", "Mozambique": "258", "Myanmar": "95", "Namibia": "264", "Nepal": "977", "Netherlands": "31", "New Zealand": "64", "Nicaragua": "505", "Niger": "227", "Nigeria": "234", "North Korea": "850", "North Macedonia": "389", "Norway": "47", "Oman": "968", "Pakistan": "92", "Palestine": "970", "Panama": "507", "Paraguay": "595", "Peru": "51", "Philippines": "63", "Poland": "48", "Portugal": "351", "Qatar": "974", "Romania": "40", "Russia": "7", "Rwanda": "250", "Saudi Arabia": "966", "Senegal": "221", "Serbia": "381", "Sierra Leone": "232", "Singapore": "65", "Slovakia": "421", "Slovenia": "386", "Somalia": "252", "South Africa": "27", "South Korea": "82", "Spain": "34", "Sri Lanka": "94", "Sudan": "249", "Sweden": "46", "Switzerland": "41", "Syria": "963", "Taiwan": "886", "Tajikistan": "992", "Tanzania": "255", "Thailand": "66", "Togo": "228", "Tunisia": "216", "Turkey": "90", "Turkmenistan": "993", "Uganda": "256", "Ukraine": "380", "United Arab Emirates": "971", "United Kingdom": "44", "United States": "1", "Uruguay": "598", "Uzbekistan": "998", "Venezuela": "58", "Vietnam": "84", "Yemen": "967", "Zambia": "260", "Zimbabwe": "263"
 }
 
 def get_flag(country_name):
-    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "")
-    clean_name = re.sub(r'(?i)\bpostpaid\b', '', clean_name).strip()
-    if clean_name in COUNTRY_FLAGS: return COUNTRY_FLAGS[clean_name]
-    clean_no_space = clean_name.replace(" ", "").lower()
-    for name, flag in COUNTRY_FLAGS.items():
-        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
-            return flag
+    # Dynamic flags based on country
+    flags = {"Afghanistan":"🇦🇫", "Algeria":"🇩🇿", "Argentina":"🇦🇷", "Bangladesh":"🇧🇩", "Brazil":"🇧🇷", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Egypt":"🇪🇬", "France":"🇫🇷", "Germany":"🇩🇪", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Italy":"🇮🇹", "Japan":"🇯🇵", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Madagascar":"🇲🇬", "Malaysia":"🇲🇾", "Mexico":"🇲🇽", "Morocco":"🇲🇦", "Myanmar":"🇲🇲", "Nepal":"🇳🇵", "Nigeria":"🇳🇬", "Pakistan":"🇵🇰", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Russia":"🇷🇺", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "South Africa":"🇿🇦", "Spain":"🇪🇸", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Vietnam":"🇻🇳"}
+    clean_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
+    for name, flag in flags.items():
+        if name.lower() in clean_name.lower(): return flag
     return "🚩"
 
 def get_short_code(country_name):
-    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "").replace(SETTINGS_CACHE['s3_suffix'], "")
-    clean_name = re.sub(r'(?i)\bpostpaid\b', '', clean_name).strip()
-    if clean_name in COUNTRY_CODES: return COUNTRY_CODES[clean_name]
-    clean_no_space = clean_name.replace(" ", "").lower()
-    for name, code in COUNTRY_CODES.items():
-        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
-            return code
-    return str(clean_name)[:2].upper()
+    return str(country_name)[:2].upper()
 
 def clean_number(n: str) -> str:
     return re.sub(r'\D', '', str(n))
@@ -238,10 +169,18 @@ def clean_number(n: str) -> str:
 def mask_number_group(number: str) -> str:
     digits = clean_number(number)
     if len(digits) <= 6: return digits
-    first = digits[:2]
-    last = digits[-4:]
-    middle = 'X' * (len(digits) - 6)
-    return first + middle + last
+    return digits[:2] + ('X' * (len(digits) - 6)) + digits[-4:]
+
+def format_cj_carrier(carrier_name):
+    """
+    Format string exactly for Crackerjack API.
+    Example: 'Myanmar Mytel - Arrakis' -> '95|myanmar-mytel---arrakis'
+    """
+    if not carrier_name: return ""
+    country_str = carrier_name.split()[0].title()
+    code = COUNTRY_DIAL_CODES.get(country_str, "")
+    formatted_name = carrier_name.lower().replace(" - ", "-").replace(" ", "-")
+    return f"{code}|{formatted_name}"
 
 def extract_code(message):
     msg = str(message)
@@ -251,15 +190,6 @@ def extract_code(message):
     if kw: return kw.group(1)
     fb = re.search(r'\b(\d{4,8})\b', msg)
     return fb.group(1) if fb else "See Msg"
-
-def get_sms_from_item(item: dict) -> str: return str(item.get('full_sms') or item.get('sms') or item.get('otp') or item.get('message') or item.get('sms_text') or "")
-def get_service_from_item(item: dict) -> str: return str(item.get('app_name') or item.get('service_name') or item.get('service') or item.get('provider') or "Service")
-def get_number_from_item(item: dict) -> str: return str(item.get('number') or item.get('phone_number') or item.get('phone') or item.get('msisdn') or item.get('did') or "").replace("+", "")
-
-def get_code_from_item(item: dict, raw_msg: str) -> str:
-    explicit = item.get('code') or item.get('otps') or item.get('otp_code') or item.get('verification_code') or ""
-    if explicit and re.match(r'^\d{4,8}$', str(explicit).strip()): return str(explicit).strip()
-    return extract_code(raw_msg)
 
 def _find_waiter(num_raw: str):
     c = clean_number(num_raw)
@@ -277,13 +207,13 @@ def get_hash_key(number_str):
     return clean_str[-8:] if clean_str else "UNKNOWN"
 
 # ==============================================================================
-# 🗄️ DATABASE
+# 🗄️ DATABASE (VPS LEVEL CONFIG)
 # ==============================================================================
 
 DB_FILE = "bot_v83_enterprise.db"
 
 class DatabasePool:
-    def __init__(self, db_file, pool_size=20):
+    def __init__(self, db_file, pool_size=30):
         self.db_file = db_file
         self.pool_size = pool_size
     @contextmanager
@@ -292,7 +222,8 @@ class DatabasePool:
         conn.execute('PRAGMA journal_mode=WAL;') 
         conn.execute('PRAGMA synchronous=OFF;')  
         conn.execute('PRAGMA temp_store=MEMORY;')
-        conn.execute('PRAGMA mmap_size=300000000;') 
+        conn.execute('PRAGMA cache_size=-10000;')
+        conn.execute('PRAGMA mmap_size=3000000000;') 
         try: yield conn
         finally: conn.close()
 
@@ -308,41 +239,32 @@ def init_db():
             ref_earnings REAL DEFAULT 0.0
         )''')
         
-        try: c.execute("ALTER TABLE users ADD COLUMN ref_earnings REAL DEFAULT 0.0")
-        except: pass
-        
         c.execute('''CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY, otp_reward REAL DEFAULT 0.10, ref_reward REAL DEFAULT 0.05, min_withdraw REAL DEFAULT 50.0, 
-            ping_url TEXT DEFAULT 'https://rtxstexsms-qf5h.onrender.com',
-            s1_suffix TEXT DEFAULT '', s2_suffix TEXT DEFAULT ' XRT', s3_suffix TEXT DEFAULT ' CJ'
+            s1_suffix TEXT DEFAULT '', s2_suffix TEXT DEFAULT ' CJ'
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS channels (
             id INTEGER PRIMARY KEY AUTOINCREMENT, channel_username TEXT UNIQUE
-        )''')
-        c.execute('''CREATE TABLE IF NOT EXISTS s3_ranges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, carrier_id TEXT, country_name TEXT
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL,
             method TEXT, account TEXT, status TEXT DEFAULT 'pending', date TEXT DEFAULT CURRENT_TIMESTAMP
         )''')
         
-        c.execute("SELECT otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix FROM settings WHERE id=1")
+        c.execute("SELECT otp_reward, ref_reward, min_withdraw, s1_suffix, s2_suffix FROM settings WHERE id=1")
         settings_row = c.fetchone()
         if not settings_row:
-            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw, ping_url, s1_suffix, s2_suffix, s3_suffix) VALUES (1, 0.10, 0.05, 50.0, 'https://rtxstexsms-qf5h.onrender.com', '', ' XRT', ' CJ')")
+            c.execute("INSERT INTO settings (id, otp_reward, ref_reward, min_withdraw, s1_suffix, s2_suffix) VALUES (1, 0.10, 0.05, 50.0, '', ' CJ')")
         else:
             SETTINGS_CACHE["otp_reward"] = settings_row[0]
             SETTINGS_CACHE["ref_reward"] = settings_row[1]
             SETTINGS_CACHE["min_withdraw"] = float(settings_row[2]) if settings_row[2] else 50.0
-            SETTINGS_CACHE["ping_url"] = settings_row[3] if settings_row[3] else "https://rtxstexsms-qf5h.onrender.com"
-            SETTINGS_CACHE["s1_suffix"] = settings_row[4] if settings_row[4] else ""
-            SETTINGS_CACHE["s2_suffix"] = settings_row[5] if settings_row[5] else " XRT"
-            SETTINGS_CACHE["s3_suffix"] = settings_row[6] if settings_row[6] else " CJ"
+            SETTINGS_CACHE["s1_suffix"] = settings_row[3] if settings_row[3] else ""
+            SETTINGS_CACHE["s2_suffix"] = settings_row[4] if settings_row[4] else " CJ"
             
         c.execute("SELECT channel_username FROM channels")
-        rows = c.fetchall()
         CHANNELS_CACHE.clear()
+        rows = c.fetchall()
         if not rows:
             default_channels = ["@EarnXtract", "@RTx_Sms", "@ConsoleXRT", "@RTxOtpX"]
             for ch in default_channels:
@@ -353,14 +275,11 @@ def init_db():
             
         conn.commit()
         
-        # 🔥 LAZY LOAD: শুধু user_id set আর banned list load হয় startup-এ
-        # USER_INFO_CACHE (balance, referrals etc.) on-demand লোড হবে — ১ লাখ row একসাথে RAM-এ নেই
         c.execute("SELECT user_id, is_banned FROM users")
         USER_CACHE.clear(); BANNED_CACHE.clear()
         for row in c.fetchall():
             USER_CACHE.add(row[0])
             if row[1] == 1: BANNED_CACHE.add(row[0])
-        logger.info(f"✅ DB loaded: {len(USER_CACHE)} users, {len(BANNED_CACHE)} banned")
 
 def sync_register_user_db(user_id, referrer_id=None):
     with db_pool.get_connection() as conn:
@@ -372,17 +291,18 @@ def sync_register_user_db(user_id, referrer_id=None):
             if referrer_id: 
                 c.execute("UPDATE users SET total_referrals = total_referrals + 1 WHERE user_id=?", (referrer_id,))
                 _ref_data = USER_INFO_CACHE.get(referrer_id)
-                if _ref_data: _ref_data["total_referrals"] += 1; USER_INFO_CACHE.set(referrer_id, _ref_data)
+                if _ref_data: 
+                    _ref_data["total_referrals"] += 1
+                    USER_INFO_CACHE.set(referrer_id, _ref_data)
         conn.commit()
 
 async def ensure_user_fast(user_id, referrer_id=None):
-    # 🔥 INSTANT: already known user = zero work, zero await
     if user_id in USER_CACHE: return True
     USER_CACHE.add(user_id)
     if user_id not in USER_INFO_CACHE:
         USER_INFO_CACHE.set(user_id, {"balance": 0.0, "referrer_id": referrer_id, "total_referrals": 0, "ref_earnings": 0.0})
-    # DB write is fire-and-forget in background thread, never blocks response
-    asyncio.get_event_loop().run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(DB_EXECUTOR, sync_register_user_db, user_id, referrer_id)
     return True
 
 def sync_add_channel(username):
@@ -439,7 +359,7 @@ def sync_add_balance(user_id, amount):
 def sync_update_setting(key, value):
     with db_pool.get_connection() as conn:
         c = conn.cursor()
-        settings_map = {"otp": "otp_reward", "ref": "ref_reward", "min_withdraw": "min_withdraw", "ping_url": "ping_url", "s1_suffix": "s1_suffix", "s2_suffix": "s2_suffix", "s3_suffix": "s3_suffix"}
+        settings_map = {"otp": "otp_reward", "ref": "ref_reward", "min_withdraw": "min_withdraw", "s1_suffix": "s1_suffix", "s2_suffix": "s2_suffix"}
         if key in settings_map:
             c.execute(f"UPDATE settings SET {settings_map[key]}=? WHERE id=1", (value,))
             SETTINGS_CACHE[settings_map[key]] = value
@@ -494,72 +414,33 @@ def sync_update_withdraw_status(wd_id, status):
         conn.commit()
         return True, user_id, amount, referrer_id, ref_bonus
 
-def sync_add_s3_range(category, carrier_id, country_name):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("INSERT INTO s3_ranges (category, carrier_id, country_name) VALUES (?, ?, ?)", (category, carrier_id, country_name))
-        conn.commit()
-
-def sync_get_s3_ranges(category=None):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        if category: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges WHERE LOWER(category) = LOWER(?)", (category,))
-        else: c.execute("SELECT id, category, carrier_id, country_name FROM s3_ranges")
-        return c.fetchall()
-
-def sync_delete_s3_range(range_id):
-    with db_pool.get_connection() as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM s3_ranges WHERE id=?", (range_id,))
-        conn.commit()
-
 def sync_checkpoint():
     with db_pool.get_connection() as conn:
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
 
 # ==============================================================================
-# 🔐 AUTHENTICATION
+# 🔐 AUTHENTICATION & API CALLS
 # ==============================================================================
 
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(
-            limit=200,
-            limit_per_host=50,
-            keepalive_timeout=300,
-            enable_cleanup_closed=True,
-            ttl_dns_cache=600,
-            use_dns_cache=True,
-        )
-        timeout = aiohttp.ClientTimeout(total=10, connect=3, sock_read=8)
-        GLOBAL_SESSION = aiohttp.ClientSession(
-            connector=connector,
-            cookie_jar=aiohttp.CookieJar(unsafe=True),
-            timeout=timeout,
-        )
+        connector = aiohttp.TCPConnector(limit=200, enable_cleanup_closed=True, ttl_dns_cache=600, use_dns_cache=True)
+        timeout = aiohttp.ClientTimeout(total=8, connect=2)
+        GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True), timeout=timeout)
     return GLOBAL_SESSION
-
-async def parse_response_safely(response):
-    try: return await response.json(content_type=None)
-    except Exception:
-        try: return json.loads(await response.text())
-        except Exception: return None
 
 async def auth_s1(force=False):
     global S1_TOKEN, LAST_AUTH_S1
     async with AUTH_LOCK_S1:
         if not force and time.time() - LAST_AUTH_S1 < 300 and S1_TOKEN: return True
         payload = {"email": S1_EMAIL, "password": S1_PASSWORD}
-        headers = {
-            "User-Agent": BASE_USER_AGENT, "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json", "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"
-        }
+        headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"}
         try:
             session = await get_session()
-            async with session.post(f"{S1_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=10, ssl=False) as response:
+            async with session.post(f"{S1_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=10) as response:
                 if response.status == 200:
-                    data = await parse_response_safely(response)
+                    data = await response.json()
                     if data and str(data.get('meta', {}).get('code')) == '200':
                         S1_TOKEN = data['data']['token']
                         LAST_AUTH_S1 = time.time()
@@ -569,131 +450,97 @@ async def auth_s1(force=False):
 
 async def s1_api_request(method, url, json_payload=None, return_text=False):
     global S1_TOKEN
-    for attempt in range(2):
+    for _ in range(2):
         try:
             if not S1_TOKEN and not await auth_s1(): continue
             session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "Accept": "application/json", "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}", "Connection": "keep-alive"}
-            
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
-            
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
-            
-            status = response.status
-            if status in [401, 403]: S1_TOKEN = None; await asyncio.sleep(0.1); continue
-            if status == 200:
-                text_response = await response.text()
-                if return_text: return 200, text_response
-                try: return 200, json.loads(text_response)
-                except: return 200, None
-            return status, None
-        except Exception: pass
-    return 500, None
-
-async def get_s2_session():
-    global S2_SESSION
-    if S2_SESSION is None: S2_SESSION = CurlAsyncSession(impersonate="chrome124", verify=False)
-    return S2_SESSION
-
-async def auth_s2(force=False):
-    global S2_TOKEN, LAST_AUTH_S2
-    async with AUTH_LOCK_S2:
-        if not force and time.time() - LAST_AUTH_S2 < 300 and S2_TOKEN: return True
-        payload = {"email": S2_EMAIL, "password": S2_PASSWORD}
-        headers = get_cf_headers("acchub.io")
-        try:
-            session = await get_s2_session()
-            response = await session.post(f"{S2_BASE_URL}/auth/login", json=payload, headers=headers, timeout=10)
-            if response.status_code in [200, 201]:
-                try: data = response.json()
-                except Exception: data = None
-                if data and 'access_token' in data:
-                    S2_TOKEN = data['access_token']
-                    LAST_AUTH_S2 = time.time()
-                    return True
-        except Exception: pass
-        return False
-
-async def s2_api_request(method: str, url: str, json_payload=None, return_text=False):
-    global S2_TOKEN
-    for attempt in range(2):
-        try:
-            if not S2_TOKEN and not await auth_s2(): continue
-            session = await get_s2_session()
-            headers = get_cf_headers("acchub.io")
-            headers.update({"authorization": f"Bearer {S2_TOKEN}"})
-            
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
+            headers = {"User-Agent": BASE_USER_AGENT, "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}"}
             if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=4.0)
             else: response = await session.post(url, json=json_payload, headers=headers, timeout=4.0)
-
-            status = response.status_code
-            if status in [401, 403]: S2_TOKEN = None; await auth_s2(force=True); continue
-            if status in [200, 201]:
-                if return_text: return 200, response.text
-                try: return 200, response.json()
+            if response.status in [401, 403]: S1_TOKEN = None; continue
+            if response.status == 200:
+                text = await response.text()
+                if return_text: return 200, text
+                try: return 200, json.loads(text)
                 except: return 200, None
-            return status, None
-        except Exception: await asyncio.sleep(0.1)
-    return 500, None
-
-async def auth_s3(force=False):
-    global S3_TOKEN, LAST_AUTH_S3
-    async with AUTH_LOCK_S3:
-        if not force and time.time() - LAST_AUTH_S3 < 3600 and S3_TOKEN: return True
-        try:
-            session = await get_session()
-            data = aiohttp.FormData()
-            data.add_field('email', S3_EMAIL); data.add_field('auth-token', S3_STATIC_TOKEN)
-            headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://crackerjacksms.com", "Referer": "https://crackerjacksms.com/"}
-            async with session.post(f"{S3_BASE_URL}/api/authentication/", data=data, headers=headers, timeout=10, ssl=False) as response:
-                if response.status == 200:
-                    S3_TOKEN = S3_STATIC_TOKEN 
-                    LAST_AUTH_S3 = time.time()
-                    return True
+            return response.status, None
         except Exception: pass
-        return False
-
-async def s3_api_request(method: str, url: str, json_payload=None, return_text=False):
-    global S3_TOKEN
-    for attempt in range(2):
-        try:
-            if not S3_TOKEN and not await auth_s3(): continue
-            session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "auth-token": S3_TOKEN, "Origin": "https://crackerjacksms.com", "Connection": "keep-alive"}
-            
-            # 🔥 STRICT TIMEOUT FOR ANTI-HANG
-            timeout = aiohttp.ClientTimeout(total=4.0, connect=1.5)
-            
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=timeout, ssl=False)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=timeout, ssl=False)
-            
-            status = response.status
-            if status == 200:
-                text_response = await response.text()
-                if return_text: return 200, text_response
-                try: return 200, json.loads(text_response)
-                except: return 200, None
-            return status, None
-        except Exception: await asyncio.sleep(0.1)
     return 500, None
+
+async def s2_api_request(method, endpoint, return_text=False):
+    """ New Crackerjack API Wrapper Using Static Token """
+    for _ in range(2):
+        try:
+            session = await get_session()
+            headers = {
+                "User-Agent": BASE_USER_AGENT,
+                "auth-token": S2_STATIC_TOKEN,
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://crackerjacksms.com/",
+                "Accept": "application/json, text/javascript, */*; q=0.01"
+            }
+            cookies = {"authToken": S2_STATIC_TOKEN, "authRole": "Pro"}
+            url = f"{S2_BASE_URL}{endpoint}"
+            
+            if method.upper() == 'GET':
+                async with session.get(url, headers=headers, cookies=cookies, timeout=4.0) as resp:
+                    if resp.status == 200:
+                        text = await resp.text()
+                        if return_text: return 200, text
+                        try: return 200, json.loads(text)
+                        except: return 200, None
+        except Exception: pass
+    return 500, None
+
+# ==============================================================================
+# 🔍 FACEBOOK ACCOUNT CHECKER
+# ==============================================================================
+
+async def check_facebook_account(number):
+    try:
+        session = await get_session()
+        headers = {
+            "User-Agent": BASE_USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-Mode": "navigate",
+        }
+        
+        # 1. Get LSD Token
+        get_url = "https://limited.facebook.com/login/identify/"
+        async with session.get(get_url, headers=headers, timeout=5.0) as resp:
+            html_get = await resp.text()
+            lsd_match = re.search(r'name="lsd" value="([^"]+)"', html_get)
+            lsd = lsd_match.group(1) if lsd_match else ""
+
+        # 2. Post Search
+        post_url = "https://limited.facebook.com/login/identify/?ctx=recover&search_attempts=1"
+        payload = {"lsd": lsd, "email": str(number), "did_submit": "Search"}
+        
+        post_headers = headers.copy()
+        post_headers["Origin"] = "https://limited.facebook.com"
+        post_headers["Referer"] = get_url
+        post_headers["Content-Type"] = "application/x-www-form-urlencoded"
+        
+        async with session.post(post_url, data=payload, headers=post_headers, timeout=6.0) as resp:
+            html_post = await resp.text()
+            
+            # Check signs of valid account found
+            if "Choose your account" in html_post or "profile/pic.php" in html_post or "Send code via SMS" in html_post or 'class="title mfsl fcb"' in html_post:
+                return True
+    except Exception as e:
+        pass
+    return False
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
-    await asyncio.gather(auth_s1(force=True), auth_s2(force=True), auth_s3(force=True), return_exceptions=True)
+    await auth_s1(force=True)
 
 async def memory_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
-    """প্রতি ৫ মিনিটে expired cache entry মুছে RAM ফাঁকা রাখে"""
     try:
-        sub_purged  = SUBSCRIPTION_CACHE.purge_expired()
-        info_purged = USER_INFO_CACHE.purge_expired()
+        SUBSCRIPTION_CACHE.purge_expired()
+        USER_INFO_CACHE.purge_expired()
         gc.collect()
-        logger.info(f"🧹 Cache cleanup: sub={sub_purged} info={info_purged} freed | "
-                    f"sub_size={len(SUBSCRIPTION_CACHE)} info_size={len(USER_INFO_CACHE)} "
-                    f"waiting_otps={len(WAITING_OTPS)}")
-    except Exception as e:
-        logger.warning(f"Cleanup error: {e}")
+    except Exception: pass
 
 # ==============================================================================
 # 🔒 MIDDLEWARES & UI
@@ -701,43 +548,29 @@ async def memory_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
 
 async def check_subscription(user_id, bot, force=False):
     if not CHANNELS_CACHE: return True
-    # 🔥 BoundedTTLCache: auto-expires, auto-evicts oldest when full
     if not force:
         cached = SUBSCRIPTION_CACHE.get(user_id)
-        if cached is not None:
-            return cached  # True or False, already stored as plain bool
-    # All channels checked in parallel (not sequential)
+        if cached is not None: return cached 
     try:
-        checks = await asyncio.gather(
-            *[bot.get_chat_member(chat_id=ch, user_id=user_id) for ch in CHANNELS_CACHE],
-            return_exceptions=True
-        )
+        checks = await asyncio.gather(*[bot.get_chat_member(chat_id=ch, user_id=user_id) for ch in CHANNELS_CACHE], return_exceptions=True)
         for result in checks:
             if isinstance(result, Exception) or result.status in ["left", "kicked"]:
-                SUBSCRIPTION_CACHE.set(user_id, False)
-                return False
-        SUBSCRIPTION_CACHE.set(user_id, True)
-        return True
+                SUBSCRIPTION_CACHE.set(user_id, False); return False
+        SUBSCRIPTION_CACHE.set(user_id, True); return True
     except Exception:
-        SUBSCRIPTION_CACHE.set(user_id, False)
-        return False
+        SUBSCRIPTION_CACHE.set(user_id, False); return False
 
 async def send_join_prompt(update, context):
     keyboard = []
     row = []
     for i, c in enumerate(CHANNELS_CACHE):
         row.append({"text": f"🔗 Join {i+1}", "url": f"https://t.me/{c.replace('@', '')}", "style": "primary"})
-        if len(row) == 2:
-            keyboard.append(row)
-            row = []
+        if len(row) == 2: keyboard.append(row); row = []
     if row: keyboard.append(row)
     keyboard.append([{"text": "✅ Join Done", "callback_data": "check_join", "style": "success"}])
-    
     msg = "⛔ <b>You must join our channels to use this bot!</b>"
-    reply_markup = {"inline_keyboard": keyboard}
-    
-    if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    else: await update.message.reply_text(text=msg, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    if update.callback_query: await update.callback_query.edit_message_text(text=msg, reply_markup={"inline_keyboard": keyboard}, parse_mode=ParseMode.HTML)
+    else: await update.message.reply_text(text=msg, reply_markup={"inline_keyboard": keyboard}, parse_mode=ParseMode.HTML)
 
 async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_user_banned_fast(update.effective_user.id):
@@ -745,14 +578,6 @@ async def check_ban_middleware(update: Update, context: ContextTypes.DEFAULT_TYP
         else: await update.message.reply_text("🚫 <b>You have been banned.</b>", parse_mode=ParseMode.HTML)
         return True
     return False
-
-async def delete_message_later(bot, chat_id, msg_id, delay_seconds, user_msg_id=None):
-    await asyncio.sleep(delay_seconds)
-    try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
-    except Exception: pass
-    if user_msg_id:
-        try: await bot.delete_message(chat_id=chat_id, message_id=user_msg_id)
-        except Exception: pass
 
 # ==============================================================================
 # 🚀 ULTRA-FAST OTP POLLER
@@ -768,131 +593,37 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
     full_num = user_data['full_num']
     c_name = user_data.get('country_name', display_country_name)
     
-    custom_service_name = user_data.get('service_name', svc_name)
-    if custom_service_name == 'Auto Matched': custom_service_name = str(svc_name).title()
-    
+    custom_svc = user_data.get('service_name', svc_name).title()
     loop = asyncio.get_event_loop()
-    otp_reward = SETTINGS_CACHE["otp_reward"]
     
     user_info_before = await loop.run_in_executor(DB_EXECUTOR, sync_get_user_info, user_id)
     old_bal = user_info_before['balance']
-    new_bal = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, otp_reward)
+    new_bal = await loop.run_in_executor(DB_EXECUTOR, sync_add_balance, user_id, SETTINGS_CACHE["otp_reward"])
 
-    flag = get_flag(c_name)
-    short_name = get_short_code(c_name)
-    
-    svc_name_display = "Facebook" if "facebook" in custom_service_name.lower() else ("Whatsapp" if "whatsapp" in custom_service_name.lower() else custom_service_name.title())
-    stylish_svc = "𝐹𝑏" if "facebook" in custom_service_name.lower() else ("𝑊𝑠" if "whatsapp" in custom_service_name.lower() else custom_service_name[:2].title())
+    svc_display = "𝐹𝑏" if "facebook" in custom_svc.lower() else ("𝑊𝑠" if "whatsapp" in custom_svc.lower() else ("𝑇𝑔" if "telegram" in custom_svc.lower() else custom_svc[:2].title()))
     
     user_msg = (
         f"💬 <b>ɴᴇᴡ Oᴛᴘ Rᴇᴄɪᴠᴇᴅ</b>\n"
-        f"╭─────────────────╮\n"
-        f"│  <code>+{full_num}</code>\n"
-        f"╰─────────────────╯\n"
-        f"🟢 <b>Sᴇʀᴠɪᴄᴇ » {svc_name_display}</b>\n"
+        f"╭─────────────────╮\n│  <code>+{full_num}</code>\n╰─────────────────╯\n"
+        f"🟢 <b>Sᴇʀᴠɪᴄᴇ » {custom_svc}</b>\n"
         f"💰 <b>Bᴀʟᴀɴᴄᴇ - {old_bal:.2f} » {new_bal:.2f}</b>"
     )
-    
-    user_markup = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": str(code_only),
-                    "copy_text": {"text": str(code_only)},
-                    "style": "primary"
-                }
-            ]
-        ]
-    }
-    
+    user_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}}]]}
     try: await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=user_markup, parse_mode=ParseMode.HTML)
     except: pass
     
-    masked_num = mask_number_group(full_num)
-    group_msg = (
-        f"╭─────────────────╮\n"
-        f"│  <b>{flag} #{short_name} » {stylish_svc} {masked_num}</b>\n"
-        f"╰─────────────────╯"
-    )
-    
-    group_markup = {
-        "inline_keyboard": [
-            [
-                {
-                    "text": str(code_only),
-                    "copy_text": {"text": str(code_only)},
-                    "style": "primary"
-                }
-            ],
-            [
-                {
-                    "text": "📢 Main Channel",
-                    "url": "https://t.me/EarnXtract",
-                    "style": "danger"
-                },
-                {
-                    "text": "🤖 Bot Link",
-                    "url": f"https://t.me/{(await context.bot.get_me()).username}",
-                    "style": "success"
-                }
-            ]
-        ]
-    }
-    
+    group_msg = f"╭─────────────────╮\n│  <b>{get_flag(c_name)} #{get_short_code(c_name)} » {svc_display} {mask_number_group(full_num)}</b>\n╰─────────────────╯"
+    group_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}}], [{"text": "📢 Channel", "url": "https://t.me/EarnXtract"}]]}
     try: await context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=group_markup, parse_mode=ParseMode.HTML)
     except: pass
 
-async def check_inbox(context, server_res, last_text, text_var_name):
-    global LAST_INBOX_S1, LAST_INBOX_S2, LAST_INBOX_S3
-    if isinstance(server_res, tuple) and server_res[0] == 200 and server_res[1] and server_res[1] != last_text:
-        text_data = server_res[1]
-        if text_var_name == "s1": LAST_INBOX_S1 = text_data
-        elif text_var_name == "s2": LAST_INBOX_S2 = text_data
-        elif text_var_name == "s3": LAST_INBOX_S3 = text_data
-
-        try:
-            api_res = json.loads(text_data) if isinstance(text_data, str) else text_data
-            items = []
-            if text_var_name in ["s2", "s3"]: items = api_res.get('data', [])
-            else:
-                data_field = api_res.get('data', {})
-                items = data_field if isinstance(data_field, list) else (data_field.get('numbers') or data_field.get('otps') or [])
-            
-            for item in items:
-                if not isinstance(item, dict): continue
-                
-                if text_var_name == "s3":
-                    if item.get('status') != 'Success' or not item.get('otp'): continue
-                    num_raw = str(item.get('did', '')).replace('+', '')
-                    raw_msg = str(item.get('otp', ''))
-                    svc_name = "Service" 
-                else:
-                    num_raw = get_number_from_item(item)
-                    raw_msg = get_sms_from_item(item)
-                    svc_name = get_service_from_item(item)
-                    
-                if not num_raw or not raw_msg: continue
-                
-                hash_key, waiter = _find_waiter(num_raw)
-                if hash_key:
-                    code_val = extract_code(raw_msg) if text_var_name == "s3" else get_code_from_item(item, raw_msg)
-                    msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
-                    rcv_set = waiter.setdefault('received_codes', set())
-                    
-                    if msg_sig not in rcv_set:
-                        rcv_set.add(msg_sig)
-                        is_multi = len(rcv_set) > 1
-                        await process_found_otp(context, hash_key, waiter['full_num'], code_val, svc_name, raw_msg, is_multi, waiter.get('country_name', 'Unknown'))
-        except Exception: pass
-
 async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
-    global WAITING_OTPS, NUM_TO_HASH
+    global WAITING_OTPS, NUM_TO_HASH, LAST_INBOX_S1, LAST_INBOX_S2
     gc.collect()
     if not WAITING_OTPS: return 
     
     current_time = time.time()
     expired_keys = [hk for hk, d in list(WAITING_OTPS.items()) if current_time - d['time'] > OTP_TIMEOUT_SECONDS]
-            
     for h_key in expired_keys:
         u_data = WAITING_OTPS.pop(h_key, None)
         if u_data:
@@ -905,25 +636,57 @@ async def global_otp_checker_job(context: ContextTypes.DEFAULT_TYPE):
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
     s1_task = asyncio.create_task(s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/getnum/info?date={date_str}&page=1", return_text=True))
-    s2_task = asyncio.create_task(s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/get-page/otp-history?page=1&limit=20", return_text=True))
-    s3_url = f"{S3_BASE_URL}/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
-    s3_task = asyncio.create_task(s3_api_request('GET', s3_url, return_text=True))
     
-    for completed_task in asyncio.as_completed([s1_task, s2_task, s3_task]):
+    s2_url = "/api/?page_no=1&filter%5B0%5D%5Bname%5D=status&filter%5B0%5D%5Bvalue%5D=All&filter%5B1%5D%5Bname%5D=length&filter%5B1%5D%5Bvalue%5D=30"
+    s2_task = asyncio.create_task(s2_api_request('GET', s2_url, return_text=True))
+    
+    results = await asyncio.gather(s1_task, s2_task, return_exceptions=True)
+    
+    # Process S1 Inbox
+    if not isinstance(results[0], Exception) and results[0][0] == 200 and results[0][1] != LAST_INBOX_S1:
+        LAST_INBOX_S1 = results[0][1]
         try:
-            res = await completed_task
-            if res == s1_task.result() if s1_task.done() else None: await check_inbox(context, res, LAST_INBOX_S1, "s1")
-            elif res == s2_task.result() if s2_task.done() else None: await check_inbox(context, res, LAST_INBOX_S2, "s2")
-            else: await check_inbox(context, res, LAST_INBOX_S3, "s3")
+            for item in json.loads(LAST_INBOX_S1).get('data', {}).get('numbers', []):
+                num_raw = str(item.get('number', '')).replace('+', '')
+                raw_msg = item.get('sms_text', '')
+                if not num_raw or not raw_msg: continue
+                hash_key, waiter = _find_waiter(num_raw)
+                if hash_key:
+                    code_val = extract_code(raw_msg)
+                    msg_sig = f"{code_val}_{str(raw_msg)[:15]}"
+                    rcv_set = waiter.setdefault('received_codes', set())
+                    if msg_sig not in rcv_set:
+                        rcv_set.add(msg_sig)
+                        await process_found_otp(context, hash_key, waiter['full_num'], code_val, item.get('app_name', ''), raw_msg, len(rcv_set) > 1, waiter.get('country_name'))
+        except: pass
+
+    # Process S2 (Crackerjack) Inbox
+    if not isinstance(results[1], Exception) and results[1][0] == 200 and results[1][1] != LAST_INBOX_S2:
+        LAST_INBOX_S2 = results[1][1]
+        try:
+            for item in json.loads(LAST_INBOX_S2).get('data', []):
+                code = item.get('otp_code')
+                status = item.get('status')
+                if code and status == "Active":
+                    num_raw = str(item.get('did', '')).replace('+', '')
+                    raw_msg = item.get('last_message', '')
+                    if not num_raw or not raw_msg: continue
+                    
+                    hash_key, waiter = _find_waiter(num_raw)
+                    if hash_key:
+                        msg_sig = f"{code}_{str(raw_msg)[:15]}"
+                        rcv_set = waiter.setdefault('received_codes', set())
+                        if msg_sig not in rcv_set:
+                            rcv_set.add(msg_sig)
+                            await process_found_otp(context, hash_key, waiter['full_num'], code, item.get('app', 'Service'), raw_msg, len(rcv_set) > 1, waiter.get('country_name'))
         except: pass
 
 # ==============================================================================
-# 🎯 HIGH-SPEED NUMBER GENERATION (STRICT ANTI-HANG ENGINE)
+# 🎯 HIGH-SPEED NUMBER GENERATION 
 # ==============================================================================
 
 async def _fetch_number_s1(payload): return await s1_api_request('POST', f"{S1_BASE_URL}/mdashboard/getnum/number", json_payload=payload)
-async def _fetch_number_s2(payload): return await s2_api_request('POST', f"{S2_BASE_URL}/api/freelancer/get-page/get-number", json_payload=payload)
-async def _fetch_number_s3(url): return await s3_api_request('GET', url)
+async def _fetch_number_s2(url): return await s2_api_request('GET', url)
 
 async def safe_delayed_fetch(delay, func, *args, **kwargs):
     if delay > 0: await asyncio.sleep(delay)
@@ -932,7 +695,6 @@ async def safe_delayed_fetch(delay, func, *args, **kwargs):
 async def process_number_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, range_val, server_id, is_callback=True):
     global WAITING_OTPS, NUM_TO_HASH
     async with GENERATION_SEMAPHORE:
-      
       wait_txt = "<b>⏳ 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗶𝗻𝗴... 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗶𝗻𝗴 𝗡𝘂𝗺𝗯𝗲𝗿𝘀... 🚀</b>"
       if is_callback:
           user_id = update.callback_query.from_user.id
@@ -951,7 +713,6 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
 
       fetched_numbers = []
       
-      # 🔥 ANTI-HANG GUARANTEE: Try fast parallel approach, but NEVER wait more than 3.5 seconds!
       for attempt in range(2):
           if len(fetched_numbers) >= 2: break
           
@@ -963,36 +724,23 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
               tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
               
           elif server_id == 2:
-              rv = str(range_val).replace('X', '|')
-              parts = rv.split('|')
-              if len(parts) >= 2:
-                  payload = {"country_id": int(parts[0]), "mode": "single", "operator_id": int(parts[1]), "number_format": "full", "app": api_svc, "provider": api_svc}
-                  tasks = [_fetch_number_s2(payload), safe_delayed_fetch(0.2, _fetch_number_s2, payload)]
-
-          elif server_id == 3:
-              url = f"{S3_BASE_URL}/api/sms/?carrier={range_val}&auth-token={S3_TOKEN or S3_STATIC_TOKEN}"
-              tasks = [_fetch_number_s3(url), safe_delayed_fetch(0.2, _fetch_number_s3, url)]
+              # CRACKERJACK NUMBER GENERATION
+              url = f"/api/sms/?carrier={range_val}"
+              tasks = [_fetch_number_s2(url), safe_delayed_fetch(0.2, _fetch_number_s2, url)]
 
           if tasks:
               try:
-                  # 🔥 STRICT TIMEOUT: Forces bot to move on if API gets stuck
-                  results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=3.5)
-                  
+                  results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=4.0)
                   for res in results:
                       if isinstance(res, tuple):
                           status, resp = res
                           if status in [200, 201] and isinstance(resp, dict):
                               num = ""
-                              if server_id == 2 and resp.get('status') in ['success', 200, True]:
-                                  data_obj = resp.get('data', {})
-                                  if isinstance(data_obj, dict): num = str(data_obj.get('phone_number') or data_obj.get('number', ''))
-                                  elif isinstance(data_obj, list) and len(data_obj) > 0: num = str(data_obj[0].get('phone_number') or data_obj[0].get('number', ''))
-                                      
-                              elif server_id == 3 and str(resp.get('meta')) == '200':
+                              if server_id == 2 and str(resp.get('meta')) == '200':
                                   data_obj = resp.get('data', {})
                                   if isinstance(data_obj, dict): num = str(data_obj.get('did', ''))
                                       
-                              elif 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
+                              elif server_id == 1 and 'data' in resp and isinstance(resp['data'], dict) and resp['data'].get('number'):
                                   num = str(resp['data']['number'])
                                   if country_name == "Unknown": country_name = resp['data'].get('country', country_name)
                                   country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
@@ -1002,17 +750,12 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                                   if clean_n not in fetched_numbers: 
                                       fetched_numbers.append(clean_n)
                                       if len(fetched_numbers) == 2: break
-              except asyncio.TimeoutError:
-                  logger.warning(f"Server {server_id} timed out. Preventing hang.")
-                  pass
-              except Exception as e:
-                  logger.error(f"Generation error: {e}")
+              except Exception: pass
 
       if fetched_numbers:
           s_suffix = ""
           if server_id == 1: s_suffix = SETTINGS_CACHE['s1_suffix']
           elif server_id == 2: s_suffix = SETTINGS_CACHE['s2_suffix']
-          elif server_id == 3: s_suffix = SETTINGS_CACHE['s3_suffix']
           
           display_country_name = f"{country_name}{s_suffix}".strip()
           flag = get_flag(country_name)
@@ -1029,12 +772,19 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
           for n in fetched_numbers:
               num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
               
+          if 'facebook' in raw_svc:
+              num_kb["inline_keyboard"].append([{"text": "🔍 Check FB Account", "callback_data": "chk_fb_acc", "style": "warning"}])
+              
           num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
           num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
           num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}])
           
           try: await msg.edit_text(text=txt, reply_markup=num_kb, parse_mode=ParseMode.HTML)
           except Exception: pass
+          
+          context.user_data['fetched_numbers'] = fetched_numbers
+          context.user_data['range'] = range_val 
+          context.user_data['server'] = server_id
           
           for n in fetched_numbers:
               hash_key = get_hash_key(n)
@@ -1044,18 +794,10 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
                   'range': range_val, 'server_id': server_id, 'service_name': custom_svc, 'country_name': display_country_name
               }
               NUM_TO_HASH[clean_number(n)] = hash_key
-              
-          context.user_data['range'] = range_val 
-          context.user_data['server'] = server_id
-          
       else:
           err_msg = "🔄 <b>No numbers found right now. Please try again.</b>"
           btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
-          try:
-              await msg.edit_text(
-                  text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", 
-                  reply_markup=btn_back, parse_mode=ParseMode.HTML
-              )
+          try: await msg.edit_text(text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", reply_markup=btn_back, parse_mode=ParseMode.HTML)
           except Exception: pass
 
 # ==============================================================================
@@ -1070,62 +812,57 @@ async def show_live_traffic(update, context):
     counts = {}
     for log in logs:
         if isinstance(log, dict):
-            c = log.get('country_name') or log.get('country') or 'Unknown'
+            c = log.get('country') or 'Unknown'
+            # Check Crackerjack structure
+            if 'carrier_id' in log: 
+                c_id = log.get('carrier_id', '')
+                c = c_id.split()[0] if c_id else 'Unknown'
+                
             c = re.sub(r'(?i)\bpostpaid\b', '', c).strip()
-            app = log.get('provider') or log.get('app_name') or log.get('service') or 'Unknown'
+            app = log.get('app_name') or log.get('app') or 'Unknown'
             app = str(app).title()
             
             if 'Facebook' in app: app = 'Facebook'
             elif 'Whatsapp' in app: app = 'WhatsApp'
+            elif 'Telegram' in app: app = 'Telegram'
             
-            if app in ['Facebook', 'WhatsApp'] and c != 'Unknown':
+            if app in ['Facebook', 'WhatsApp', 'Telegram'] and c != 'Unknown':
                 counts[(app, c)] = counts.get((app, c), 0) + 1
                 
-    total = sum(counts.values())
-    if total == 0:
-        return await update.message.reply_text("<b>⏳ No Facebook/WhatsApp live traffic currently recorded.</b>", parse_mode=ParseMode.HTML)
+    if not counts:
+        return await update.message.reply_text("<b>⏳ No live traffic currently recorded.</b>", parse_mode=ParseMode.HTML)
         
-    sorted_traffic = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:15]
+    sorted_traffic = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:20]
     
-    txt = "📁 <b>LIVE-STOCK STATUS</b>\n\n"
+    txt = "📁 <b>LIVE-STOCK OTP COUNT</b>\n\n"
     for (app, c), count in sorted_traffic:
         flag = get_flag(c)
-        pct = (count / total) * 100
         short_c = get_short_code(c)
-        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else "Wʜᴀᴛsᴀᴘᴘ"
+        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else ("Wʜᴀᴛsᴀᴘᴘ" if app == 'WhatsApp' else "Tᴇʟᴇɢʀᴀᴍ")
         
-        if pct >= 70:
-            color = "🟢"
-        elif pct >= 40:
-            color = "🟡"
-        else:
-            color = "🔴"
+        if count >= 10: color = "🟢"
+        elif count >= 3: color = "🟡"
+        else: color = "🔴"
             
-        txt += f"<b>{app_display} {flag} {short_c} {pct:.0f}% {color} </b>\n"
+        txt += f"<b>{app_display} {flag} {short_c} » {count} OTPs {color}</b>\n"
         
     await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_ban_middleware(update, context): return
     user_id = update.effective_user.id
-    
     referrer_id = None
     if context.args and context.args[0].startswith("ref_"):
         try: referrer_id = int(context.args[0].replace("ref_", ""))
         except: pass
         if referrer_id == user_id: referrer_id = None
     
-    # 🔥 PARALLEL: register user + check subscription at same time, no sequential wait
     context.user_data.clear()
-    is_sub, _ = await asyncio.gather(
-        check_subscription(user_id, context.bot),
-        ensure_user_fast(user_id, referrer_id)
-    )
+    is_sub, _ = await asyncio.gather(check_subscription(user_id, context.bot), ensure_user_fast(user_id, referrer_id))
     
     if not is_sub: await send_join_prompt(update, context)
     else: await show_main_menu(update, context)
 
-# 🔥 PRECOMPUTED MAIN MENU KEYBOARD — built once, reused for every user
 _MAIN_MENU_KB = ReplyKeyboardMarkup(
     [["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]],
     resize_keyboard=True
@@ -1151,6 +888,7 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
         "inline_keyboard": [
             [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
             [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp", "style": "success"}],
+            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram", "style": "primary"}],
             [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main", "style": "danger"}]
         ]
     }
@@ -1175,7 +913,6 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    await query.edit_message_text(text="<b>⚡ 𝗖𝗮𝗹𝗰𝘂𝗹𝗮𝘁𝗶𝗻𝗴 𝗟𝗶𝘃𝗲 𝗦𝘂𝗰𝗰𝗲𝘀𝘀 𝗥𝗮𝘁𝗲...</b>", parse_mode=ParseMode.HTML)
     btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
     await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
 
@@ -1191,12 +928,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = raw_text.strip()
     
     user_data = context.user_data
-    # 🔥 Fire-and-forget - never delays message response
-    if user_id not in USER_CACHE:
-        asyncio.ensure_future(ensure_user_fast(user_id))
+    if user_id not in USER_CACHE: asyncio.ensure_future(ensure_user_fast(user_id))
     
     menu_actions = ["📱 GET NUMBER", "📊 LIVE TRAFFIC", "💳 BALANCE", "🎁 REFER", "🎧 LIVE SUPPORT"]
-    admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼 top 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Ping URL", "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Set Suffix S3", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
+    admin_actions = ["Bot Status", "𝗕𝗼𝘁 𝗦𝘁𝗮𝘁𝘂𝘀", "Total Users", "𝗧𝗼𝘁𝗮𝗹 𝗨𝘀𝗲𝗿𝘀", "Broadcast", "𝗕𝗿𝗼𝗮𝗱𝗰𝗮𝘀𝘁", "Ban / Unban", "𝗕𝗮𝗻 / 𝗨𝗻𝗯𝗮𝗻", "Set Rewards", "𝗦𝗲𝘁 𝗥𝗲𝘄𝗮𝗿𝗱𝘀", "Set Min Withdraw", "𝗦𝗲𝘁 𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄", "Add Balance", "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "Top Referrers", "𝗧𝗼 top 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀", "Set Suffix S1", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "Set Suffix S2", "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮", "Main Menu", "𝗠𝗮𝗶𝗻 𝗠𝗲𝗻𝘂", "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"]
     
     is_main_menu_action = any(btn == text for btn in menu_actions)
     is_admin_action = any(btn in text for btn in admin_actions)
@@ -1217,7 +952,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💰 <b>𝗢𝗧𝗣 𝗥𝗲𝘄𝗮𝗿𝗱:</b> {SETTINGS_CACHE['otp_reward']} ৳\n"
                 f"💳 <b>𝗠𝗶𝗻 𝗪𝗶𝘁𝗵𝗱𝗿𝗮𝘄:</b> {SETTINGS_CACHE['min_withdraw']} ৳\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"✅ <i>𝗧𝗥𝗜𝗣𝗟𝗘 𝗦𝗲𝗿𝘃𝗲𝗿𝘀 𝗥𝘂𝗻𝗻𝗶𝗻𝗴 𝗣𝗲𝗿𝗳𝗲𝗰𝘁𝗹𝘆</i>"
+                f"✅ <i>Servers Running Perfectly</i>"
             )
             return await update.message.reply_text(txt, parse_mode=ParseMode.HTML)
             
@@ -1243,27 +978,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif "𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲" in text or "Add Balance" in text:
             user_data['state'] = 'ADMIN_ADD_BAL'
             return await update.message.reply_text("💸 <b>𝗔𝗱𝗱 𝗯𝗮𝗹𝗮𝗻𝗰𝗲 𝘁𝗼 𝘂𝘀𝗲𝗿.</b>\nExample: <code>12345678 50.0</code>", parse_mode=ParseMode.HTML)
-
-        elif "𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟" in text or "Set Ping URL" in text:
-            user_data['state'] = 'ADMIN_SET_PING'
-            return await update.message.reply_text("🌐 <b>𝗦𝗲𝗻𝗱 𝘁𝗵𝗲 𝗨𝗥𝗟 𝗳𝗼𝗿 𝗔𝘂𝘁𝗼-𝗣𝗶𝗻𝗴.</b>", parse_mode=ParseMode.HTML)
             
         elif "𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅" in text or "Set Suffix" in text:
             if "S1" in text or "𝗦𝟭" in text: user_data['state'] = 'ADMIN_SET_S1_SUFFIX'
             elif "S2" in text or "𝗦𝟮" in text: user_data['state'] = 'ADMIN_SET_S2_SUFFIX'
-            elif "S3" in text or "𝗦𝟯" in text: user_data['state'] = 'ADMIN_SET_S3_SUFFIX'
             return await update.message.reply_text("✏️ <b>𝗦𝗲𝗻𝗱 𝘀𝘂𝗳𝗳𝗶𝘅.</b>\n(Send `-` to keep it blank)", parse_mode=ParseMode.HTML)
-            
-        elif "➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲" in text:
-            user_data['state'] = 'ADMIN_S3_ADD_CAT'
-            return await update.message.reply_text("➕ <b>𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲</b>\nSend Category (<code>facebook</code> or <code>whatsapp</code>):", parse_mode=ParseMode.HTML)
-            
-        elif "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲" in text:
-            loop = asyncio.get_event_loop()
-            ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
-            if not ranges: return await update.message.reply_text("📭 <i>No S3 Ranges found.</i>", parse_mode=ParseMode.HTML)
-            kb = [[InlineKeyboardButton(f"❌ {r[1].title()} | {r[3]} ({r[2]})", callback_data=f"dels3_{r[0]}")] for r in ranges]
-            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗿𝗮𝗻𝗴𝗲 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝗱𝗲𝗹𝗲𝘁𝗲 𝗶𝘁:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
         elif "➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text:
             user_data['state'] = 'ADMIN_ADD_CHANNEL'
@@ -1292,13 +1011,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             users = list(USER_CACHE)
             msg = await update.message.reply_text(f"⏳ <i>Broadcasting to {len(users)} users...</i>", parse_mode=ParseMode.HTML)
             success, failed = 0, 0
-            # 🔥 Chunked broadcast: 30 msg/sec max (Telegram limit), update progress every 500
             for i, u_id in enumerate(users):
                 try:
                     await context.bot.send_message(chat_id=u_id, text=f"📢 <b>𝗔𝗗𝗠𝗜𝗡 𝗕𝗥𝗢𝗔𝗗𝗖𝗔𝗦𝗧</b>\n━━━━━━━━━━━━━━━━━━━━\n{text}", parse_mode=ParseMode.HTML)
                     success += 1
                 except: failed += 1
-                if i % 25 == 0: await asyncio.sleep(1)   # 🔥 25 msg then 1s pause = safe from flood ban
+                if i % 25 == 0: await asyncio.sleep(1)   
                 elif i % 500 == 0 and i > 0:
                     try: await msg.edit_text(f"⏳ <b>Broadcasting...</b>\n✅ {success} | ❌ {failed} | 📋 {i}/{len(users)}", parse_mode=ParseMode.HTML)
                     except: pass
@@ -1356,38 +1074,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except: await update.message.reply_text("⚠️ Invalid format.")
             user_data['state'] = None
             return
-
-        elif state == 'ADMIN_SET_PING':
-            new_url = text.strip()
-            if not new_url.startswith("http"): new_url = "https://" + new_url
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, "ping_url", new_url)
-            await update.message.reply_text(f"✅ <b>𝗔𝘂𝘁𝗼-𝗣𝗶𝗻𝗴 𝗨𝗥𝗟 𝘂𝗽𝗱𝗮𝘁𝗲𝗱 𝘁𝗼:</b>\n<code>{new_url}</code>", parse_mode=ParseMode.HTML)
-            user_data['state'] = None; return
             
-        elif state in ['ADMIN_SET_S1_SUFFIX', 'ADMIN_SET_S2_SUFFIX', 'ADMIN_SET_S3_SUFFIX']:
+        elif state in ['ADMIN_SET_S1_SUFFIX', 'ADMIN_SET_S2_SUFFIX']:
             val = text if text != "-" else ""
-            key = "s1_suffix" if state == 'ADMIN_SET_S1_SUFFIX' else ("s2_suffix" if state == 'ADMIN_SET_S2_SUFFIX' else "s3_suffix")
+            key = "s1_suffix" if state == 'ADMIN_SET_S1_SUFFIX' else "s2_suffix"
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(DB_EXECUTOR, sync_update_setting, key, val)
             await update.message.reply_text(f"✅ <b>𝗦𝘂𝗳𝗳𝗶𝘅 𝘂𝗽𝗱𝗮𝘁𝗲𝗱 𝘁𝗼:</b> '{val}'", parse_mode=ParseMode.HTML)
-            user_data['state'] = None; return
-            
-        elif state == 'ADMIN_S3_ADD_CAT':
-            cat = text.strip().lower()
-            if cat not in ['facebook', 'whatsapp']: return await update.message.reply_text("⚠️ Please send either `facebook` or `whatsapp`.", parse_mode=ParseMode.HTML)
-            user_data['s3_tmp_cat'] = cat; user_data['state'] = 'ADMIN_S3_ADD_CARRIER'
-            return await update.message.reply_text("✅ Category Set.\nNow send the <b>𝗖𝗮𝗿𝗿𝗶𝗲𝗿 𝗜𝗗</b> (e.g. `95-1324`):", parse_mode=ParseMode.HTML)
-
-        elif state == 'ADMIN_S3_ADD_CARRIER':
-            user_data['s3_tmp_car'] = text.strip(); user_data['state'] = 'ADMIN_S3_ADD_COUNTRY'
-            return await update.message.reply_text("✅ Carrier ID Set.\nNow send the <b>𝗖𝗼𝘂𝗻𝘁𝗿𝘆 𝗡𝗮𝗺𝗲</b> (e.g. `Myanmar`):", parse_mode=ParseMode.HTML)
-
-        elif state == 'ADMIN_S3_ADD_COUNTRY':
-            c_name = text.strip().title(); cat = user_data.get('s3_tmp_cat'); car = user_data.get('s3_tmp_car')
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(DB_EXECUTOR, sync_add_s3_range, cat, car, c_name)
-            await update.message.reply_text(f"✅ <b>𝗦𝟯 𝗥𝗮𝗻𝗴𝗲 𝗔𝗱𝗱𝗲𝗱 𝗦𝘂𝗰𝗰𝗲𝘀𝘀𝗳𝘂𝗹𝗹𝘆!</b>\n\n🌍 {get_flag(c_name)} {c_name}\n🛒 {cat.title()}\n🆔 {car}", parse_mode=ParseMode.HTML)
             user_data['state'] = None; return
 
     # --- USER CONTROLS & STATES ---
@@ -1440,13 +1133,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>🔗 Referral Link:</b>\n<code>{ref_link}</code>"
         )
         
-        markup = {
-            "inline_keyboard": [
-                [
-                    {"text": "🚀 Refer Now", "url": share_url}
-                ]
-            ]
-        }
+        markup = {"inline_keyboard": [[{"text": "🚀 Refer Now", "url": share_url}]]}
         await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
 
     elif text == "💳 BALANCE":
@@ -1457,14 +1144,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>💳 Balance: {user_info['balance']:.2f} ৳</b>\n"
             f"<b>Minimum Withdraw: {SETTINGS_CACHE['min_withdraw']} ৳</b>"
         )
-        
-        markup = {
-            "inline_keyboard": [
-                [
-                    {"text": "💳 Withdraw Balance", "callback_data": "req_withdraw","style": "danger"}
-                ]
-            ]
-        }
+        markup = {"inline_keyboard": [[{"text": "💳 Withdraw Balance", "callback_data": "req_withdraw","style": "danger"}]]}
         await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
         
     elif text == "🎧 LIVE SUPPORT":
@@ -1474,13 +1154,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif state == 'WAITING_FOR_SUPPORT':
         for a_id in ADMIN_IDS:
             try: 
-                markup = {
-                    "inline_keyboard": [
-                        [
-                            {"text": "💬 Reply", "callback_data": f"admrep_{user_id}", "style": "primary"}
-                        ]
-                    ]
-                }
+                markup = {"inline_keyboard": [[{"text": "💬 Reply", "callback_data": f"admrep_{user_id}", "style": "primary"}]]}
                 await context.bot.send_message(chat_id=a_id, text=f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", parse_mode=ParseMode.HTML, reply_markup=markup)
             except: pass
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
@@ -1530,7 +1204,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id not in ADMIN_IDS and not is_main_menu_action: await show_main_menu(update, context)
 
 # ==============================================================================
-# 🎮 BUTTON HANDLER
+# 🎮 BUTTON HANDLER & FACEBOOK CHECKER
 # ==============================================================================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1538,23 +1212,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    # 🔥 Fire-and-forget user registration - never blocks button response
+    
     if user_id not in USER_CACHE:
         asyncio.ensure_future(ensure_user_fast(user_id))
     
     if data == "ignore": return await query.answer()
     elif data == "check_join":
         if await check_subscription(user_id, context.bot, force=True):
-            await query.answer("✅ সব চ্যানেলে জয়েন হয়েছেন! স্বাগতম 🎉", show_alert=False)
+            await query.answer("✅ Verified!", show_alert=False)
             try: await query.message.delete()
             except: pass
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=f"<b>Welcome {html.escape(query.from_user.full_name)}</b>",
-                reply_markup=ReplyKeyboardMarkup(
-                    [["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]],
-                    resize_keyboard=True
-                ),
+                reply_markup=ReplyKeyboardMarkup([["📱 GET NUMBER", "📊 LIVE TRAFFIC"], ["💳 BALANCE", "🎁 REFER"], ["🎧 LIVE SUPPORT"]], resize_keyboard=True),
                 parse_mode=ParseMode.HTML
             )
         else: await query.answer("⚠️ Please join all channels first.", show_alert=True)
@@ -1575,18 +1246,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     elif data == "go_main": await show_main_menu(update, context)
     elif data == "go_cat": await start_category_selection(update, context)
+    
+    # 🔥 FACEBOOK CHECK NUMBER FEATURE
+    elif data == "chk_fb_acc":
+        fetched_nums = context.user_data.get('fetched_numbers', [])
+        if not fetched_nums:
+            return await query.answer("⚠️ No numbers found to check!", show_alert=True)
         
-    elif data.startswith("dels3_"):
-        if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
-        r_id = int(data.split("_")[1])
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(DB_EXECUTOR, sync_delete_s3_range, r_id)
-        await query.answer("✅ S3 Range Deleted!")
-        ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, None)
-        if not ranges: await query.edit_message_text("📭 <i>All S3 Ranges deleted.</i>", parse_mode=ParseMode.HTML)
-        else:
-            kb = [[InlineKeyboardButton(f"❌ {r[1].title()} | {r[3]} ({r[2]})", callback_data=f"dels3_{r[0]}")] for r in ranges]
-            await query.edit_message_text("🗑️ <b>Click a range below to delete it:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        await query.answer("Checking Facebook accounts... please wait.")
+        msg_text = "🔍 <b>Facebook Account Status:</b>\n\n"
+        
+        for num in fetched_nums:
+            found = await check_facebook_account(num)
+            if found: msg_text += f"✅ <b>Account Found:</b> <code>+{num}</code>\n"
+            else: msg_text += f"❌ <b>No Account:</b> <code>+{num}</code>\n"
+        
+        msg_text += "\n<i>Requesting OTP...</i>"
+        await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
 
     elif data.startswith("delch_"):
         if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
@@ -1665,8 +1341,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["💸 𝗔𝗱𝗱 𝗕𝗮𝗹𝗮𝗻𝗰𝗲", "🏆 𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀"],
         ["➕ 𝗔𝗱𝗱 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"],
         ["✏️ 𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟭", "✏️ 𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟮"],
-        ["✏️ 𝗦𝗲𝘁 𝗦𝘂𝗳𝗳𝗶𝘅 𝗦𝟯", "🌐 𝗦𝗲𝘁 𝗣𝗶𝗻𝗴 𝗨𝗥𝗟"],
-        ["➕ 𝗔𝗱𝗱 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲", "🗑️ 𝗗𝗲𝗹 𝗦𝟯 𝗥𝗮𝗻𝗴𝗲"],
         ["Main Menu"]
     ]
     txt = "🔐 <b>𝗔𝗗𝗩𝗔𝗡𝗖𝗘𝗗 𝗔𝗗𝗠𝗜𝗡 𝗣𝗔𝗡𝗘𝗟</b> 🔐\n━━━━━━━━━━━━━━━━━━━━\n<i>Use the keyboard below to manage the bot:</i>"
@@ -1675,8 +1349,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 # ☁️ INVISIBLE TELEGRAM CLOUD BACKUP & RESTORE SYSTEM
 # ==============================================================================
-
-LAST_BACKUP_MSG_ID = None
 
 async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS: return
@@ -1705,26 +1377,6 @@ async def cmd_restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text("✅ <b>𝗗𝗮𝘁𝗮𝗯𝗮𝘀𝗲 𝗥𝗲𝘀𝘁𝗼𝗿𝗲𝗱 𝗦𝘂𝗰𝗰𝗲𝘀𝘀𝗳𝘂𝗹𝗹𝘆!</b>\n<i>All user balances and data have been completely recovered.</i>", parse_mode=ParseMode.HTML)
     except Exception as e: await msg.edit_text(f"❌ <b>𝗥𝗲𝘀𝘁𝗼𝗿𝗲 𝗳𝗮𝗶𝗹𝗲𝗱:</b> {e}", parse_mode=ParseMode.HTML)
 
-async def auto_backup_job(context: ContextTypes.DEFAULT_TYPE):
-    global LAST_BACKUP_MSG_ID
-    if not os.path.exists(DB_FILE): return
-    try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(DB_EXECUTOR, sync_checkpoint)
-        
-        main_admin = ADMIN_IDS[0] 
-        with open(DB_FILE, 'rb') as f:
-            msg = await context.bot.send_document(
-                chat_id=main_admin, document=f, filename=f"Silent_Backup_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.db",
-                caption="☁️ <b>Silent Auto Cloud Backup (20 Min)</b>\n\n<i>Render safe-guard. To restore, reply to this file with /restore</i>",
-                parse_mode=ParseMode.HTML, disable_notification=True 
-            )
-        if LAST_BACKUP_MSG_ID:
-            try: await context.bot.delete_message(chat_id=main_admin, message_id=LAST_BACKUP_MSG_ID)
-            except Exception: pass
-        LAST_BACKUP_MSG_ID = msg.message_id
-    except Exception as e: logger.error(f"Auto Backup Failed: {e}")
-
 # ==============================================================================
 # 🌐 BACKGROUND CACHE UPDATER & MENU PRE-COMPUTER
 # ==============================================================================
@@ -1734,58 +1386,57 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
     try:
         gc.collect()
         s1_tasks = [s1_api_request('GET', f"{S1_BASE_URL}/mdashboard/console/info?page={i}") for i in range(1, 4)]
-        s2_tasks = [s2_api_request('GET', f"{S2_BASE_URL}/api/freelancer/console/data?page={i}&limit=50") for i in range(1, 4)]
-        results = await asyncio.gather(*s1_tasks, *s2_tasks, return_exceptions=True)
+        s2_task = s2_api_request('GET', "/api/terminal")
         
+        results = await asyncio.gather(*s1_tasks, s2_task, return_exceptions=True)
+        
+        # Parse S1 Feed
         s1_logs = []
         for res in results[:3]:
             if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
                 s1_logs.extend(res[1].get('data', {}).get('logs', []))
-        s2_logs = []
-        for res in results[3:]:
-            if isinstance(res, tuple) and res[0] == 200 and isinstance(res[1], dict):
-                s2_logs.extend(res[1].get('data', []))
-                
         if s1_logs: CONSOLE_CACHE[1] = s1_logs[:150]
-        if s2_logs: CONSOLE_CACHE[2] = s2_logs[:150]
+        
+        # Parse S2 Crackerjack Feed
+        s2_res = results[3]
+        if not isinstance(s2_res, Exception) and s2_res[0] == 200 and isinstance(s2_res[1], dict):
+            CONSOLE_CACHE[2] = s2_res[1].get('data', [])
 
-        for cat in ["facebook", "whatsapp"]:
+        for cat in ["facebook", "whatsapp", "telegram"]:
             country_stats = {}
-            def process_logs_local(logs, srv_id):
-                if not logs: return
-                for log in logs:
-                    if isinstance(log, dict):
-                        if srv_id == 2:
-                            c = log.get('country_name', 'Unknown')
-                            r = f"{log.get('country_id')}|{log.get('operator_id')}"
-                            app_name = str(log.get('provider', '')).lower()
-                        else:
-                            c = log.get('country', 'Unknown')
-                            r = log.get('range')
-                            app_name = str(log.get('app_name', '')).lower()
-                        c = re.sub(r'(?i)\bpostpaid\b', '', c).strip()
-                        if cat in app_name and c and r and 'None' not in r:
-                            key = (srv_id, c)
-                            if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c}
-                            country_stats[key]['count'] += 1
-
-            process_logs_local(CONSOLE_CACHE[1], 1)
-            process_logs_local(CONSOLE_CACHE[2], 2)
-
-            loop = asyncio.get_event_loop()
-            s3_ranges = await loop.run_in_executor(DB_EXECUTOR, sync_get_s3_ranges, cat)
-            for s3r in s3_ranges:
-                r_id, r_cat, carrier_id, c_name = s3r
-                c_name = re.sub(r'(?i)\bpostpaid\b', '', c_name).strip()
-                key = (3, c_name)
-                if key not in country_stats: country_stats[key] = {'range': carrier_id, 'count': 100, 'c_name': c_name}
+            
+            # S1 Process
+            for log in CONSOLE_CACHE[1]:
+                if isinstance(log, dict):
+                    c = log.get('country', 'Unknown')
+                    r = log.get('range')
+                    app_name = str(log.get('app_name', '')).lower()
+                    c = re.sub(r'(?i)\bpostpaid\b', '', c).strip()
+                    if cat in app_name and c and r and 'None' not in r:
+                        key = (1, c)
+                        if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c}
+                        country_stats[key]['count'] += 1
+                        
+            # S2 Process (Live terminal from crackerjacksms)
+            for log in CONSOLE_CACHE[2]:
+                if isinstance(log, dict):
+                    c_id = log.get('carrier_id', '')
+                    app = str(log.get('app', '')).lower()
+                    if c_id and cat in app:
+                        c_name = c_id.split()[0]
+                        c_name = re.sub(r'(?i)\bpostpaid\b', '', c_name).strip()
+                        r = format_cj_carrier(c_id)
+                        
+                        key = (2, c_name)
+                        if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c_name}
+                        country_stats[key]['count'] += 1
 
             if country_stats:
                 sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
                 kb = []
                 s1_suffix = SETTINGS_CACHE['s1_suffix']
                 s2_suffix = SETTINGS_CACHE['s2_suffix']
-                s3_suffix = SETTINGS_CACHE['s3_suffix']
+                
                 pattern = [2, 1]
                 p_idx = 0
                 row = []
@@ -1795,7 +1446,7 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
                     display_name = c_name
                     if srv_id == 1: display_name += s1_suffix
                     elif srv_id == 2: display_name += s2_suffix
-                    elif srv_id == 3: display_name += s3_suffix
+                    
                     btn_text = f"{get_flag(c_name)} {display_name}"
                     safe_c_name = str(c_name)[:15].replace(" ", "")
                     btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
@@ -1810,42 +1461,8 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception: pass
 
-# ==============================================================================
-# 🌐 RENDER LONG-POLLING ANTI-SLEEP
-# ==============================================================================
-
-async def web_server_handler(request):
-    if request.query.get('keepalive') == 'true':
-        await asyncio.sleep(60) 
-        return web.Response(text="✅ Long-poll successful. Stayed for 60s.")
-    return web.Response(text="✅ Premium OTP Bot Running perfectly!")
-
-async def self_ping_job(context: ContextTypes.DEFAULT_TYPE):
-    ping_url = SETTINGS_CACHE.get("ping_url", "https://rtxstexsms-qf5h.onrender.com")
-    if not ping_url or ping_url == "None": return
-    url = f"{ping_url}&keepalive=true" if "?" in ping_url else f"{ping_url}?keepalive=true"
-    try:
-        session = await get_session()
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=75), ssl=False) as resp: pass
-    except Exception: pass
-
-async def start_dummy_server():
-    try:
-        app = web.Application()
-        app.router.add_get('/', web_server_handler)
-        port = int(os.environ.get('PORT', 8080))
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', port)
-        await site.start()
-        logger.info(f"🌐 Web server running on port {port}")
-    except Exception as e: logger.warning(f"Web server error: {e}")
-
 async def post_init(app: Application):
-    asyncio.create_task(start_dummy_server())
     asyncio.create_task(auth_s1(force=True))
-    asyncio.create_task(auth_s2(force=True))
-    asyncio.create_task(auth_s3(force=True))
 
 if __name__ == "__main__":
     init_db()
@@ -1853,8 +1470,8 @@ if __name__ == "__main__":
         Application.builder()
         .token(TOKEN)
         .post_init(post_init)
-        .concurrent_updates(True)        # 🔥 Handle multiple users truly in parallel
-        .connection_pool_size(128)       # 🔥 128 concurrent Telegram API connections
+        .concurrent_updates(True)        
+        .connection_pool_size(128)       
         .connect_timeout(5)
         .read_timeout(10)
         .write_timeout(10)
@@ -1871,15 +1488,14 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
+    # ⏱️ JOBS
     app.job_queue.run_repeating(global_otp_checker_job,  interval=1.5,  first=2)
     app.job_queue.run_repeating(update_cache_job,         interval=15,   first=2)
     app.job_queue.run_repeating(auto_relogin_job,         interval=300,  first=300)
-    app.job_queue.run_repeating(self_ping_job,            interval=120,  first=10)
-    app.job_queue.run_repeating(auto_backup_job,          interval=1200, first=1200)
-    app.job_queue.run_repeating(memory_cleanup_job,       interval=300,  first=60)   # 🧹 Every 5 min
+    app.job_queue.run_repeating(memory_cleanup_job,       interval=300,  first=60)   
     
-    logger.info("✨ VERSION 86 MILLISECOND EDITION — CONCURRENT PARALLEL ENGINE ✨")
+    logger.info("✨ VERSION 99 ENTERPRISE VPS HOST EDITION — ALL FEATURES ACTIVATED ✨")
     app.run_polling(
         drop_pending_updates=True,
-        allowed_updates=["message", "callback_query"],  # 🔥 Only process needed update types
+        allowed_updates=["message", "callback_query"],  
     )
