@@ -13,7 +13,7 @@ import urllib.parse
 from contextlib import contextmanager
 import concurrent.futures
 
-# 🔥 UVLOOP FOR EXTREME SPEED
+# 🔥 UVLOOP FOR EXTREME SPEED (VPS OPTIMIZATION)
 try:
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -145,23 +145,40 @@ SETTINGS_CACHE = {
 }
 
 # ==============================================================================
-# 🌍 COUNTRY & DIAL CODE MAPPINGS
+# 🌍 FULL COUNTRY FLAGS & CODES (RESTORED COMPLETELY)
 # ==============================================================================
+
+COUNTRY_FLAGS = {
+    "Afghanistan":"🇦🇫", "Albania":"🇦🇱", "Algeria":"🇩🇿", "Andorra":"🇦🇩", "Angola":"🇦🇴", "Antigua and Barbuda":"🇦🇬", "Argentina":"🇦🇷", "Armenia":"🇦🇲", "Australia":"🇦🇺", "Austria":"🇦🇹", "Azerbaijan":"🇦🇿", "Bahamas":"🇧🇸", "Bahrain":"🇧🇭", "Bangladesh":"🇧🇩", "Barbados":"🇧🇧", "Belarus":"🇧🇾", "Belgium":"🇧🇪", "Belize":"🇧🇿", "Benin":"🇧🇯", "Bhutan":"🇧🇹", "Bolivia":"🇧🇴", "Bosnia and Herzegovina":"🇧🇦", "Bosnia":"🇧🇦", "Botswana":"🇧🇼", "Brazil":"🇧🇷", "Brunei":"🇧🇳", "Bulgaria":"🇧🇬", "Burkina Faso":"🇧🇫", "Burundi":"🇧🇮", "Cabo Verde":"🇨🇻", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Central African Republic":"🇨🇫", "Central Africa":"🇨🇫", "Chad":"🇹🇩", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Comoros":"🇰🇲", "Congo":"🇨🇬", "Democratic Republic of the Congo":"🇨🇩", "Costa Rica":"🇨🇷", "Croatia":"🇭🇷", "Cuba":"🇨🇺", "Cyprus":"🇨🇾", "Czechia":"🇨🇿", "Denmark":"🇩🇰", "Djibouti":"🇩🇯", "Dominica":"🇩🇲", "Dominican Republic":"🇩🇴", "East Timor":"🇹🇱", "Ecuador":"🇪🇨", "Egypt":"🇪🇬", "El Salvador":"🇸🇻", "Equatorial Guinea":"🇬🇶", "Eritrea":"🇪🇷", "Estonia":"🇪🇪", "Eswatini":"🇸🇿", "Ethiopia":"🇪🇹", "Fiji":"🇫🇯", "Finland":"🇫🇮", "France":"🇫🇷", "Gabon":"🇬🇦", "Gambia":"🇬🇲", "Georgia":"🇬🇪", "Germany":"🇩🇪", "Ghana":"🇬🇭", "Greece":"🇬🇷", "Grenada":"🇬🇩", "Guatemala":"🇬🇹", "Guinea":"🇬🇳", "Guinea-Bissau":"🇬🇼", "Guyana":"🇬🇾", "Haiti":"🇭🇹", "Honduras":"🇭🇳", "Hungary":"🇭🇺", "Iceland":"🇮🇸", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Ireland":"🇮🇪", "Israel":"🇮🇱", "Italy":"🇮🇹", "Ivory Coast":"🇨🇮", "Jamaica":"🇯🇲", "Japan":"🇯🇵", "Jordan":"🇯🇴", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Kiribati":"🇰🇮", "Kuwait":"🇰🇼", "Kyrgyzstan":"🇰🇬", "Laos":"🇱🇦", "Latvia":"🇱🇻", "Lebanon":"🇱🇧", "Lesotho":"🇱🇸", "Liberia":"🇱🇷", "Libya":"🇱🇾", "Liechtenstein":"🇱🇮", "Lithuania":"🇱🇹", "Luxembourg":"🇱🇺", "Madagascar":"🇲🇬", "Malawi":"🇲🇼", "Malaysia":"🇲🇾", "Maldives":"🇲🇻", "Mali":"🇲🇱", "Malta":"🇲🇹", "Marshall Islands":"🇲🇭", "Mauritania":"🇲🇷", "Mauritius":"🇲🇺", "Mexico":"🇲🇽", "Micronesia":"🇫🇲", "Moldova":"🇲🇩", "Monaco":"🇲🇨", "Mongolia":"🇲🇳", "Montenegro":"🇲🇪", "Morocco":"🇲🇦", "Mozambique":"🇲🇿", "Myanmar":"🇲🇲", "Namibia":"🇳🇦", "Nauru":"🇳🇷", "Nepal":"🇳🇵", "Netherlands":"🇳🇱", "New Zealand":"🇳🇿", "Nicaragua":"🇳🇮", "Niger":"🇳🇪", "Nigeria":"🇳🇬", "North Korea":"🇰🇵", "North Macedonia":"🇲🇰", "Norway":"🇳🇴", "Oman":"🇴🇲", "Pakistan":"🇵🇰", "Palau":"🇵🇼", "Palestine":"🇵🇸", "Panama":"🇵🇦", "Papua New Guinea":"🇵🇬", "Paraguay":"🇵🇾", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Portugal":"🇵🇹", "Qatar":"🇶🇦", "Romania":"🇷🇴", "Russia":"🇷🇺", "Rwanda":"🇷🇼", "Saint Kitts and Nevis":"🇰🇳", "Saint Lucia":"🇱🇨", "Saint Vincent and the Grenadines":"🇻🇨", "Samoa":"🇼🇸", "San Marino":"🇸🇲", "Sao Tome and Principe":"🇸🇹", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "Serbia":"🇷🇸", "Seychelles":"🇸🇨", "Sierra Leone":"🇸🇱", "Singapore":"🇸🇬", "Slovakia":"🇸🇰", "Slovenia":"🇸🇮", "Solomon Islands":"🇸🇧", "Somalia":"🇸🇴", "South Africa":"🇿🇦", "South Korea":"🇰🇷", "South Sudan":"🇸🇸", "Spain":"🇪🇸", "Sri Lanka":"🇱🇰", "Sudan":"🇸🇩", "Suriname":"🇸🇷", "Sweden":"🇸🇪", "Switzerland":"🇨🇭", "Syria":"🇸🇾", "Taiwan":"🇹🇼", "Tajikistan":"🇹🇯", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Togo":"🇹🇬", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Turkmenistan":"TM", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Arab Emirates":"🇦🇪", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Uruguay":"🇺🇾", "Uzbekistan":"🇺🇿", "Vanuatu":"🇻🇺", "Venezuela":"🇻🇪", "Vietnam":"🇻🇳", "Yemen":"🇾🇪", "Zambia":"🇿🇲", "Zimbabwe":"🇿🇼"
+}
+
+COUNTRY_CODES = {
+    "Afghanistan":"AF", "Albania":"AL", "Algeria":"DZ", "Andorra":"AD", "Angola":"AO", "Argentina":"AR", "Armenia":"AM", "Australia":"AU", "Austria":"AT", "Azerbaijan":"AZ", "Bahamas":"BS", "Bahrain":"BH", "Bangladesh":"BD", "Barbados":"BB", "Belarus":"BY", "Belgium":"BE", "Belize":"BZ", "Benin":"BJ", "Bhutan":"BT", "Bolivia":"BO", "Bosnia":"BA", "Botswana":"BW", "Brazil":"BR", "Brunei":"BN", "Bulgaria":"BG", "Burkina Faso":"BF", "Burundi":"BI", "Cambodia":"KH", "Cameroon":"CM", "Canada":"CA", "Central African Republic":"CF", "Chad":"TD", "Chile":"CL", "China":"CN", "Colombia":"CO", "Comoros":"KM", "Congo":"CG", "Costa Rica":"CR", "Croatia":"HR", "Cuba":"CU", "Cyprus":"CY", "Czechia":"CZ", "Denmark":"DK", "Djibouti":"DJ", "Dominican Republic":"DO", "Ecuador":"EC", "Egypt":"EG", "El Salvador":"SV", "Equatorial Guinea":"GQ", "Eritrea":"ER", "Estonia":"EE", "Eswatini":"SZ", "Ethiopia":"ET", "Fiji":"FJ", "Finland":"FI", "France":"FR", "Gabon":"GA", "Gambia":"GM", "Georgia":"GE", "Germany":"DE", "Ghana":"GH", "Greece":"GR", "Grenada":"GD", "Guatemala":"GT", "Guinea":"GN", "Guinea-Bissau":"GW", "Guyana":"GY", "Haiti":"HT", "Honduras":"HN", "Hungary":"HU", "Iceland":"IS", "India":"IN", "Indonesia":"ID", "Iran":"IR", "Iraq":"IQ", "Ireland":"IE", "Israel":"IL", "Italy":"IT", "Jamaica":"JM", "Japan":"JP", "Jordan":"JO", "Kazakhstan":"KZ", "Kenya":"KE", "Kuwait":"KW", "Kyrgyzstan":"KG", "Laos":"LA", "Latvia":"LV", "Lebanon":"LB", "Lesotho":"LS", "Liberia":"LR", "Libya":"LY", "Lithuania":"LT", "Luxembourg":"LU", "Madagascar":"MG", "Malawi":"MW", "Malaysia":"MY", "Maldives":"MV", "Mali":"ML", "Malta":"MT", "Mauritania":"MR", "Mauritius":"MU", "Mexico":"MX", "Moldova":"MD", "Monaco":"MC", "Mongolia":"MN", "Montenegro":"ME", "Morocco":"MA", "Mozambique":"MZ", "Myanmar":"MM", "Namibia":"NA", "Nepal":"NP", "Netherlands":"NL", "New Zealand":"NZ", "Nicaragua":"NI", "Niger":"NE", "Nigeria":"NG", "North Korea":"KP", "Norway":"NO", "Oman":"OM", "Pakistan":"PK", "Palau":"PW", "Palestine":"PS", "Panama":"PA", "Paraguay":"PY", "Peru":"PE", "Philippines":"PH", "Poland":"PL", "Portugal":"PT", "Qatar":"QA", "Romania":"RO", "Russia":"RU", "Rwanda":"RW", "Saudi Arabia":"SA", "Senegal":"SN", "Serbia":"RS", "Seychelles":"SC", "Sierra Leone":"SL", "Singapore":"SG", "Slovakia":"SK", "Slovenia":"SI", "Somalia":"SO", "South Africa":"ZA", "South Korea":"KR", "South Sudan":"SS", "Spain":"ES", "Sri Lanka":"LK", "Sudan":"SD", "Suriname":"SR", "Sweden":"SE", "Switzerland":"CH", "Syria":"SY", "Taiwan":"TW", "Tajikistan":"TJ", "Tanzania":"TZ", "Thailand":"TH", "Togo":"TG", "Tunisia":"TN", "Turkey":"TR", "Turkmenistan":"TM", "Uganda":"UG", "Ukraine":"UA", "United Arab Emirates":"AE", "United Kingdom":"GB", "United States":"US", "Uruguay":"UY", "Uzbekistan":"UZ", "Vanuatu":"VU", "Venezuela":"VE", "Vietnam":"VN", "Yemen":"YE", "Zambia":"ZM", "Zimbabwe":"ZW"
+}
 
 COUNTRY_DIAL_CODES = {
     "Afghanistan": "93", "Albania": "355", "Algeria": "213", "Andorra": "376", "Angola": "244", "Argentina": "54", "Armenia": "374", "Australia": "61", "Austria": "43", "Azerbaijan": "994", "Bahamas": "1", "Bahrain": "973", "Bangladesh": "880", "Barbados": "1", "Belarus": "375", "Belgium": "32", "Belize": "501", "Benin": "229", "Bhutan": "975", "Bolivia": "591", "Bosnia": "387", "Botswana": "267", "Brazil": "55", "Bulgaria": "359", "Burkina Faso": "226", "Burundi": "257", "Cambodia": "855", "Cameroon": "237", "Canada": "1", "Chad": "235", "Chile": "56", "China": "86", "Colombia": "57", "Comoros": "269", "Congo": "242", "Costa Rica": "506", "Croatia": "385", "Cuba": "53", "Cyprus": "357", "Czechia": "420", "Denmark": "45", "Djibouti": "253", "Ecuador": "593", "Egypt": "20", "El Salvador": "503", "Estonia": "372", "Ethiopia": "251", "Fiji": "679", "Finland": "358", "France": "33", "Gabon": "241", "Gambia": "220", "Georgia": "995", "Germany": "49", "Ghana": "233", "Greece": "30", "Guatemala": "502", "Guinea": "224", "Guyana": "592", "Haiti": "509", "Honduras": "504", "Hungary": "36", "Iceland": "354", "India": "91", "Indonesia": "62", "Iran": "98", "Iraq": "964", "Ireland": "353", "Israel": "972", "Italy": "39", "Ivory Coast": "225", "Jamaica": "1", "Japan": "81", "Jordan": "962", "Kazakhstan": "7", "Kenya": "254", "Kuwait": "965", "Kyrgyzstan": "996", "Laos": "856", "Latvia": "371", "Lebanon": "961", "Liberia": "231", "Libya": "218", "Lithuania": "370", "Luxembourg": "352", "Madagascar": "261", "Malawi": "265", "Malaysia": "60", "Maldives": "960", "Mali": "223", "Malta": "356", "Mauritania": "222", "Mauritius": "230", "Mexico": "52", "Moldova": "373", "Monaco": "377", "Mongolia": "976", "Montenegro": "382", "Morocco": "212", "Mozambique": "258", "Myanmar": "95", "Namibia": "264", "Nepal": "977", "Netherlands": "31", "New Zealand": "64", "Nicaragua": "505", "Niger": "227", "Nigeria": "234", "North Korea": "850", "North Macedonia": "389", "Norway": "47", "Oman": "968", "Pakistan": "92", "Palestine": "970", "Panama": "507", "Paraguay": "595", "Peru": "51", "Philippines": "63", "Poland": "48", "Portugal": "351", "Qatar": "974", "Romania": "40", "Russia": "7", "Rwanda": "250", "Saudi Arabia": "966", "Senegal": "221", "Serbia": "381", "Sierra Leone": "232", "Singapore": "65", "Slovakia": "421", "Slovenia": "386", "Somalia": "252", "South Africa": "27", "South Korea": "82", "Spain": "34", "Sri Lanka": "94", "Sudan": "249", "Sweden": "46", "Switzerland": "41", "Syria": "963", "Taiwan": "886", "Tajikistan": "992", "Tanzania": "255", "Thailand": "66", "Togo": "228", "Tunisia": "216", "Turkey": "90", "Turkmenistan": "993", "Uganda": "256", "Ukraine": "380", "United Arab Emirates": "971", "United Kingdom": "44", "United States": "1", "Uruguay": "598", "Uzbekistan": "998", "Venezuela": "58", "Vietnam": "84", "Yemen": "967", "Zambia": "260", "Zimbabwe": "263"
 }
 
 def get_flag(country_name):
-    # Dynamic flags based on country
-    flags = {"Afghanistan":"🇦🇫", "Algeria":"🇩🇿", "Argentina":"🇦🇷", "Bangladesh":"🇧🇩", "Brazil":"🇧🇷", "Cambodia":"🇰🇭", "Cameroon":"🇨🇲", "Canada":"🇨🇦", "Chile":"🇨🇱", "China":"🇨🇳", "Colombia":"🇨🇴", "Egypt":"🇪🇬", "France":"🇫🇷", "Germany":"🇩🇪", "India":"🇮🇳", "Indonesia":"🇮🇩", "Iran":"🇮🇷", "Iraq":"🇮🇶", "Italy":"🇮🇹", "Japan":"🇯🇵", "Kazakhstan":"🇰🇿", "Kenya":"🇰🇪", "Madagascar":"🇲🇬", "Malaysia":"🇲🇾", "Mexico":"🇲🇽", "Morocco":"🇲🇦", "Myanmar":"🇲🇲", "Nepal":"🇳🇵", "Nigeria":"🇳🇬", "Pakistan":"🇵🇰", "Peru":"🇵🇪", "Philippines":"🇵🇭", "Poland":"🇵🇱", "Russia":"🇷🇺", "Saudi Arabia":"🇸🇦", "Senegal":"🇸🇳", "South Africa":"🇿🇦", "Spain":"🇪🇸", "Tanzania":"🇹🇿", "Thailand":"🇹🇭", "Tunisia":"🇹🇳", "Turkey":"🇹🇷", "Uganda":"🇺🇬", "Ukraine":"🇺🇦", "United Kingdom":"🇬🇧", "United States":"🇺🇸", "Vietnam":"🇻🇳"}
-    clean_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
-    for name, flag in flags.items():
-        if name.lower() in clean_name.lower(): return flag
+    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "")
+    clean_name = re.sub(r'(?i)\bpostpaid\b', '', clean_name).strip()
+    if clean_name in COUNTRY_FLAGS: return COUNTRY_FLAGS[clean_name]
+    clean_no_space = clean_name.replace(" ", "").lower()
+    for name, flag in COUNTRY_FLAGS.items():
+        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
+            return flag
     return "🚩"
 
 def get_short_code(country_name):
-    return str(country_name)[:2].upper()
+    clean_name = str(country_name).replace(SETTINGS_CACHE['s1_suffix'], "").replace(SETTINGS_CACHE['s2_suffix'], "")
+    clean_name = re.sub(r'(?i)\bpostpaid\b', '', clean_name).strip()
+    if clean_name in COUNTRY_CODES: return COUNTRY_CODES[clean_name]
+    clean_no_space = clean_name.replace(" ", "").lower()
+    for name, code in COUNTRY_CODES.items():
+        if name.replace(" ", "").lower() in clean_no_space or clean_no_space in name.replace(" ", "").lower(): 
+            return code
+    return str(clean_name)[:2].upper()
 
 def clean_number(n: str) -> str:
     return re.sub(r'\D', '', str(n))
@@ -172,15 +189,11 @@ def mask_number_group(number: str) -> str:
     return digits[:2] + ('X' * (len(digits) - 6)) + digits[-4:]
 
 def format_cj_carrier(carrier_name):
-    """
-    Format string exactly for Crackerjack API.
-    Example: 'Myanmar Mytel - Arrakis' -> '95|myanmar-mytel---arrakis'
-    """
     if not carrier_name: return ""
     country_str = carrier_name.split()[0].title()
     code = COUNTRY_DIAL_CODES.get(country_str, "")
     formatted_name = carrier_name.lower().replace(" - ", "-").replace(" ", "-")
-    return f"{code}|{formatted_name}"
+    return f"{code}|{formatted_name}" if code else formatted_name
 
 def extract_code(message):
     msg = str(message)
@@ -425,8 +438,8 @@ def sync_checkpoint():
 async def get_session():
     global GLOBAL_SESSION
     if GLOBAL_SESSION is None or GLOBAL_SESSION.closed:
-        connector = aiohttp.TCPConnector(limit=200, enable_cleanup_closed=True, ttl_dns_cache=600, use_dns_cache=True)
-        timeout = aiohttp.ClientTimeout(total=8, connect=2)
+        connector = aiohttp.TCPConnector(limit=250, enable_cleanup_closed=True, ttl_dns_cache=600, use_dns_cache=True)
+        timeout = aiohttp.ClientTimeout(total=15, connect=4)
         GLOBAL_SESSION = aiohttp.ClientSession(connector=connector, cookie_jar=aiohttp.CookieJar(unsafe=True), timeout=timeout)
     return GLOBAL_SESSION
 
@@ -435,7 +448,14 @@ async def auth_s1(force=False):
     async with AUTH_LOCK_S1:
         if not force and time.time() - LAST_AUTH_S1 < 300 and S1_TOKEN: return True
         payload = {"email": S1_EMAIL, "password": S1_PASSWORD}
-        headers = {"User-Agent": BASE_USER_AGENT, "Origin": "https://stexsms.com", "Referer": "https://stexsms.com/"}
+        headers = {
+            "User-Agent": BASE_USER_AGENT, 
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json", 
+            "Origin": "https://stexsms.com", 
+            "Referer": "https://stexsms.com/",
+            "Connection": "keep-alive"
+        }
         try:
             session = await get_session()
             async with session.post(f"{S1_BASE_URL}/mauth/login", json=payload, headers=headers, timeout=10) as response:
@@ -454,9 +474,16 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
         try:
             if not S1_TOKEN and not await auth_s1(): continue
             session = await get_session()
-            headers = {"User-Agent": BASE_USER_AGENT, "mauthtoken": str(S1_TOKEN), "Cookie": f"mauthtoken={S1_TOKEN}"}
-            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=4.0)
-            else: response = await session.post(url, json=json_payload, headers=headers, timeout=4.0)
+            headers = {
+                "User-Agent": BASE_USER_AGENT, 
+                "mauthtoken": str(S1_TOKEN), 
+                "Cookie": f"mauthtoken={S1_TOKEN}",
+                "Accept": "application/json",
+                "Connection": "keep-alive"
+            }
+            if method.upper() == 'GET': response = await session.get(url, headers=headers, timeout=8.0)
+            else: response = await session.post(url, json=json_payload, headers=headers, timeout=8.0)
+            
             if response.status in [401, 403]: S1_TOKEN = None; continue
             if response.status == 200:
                 text = await response.text()
@@ -464,7 +491,7 @@ async def s1_api_request(method, url, json_payload=None, return_text=False):
                 try: return 200, json.loads(text)
                 except: return 200, None
             return response.status, None
-        except Exception: pass
+        except Exception as e: pass
     return 500, None
 
 async def s2_api_request(method, endpoint, return_text=False):
@@ -483,7 +510,7 @@ async def s2_api_request(method, endpoint, return_text=False):
             url = f"{S2_BASE_URL}{endpoint}"
             
             if method.upper() == 'GET':
-                async with session.get(url, headers=headers, cookies=cookies, timeout=4.0) as resp:
+                async with session.get(url, headers=headers, cookies=cookies, timeout=6.0) as resp:
                     if resp.status == 200:
                         text = await resp.text()
                         if return_text: return 200, text
@@ -501,31 +528,33 @@ async def check_facebook_account(number):
         session = await get_session()
         headers = {
             "User-Agent": BASE_USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-Mode": "navigate",
         }
         
-        # 1. Get LSD Token
-        get_url = "https://limited.facebook.com/login/identify/"
-        async with session.get(get_url, headers=headers, timeout=5.0) as resp:
+        get_url = "https://limited.facebook.com/login/identify/?ctx=recover&c=%2Flogin%2F&search_attempts=1&ars=facebook_login&alternate_search=0&show_friend_search_filtered_list=0&birth_month_search=0&city_search=0"
+        async with session.get(get_url, headers=headers, timeout=6.0) as resp:
             html_get = await resp.text()
             lsd_match = re.search(r'name="lsd" value="([^"]+)"', html_get)
+            jazoest_match = re.search(r'name="jazoest" value="([^"]+)"', html_get)
+            
             lsd = lsd_match.group(1) if lsd_match else ""
+            jazoest = jazoest_match.group(1) if jazoest_match else ""
 
-        # 2. Post Search
-        post_url = "https://limited.facebook.com/login/identify/?ctx=recover&search_attempts=1"
-        payload = {"lsd": lsd, "email": str(number), "did_submit": "Search"}
+        if not lsd: return False
+
+        post_url = get_url
+        payload = {"lsd": lsd, "jazoest": jazoest, "email": str(number), "did_submit": "Search"}
         
         post_headers = headers.copy()
         post_headers["Origin"] = "https://limited.facebook.com"
         post_headers["Referer"] = get_url
         post_headers["Content-Type"] = "application/x-www-form-urlencoded"
         
-        async with session.post(post_url, data=payload, headers=post_headers, timeout=6.0) as resp:
+        async with session.post(post_url, data=payload, headers=post_headers, timeout=8.0) as resp:
             html_post = await resp.text()
             
-            # Check signs of valid account found
             if "Choose your account" in html_post or "profile/pic.php" in html_post or "Send code via SMS" in html_post or 'class="title mfsl fcb"' in html_post:
                 return True
     except Exception as e:
@@ -709,7 +738,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
       country_name = re.sub(r'(?i)\bpostpaid\b', '', country_name).strip()
       
       raw_svc = str(context.user_data.get('service_name', 'facebook')).lower()
-      api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'facebook'
+      api_svc = 'facebook' if 'facebook' in raw_svc else 'whatsapp' if 'whatsapp' in raw_svc else 'telegram' if 'telegram' in raw_svc else 'facebook'
 
       fetched_numbers = []
       
@@ -724,13 +753,12 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
               tasks = [_fetch_number_s1(payload), safe_delayed_fetch(0.2, _fetch_number_s1, payload)]
               
           elif server_id == 2:
-              # CRACKERJACK NUMBER GENERATION
               url = f"/api/sms/?carrier={range_val}"
               tasks = [_fetch_number_s2(url), safe_delayed_fetch(0.2, _fetch_number_s2, url)]
 
           if tasks:
               try:
-                  results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=4.0)
+                  results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=8.0)
                   for res in results:
                       if isinstance(res, tuple):
                           status, resp = res
@@ -770,14 +798,14 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
           
           num_kb = {"inline_keyboard": []}
           for n in fetched_numbers:
-              num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
+              num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}}])
               
           if 'facebook' in raw_svc:
-              num_kb["inline_keyboard"].append([{"text": "🔍 Check FB Account", "callback_data": "chk_fb_acc", "style": "warning"}])
+              num_kb["inline_keyboard"].append([{"text": "🔍 Check FB Account", "callback_data": "chk_fb_acc"}])
               
-          num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
-          num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
-          num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}])
+          num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num"}])
+          num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat"}])
+          num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX"}])
           
           try: await msg.edit_text(text=txt, reply_markup=num_kb, parse_mode=ParseMode.HTML)
           except Exception: pass
@@ -796,7 +824,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
               NUM_TO_HASH[clean_number(n)] = hash_key
       else:
           err_msg = "🔄 <b>No numbers found right now. Please try again.</b>"
-          btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
+          btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat"}]]}
           try: await msg.edit_text(text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", reply_markup=btn_back, parse_mode=ParseMode.HTML)
           except Exception: pass
 
@@ -813,7 +841,6 @@ async def show_live_traffic(update, context):
     for log in logs:
         if isinstance(log, dict):
             c = log.get('country') or 'Unknown'
-            # Check Crackerjack structure
             if 'carrier_id' in log: 
                 c_id = log.get('carrier_id', '')
                 c = c_id.split()[0] if c_id else 'Unknown'
@@ -825,8 +852,9 @@ async def show_live_traffic(update, context):
             if 'Facebook' in app: app = 'Facebook'
             elif 'Whatsapp' in app: app = 'WhatsApp'
             elif 'Telegram' in app: app = 'Telegram'
+            elif 'Alymscintl' in app: app = 'Alibaba'
             
-            if app in ['Facebook', 'WhatsApp', 'Telegram'] and c != 'Unknown':
+            if app in ['Facebook', 'WhatsApp', 'Telegram', 'Alibaba'] and c != 'Unknown':
                 counts[(app, c)] = counts.get((app, c), 0) + 1
                 
     if not counts:
@@ -838,7 +866,7 @@ async def show_live_traffic(update, context):
     for (app, c), count in sorted_traffic:
         flag = get_flag(c)
         short_c = get_short_code(c)
-        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else ("Wʜᴀᴛsᴀᴘᴘ" if app == 'WhatsApp' else "Tᴇʟᴇɢʀᴀᴍ")
+        app_display = "Fᴀᴄᴇʙᴏᴏᴋ" if app == 'Facebook' else ("Wʜᴀᴛsᴀᴘᴘ" if app == 'WhatsApp' else ("Tᴇʟᴇɢʀᴀᴍ" if app == 'Telegram' else "Aʟɪʙᴀʙᴀ"))
         
         if count >= 10: color = "🟢"
         elif count >= 3: color = "🟡"
@@ -886,10 +914,10 @@ async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cat_kb = {
         "inline_keyboard": [
-            [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
-            [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp", "style": "success"}],
-            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram", "style": "primary"}],
-            [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main", "style": "danger"}]
+            [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook"}],
+            [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp"}],
+            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram"}],
+            [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main"}]
         ]
     }
     txt = "<b>Sᴇʟᴇᴄᴛ Yᴏᴜ ᴄᴀᴛᴀɢᴏʀʏ </b>"
@@ -913,7 +941,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
+    btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat"}]]}
     await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
 
 # ==============================================================================
@@ -1144,7 +1172,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>💳 Balance: {user_info['balance']:.2f} ৳</b>\n"
             f"<b>Minimum Withdraw: {SETTINGS_CACHE['min_withdraw']} ৳</b>"
         )
-        markup = {"inline_keyboard": [[{"text": "💳 Withdraw Balance", "callback_data": "req_withdraw","style": "danger"}]]}
+        markup = {"inline_keyboard": [[{"text": "💳 Withdraw Balance", "callback_data": "req_withdraw"}]]}
         await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
         
     elif text == "🎧 LIVE SUPPORT":
@@ -1154,7 +1182,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif state == 'WAITING_FOR_SUPPORT':
         for a_id in ADMIN_IDS:
             try: 
-                markup = {"inline_keyboard": [[{"text": "💬 Reply", "callback_data": f"admrep_{user_id}", "style": "primary"}]]}
+                markup = {"inline_keyboard": [[{"text": "💬 Reply", "callback_data": f"admrep_{user_id}"}]]}
                 await context.bot.send_message(chat_id=a_id, text=f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", parse_mode=ParseMode.HTML, reply_markup=markup)
             except: pass
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
@@ -1291,9 +1319,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         markup = {
             "inline_keyboard": [
-                [{"text": "Bᴋᴀsʜ ", "callback_data": "wdm_Bkash", "style": "primary"}],
-                [{"text": "Nᴀɢᴀᴅ ", "callback_data": "wdm_Nagad", "style": "success"}],
-                [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
+                [{"text": "Bᴋᴀsʜ ", "callback_data": "wdm_Bkash"}],
+                [{"text": "Nᴀɢᴀᴅ ", "callback_data": "wdm_Nagad"}],
+                [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge"}]
             ]
         }
         
@@ -1426,10 +1454,10 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
                         c_name = c_id.split()[0]
                         c_name = re.sub(r'(?i)\bpostpaid\b', '', c_name).strip()
                         r = format_cj_carrier(c_id)
-                        
-                        key = (2, c_name)
-                        if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c_name}
-                        country_stats[key]['count'] += 1
+                        if r:
+                            key = (2, c_name)
+                            if key not in country_stats: country_stats[key] = {'range': r, 'count': 0, 'c_name': c_name}
+                            country_stats[key]['count'] += 1
 
             if country_stats:
                 sorted_keys = sorted(country_stats.keys(), key=lambda x: x[0])
@@ -1449,14 +1477,14 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
                     
                     btn_text = f"{get_flag(c_name)} {display_name}"
                     safe_c_name = str(c_name)[:15].replace(" ", "")
-                    btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
+                    btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}"}
                     row.append(btn)
                     if len(row) == pattern[p_idx]:
                         kb.append(row)
                         row = []
                         p_idx = (p_idx + 1) % 2
                 if row: kb.append(row)
-                kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
+                kb.append([{"text": "🔙 Back", "callback_data": "go_cat"}])
                 PRECOMPUTED_MENUS[cat] = {"inline_keyboard": kb}
 
     except Exception: pass
@@ -1472,10 +1500,10 @@ if __name__ == "__main__":
         .post_init(post_init)
         .concurrent_updates(True)        
         .connection_pool_size(128)       
-        .connect_timeout(5)
-        .read_timeout(10)
-        .write_timeout(10)
-        .pool_timeout(5)
+        .connect_timeout(8)
+        .read_timeout(15)
+        .write_timeout(15)
+        .pool_timeout(8)
         .build()
     )
     
@@ -1494,7 +1522,7 @@ if __name__ == "__main__":
     app.job_queue.run_repeating(auto_relogin_job,         interval=300,  first=300)
     app.job_queue.run_repeating(memory_cleanup_job,       interval=300,  first=60)   
     
-    logger.info("✨ VERSION 99 ENTERPRISE VPS HOST EDITION — ALL FEATURES ACTIVATED ✨")
+    logger.info("✨ VERSION 99 PRO EDITION — VPS READY ✨")
     app.run_polling(
         drop_pending_updates=True,
         allowed_updates=["message", "callback_query"],  
