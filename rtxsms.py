@@ -806,7 +806,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
               num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
               
           if 'facebook' in raw_svc:
-              num_kb["inline_keyboard"].append([{"text": "🔍 𝗖𝗵𝗲𝗰𝗸 𝗙𝗕 𝗔𝗰𝗰𝗼𝘂𝗻𝘁", "callback_data": "chk_fb_acc", "style": "warning"}])
+              num_kb["inline_keyboard"].append([{"text": "🔍 𝗖𝗵𝗲𝗰𝗸 𝗙𝗕 𝗔𝗰𝗰𝗼𝘂𝗻𝘁", "callback_data": "chk_fb_acc", "style": "danger"}])
               
           num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
           num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
@@ -921,7 +921,7 @@ async def start_category_selection(update: Update, context: ContextTypes.DEFAULT
         "inline_keyboard": [
             [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
             [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp", "style": "success"}],
-            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram", "style": "warning"}],
+            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram", "style": "danger"}],
             [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main", "style": "danger"}]
         ]
     }
