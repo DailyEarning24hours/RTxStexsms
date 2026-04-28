@@ -145,7 +145,7 @@ SETTINGS_CACHE = {
 }
 
 # ==============================================================================
-# 🌍 FULL COUNTRY FLAGS & CODES (RESTORED COMPLETELY)
+# 🌍 FULL COUNTRY FLAGS & CODES
 # ==============================================================================
 
 COUNTRY_FLAGS = {
@@ -520,7 +520,7 @@ async def s2_api_request(method, endpoint, return_text=False):
     return 500, None
 
 # ==============================================================================
-# 🔍 FACEBOOK ACCOUNT CHECKER
+# 🔍 FACEBOOK ACCOUNT CHECKER & UTILS
 # ==============================================================================
 
 async def check_facebook_account(number):
@@ -560,6 +560,11 @@ async def check_facebook_account(number):
     except Exception as e:
         pass
     return False
+
+async def delete_message_later(bot, chat_id, msg_id, delay_seconds):
+    await asyncio.sleep(delay_seconds)
+    try: await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+    except: pass
 
 async def auto_relogin_job(context: ContextTypes.DEFAULT_TYPE):
     await auth_s1(force=True)
@@ -637,12 +642,12 @@ async def process_found_otp(context, hash_key, api_num, code_only, svc_name, raw
         f"🟢 <b>Sᴇʀᴠɪᴄᴇ » {custom_svc}</b>\n"
         f"💰 <b>Bᴀʟᴀɴᴄᴇ - {old_bal:.2f} » {new_bal:.2f}</b>"
     )
-    user_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}}]]}
+    user_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}, "style": "primary"}]]}
     try: await context.bot.send_message(chat_id=chat_id, text=user_msg, reply_markup=user_markup, parse_mode=ParseMode.HTML)
     except: pass
     
     group_msg = f"╭─────────────────╮\n│  <b>{get_flag(c_name)} #{get_short_code(c_name)} » {svc_display} {mask_number_group(full_num)}</b>\n╰─────────────────╯"
-    group_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}}], [{"text": "📢 Channel", "url": "https://t.me/EarnXtract"}]]}
+    group_markup = {"inline_keyboard": [[{"text": str(code_only), "copy_text": {"text": str(code_only)}, "style": "primary"}], [{"text": "📢 Channel", "url": "https://t.me/EarnXtract", "style": "danger"}]]}
     try: await context.bot.send_message(chat_id=OTP_GROUP_ID, text=group_msg, reply_markup=group_markup, parse_mode=ParseMode.HTML)
     except: pass
 
@@ -798,14 +803,14 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
           
           num_kb = {"inline_keyboard": []}
           for n in fetched_numbers:
-              num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}}])
+              num_kb["inline_keyboard"].append([{"text": f"⎘ +{n}", "copy_text": {"text": str(n)}, "style": "primary"}])
               
           if 'facebook' in raw_svc:
-              num_kb["inline_keyboard"].append([{"text": "🔍 Check FB Account", "callback_data": "chk_fb_acc"}])
+              num_kb["inline_keyboard"].append([{"text": "🔍 𝗖𝗵𝗲𝗰𝗸 𝗙𝗕 𝗔𝗰𝗰𝗼𝘂𝗻𝘁", "callback_data": "chk_fb_acc", "style": "warning"}])
               
-          num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num"}])
-          num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat"}])
-          num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX"}])
+          num_kb["inline_keyboard"].append([{"text": "🔄 Change Number", "callback_data": "change_num", "style": "danger"}])
+          num_kb["inline_keyboard"].append([{"text": "🌍 Change Country", "callback_data": "go_cat", "style": "primary"}])
+          num_kb["inline_keyboard"].append([{"text": "🗝️ Get OTP", "url": "https://t.me/RTxOtpX", "style": "success"}])
           
           try: await msg.edit_text(text=txt, reply_markup=num_kb, parse_mode=ParseMode.HTML)
           except Exception: pass
@@ -824,7 +829,7 @@ async def process_number_generation(update: Update, context: ContextTypes.DEFAUL
               NUM_TO_HASH[clean_number(n)] = hash_key
       else:
           err_msg = "🔄 <b>No numbers found right now. Please try again.</b>"
-          btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat"}]]}
+          btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
           try: await msg.edit_text(text=f"📡 <b>𝗦𝗲𝗿𝘃𝗲𝗿 𝗢𝗽𝘁𝗶𝗺𝗶𝘇𝗶𝗻𝗴:</b>\n{err_msg}", reply_markup=btn_back, parse_mode=ParseMode.HTML)
           except Exception: pass
 
@@ -914,10 +919,10 @@ async def cmd_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_category_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cat_kb = {
         "inline_keyboard": [
-            [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook"}],
-            [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp"}],
-            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram"}],
-            [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main"}]
+            [{"text": "⚙ Fᴀᴄᴇʙᴏᴏᴋ", "callback_data": "cat_facebook", "style": "primary"}],
+            [{"text": "Wʜᴀᴛsᴀᴘᴘ 𒊹︎︎", "callback_data": "cat_whatsapp", "style": "success"}],
+            [{"text": "🚀 Tᴇʟᴇɢʀᴀᴍ", "callback_data": "cat_telegram", "style": "warning"}],
+            [{"text": "🔙 Mᴀɪɴ Mᴇɴᴜ ", "callback_data": "go_main", "style": "danger"}]
         ]
     }
     txt = "<b>Sᴇʟᴇᴄᴛ Yᴏᴜ ᴄᴀᴛᴀɢᴏʀʏ </b>"
@@ -941,7 +946,7 @@ async def handle_category_click(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat"}]]}
+    btn_back = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}]]}
     await query.edit_message_text(text=f"𝗡𝗼 𝗡𝘂𝗺𝗯𝗲𝗿 𝗙𝗶𝗻𝗱 𝗥𝗶𝗴𝗵𝘁 𝗡𝗼𝘄 𝗙𝗼𝗿 𝗧𝗵𝗶𝘀 𝗖𝗮𝘁𝗮𝗴𝗼𝗿𝘆 💣", reply_markup=btn_back, parse_mode=ParseMode.HTML)
 
 # ==============================================================================
@@ -1018,8 +1023,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif "🗑️ 𝗗𝗲𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹" in text:
             if not CHANNELS_CACHE: return await update.message.reply_text("📭 <i>No channels found.</i>", parse_mode=ParseMode.HTML)
-            kb = [[InlineKeyboardButton(f"❌ {ch}", callback_data=f"delch_{ch}")] for ch in CHANNELS_CACHE]
-            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝗿𝗲𝗺𝗼𝘃𝗲:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            kb = {"inline_keyboard": [[{"text": f"❌ {ch}", "callback_data": f"delch_{ch}", "style": "danger"}]] for ch in CHANNELS_CACHE}
+            return await update.message.reply_text("🗑️ <b>𝗖𝗹𝗶𝗰𝗸 𝗮 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝘁𝗼 𝗿𝗲𝗺𝗼𝘃𝗲:</b>", reply_markup=kb, parse_mode=ParseMode.HTML)
 
         elif "𝗧𝗼𝗽 𝗥𝗲𝗳𝗲𝗿𝗿𝗲𝗿𝘀" in text or "Top Referrers" in text:
             loop = asyncio.get_event_loop()
@@ -1138,9 +1143,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     code = data.get('code')
                     if code: 
                         out = f"✅ <b>2FA CODE GENERATED!</b>\n<b>⚠️ Auto-delete in 5 mins.</b>"
-                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}}]]}
+                        user_markup = {"inline_keyboard": [[{"text": str(code), "copy_text": {"text": str(code)}, "style": "success"}]]}
                         await msg.edit_text(out, reply_markup=user_markup, parse_mode=ParseMode.HTML)
-                        asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300, user_msg_id))
+                        asyncio.create_task(delete_message_later(context.bot, msg.chat_id, msg.message_id, 300))
                     else: await msg.edit_text("❌ <b>Invalid Secret Key.</b>", parse_mode=ParseMode.HTML)
                 else: await msg.edit_text("❌ <b>API Error!</b>", parse_mode=ParseMode.HTML)
         except Exception: await msg.edit_text("❌ <b>Network Error.</b>", parse_mode=ParseMode.HTML)
@@ -1161,7 +1166,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>🔗 Referral Link:</b>\n<code>{ref_link}</code>"
         )
         
-        markup = {"inline_keyboard": [[{"text": "🚀 Refer Now", "url": share_url}]]}
+        markup = {"inline_keyboard": [[{"text": "🚀 Refer Now", "url": share_url, "style": "primary"}]]}
         await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
 
     elif text == "💳 BALANCE":
@@ -1172,7 +1177,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"<b>💳 Balance: {user_info['balance']:.2f} ৳</b>\n"
             f"<b>Minimum Withdraw: {SETTINGS_CACHE['min_withdraw']} ৳</b>"
         )
-        markup = {"inline_keyboard": [[{"text": "💳 Withdraw Balance", "callback_data": "req_withdraw"}]]}
+        markup = {"inline_keyboard": [[{"text": "💳 Withdraw Balance", "callback_data": "req_withdraw", "style": "danger"}]]}
         await update.message.reply_text(msg, reply_markup=markup, parse_mode=ParseMode.HTML)
         
     elif text == "🎧 LIVE SUPPORT":
@@ -1182,7 +1187,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif state == 'WAITING_FOR_SUPPORT':
         for a_id in ADMIN_IDS:
             try: 
-                markup = {"inline_keyboard": [[{"text": "💬 Reply", "callback_data": f"admrep_{user_id}"}]]}
+                markup = {"inline_keyboard": [[{"text": "💬 Reply", "callback_data": f"admrep_{user_id}", "style": "primary"}]]}
                 await context.bot.send_message(chat_id=a_id, text=f"📩 <b>Support Message</b>\n👤 <b>ID:</b> <code>{user_id}</code>\n💬 <b>Msg:</b> {html.escape(text)}", parse_mode=ParseMode.HTML, reply_markup=markup)
             except: pass
         await update.message.reply_text("✅ <b>Message Sent!</b> An Admin will reply soon.", parse_mode=ParseMode.HTML)
@@ -1221,9 +1226,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🏦 <b>Method:</b> {method}\n"
             f"📱 <b>Account:</b> <code>{account}</code>\n"
         )
-        kb = [[InlineKeyboardButton("✅ Approve", callback_data=f"wd_app_{wd_id}"), InlineKeyboardButton("❌ Reject", callback_data=f"wd_rej_{wd_id}")]]
+        kb = {"inline_keyboard": [[{"text": "✅ Approve", "callback_data": f"wd_app_{wd_id}", "style": "success"}, {"text": "❌ Reject", "callback_data": f"wd_rej_{wd_id}", "style": "danger"}]]}
         for a_id in ADMIN_IDS:
-            try: await context.bot.send_message(chat_id=a_id, text=admin_txt, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            try: await context.bot.send_message(chat_id=a_id, text=admin_txt, reply_markup=kb, parse_mode=ParseMode.HTML)
             except: pass
             
         user_data['state'] = None
@@ -1275,22 +1280,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "go_main": await show_main_menu(update, context)
     elif data == "go_cat": await start_category_selection(update, context)
     
-    # 🔥 FACEBOOK CHECK NUMBER FEATURE
+    # 🔥 FACEBOOK CHECK NUMBER FEATURE (AUTO DELETE 20s)
     elif data == "chk_fb_acc":
         fetched_nums = context.user_data.get('fetched_numbers', [])
         if not fetched_nums:
             return await query.answer("⚠️ No numbers found to check!", show_alert=True)
         
         await query.answer("Checking Facebook accounts... please wait.")
-        msg_text = "🔍 <b>Facebook Account Status:</b>\n\n"
+        msg_text = "🔍 <b>𝗙𝗮𝗰𝗲𝗯𝗼𝗼𝗸 𝗔𝗰𝗰𝗼𝘂𝗻𝘁 𝗦𝘁𝗮𝘁𝘂𝘀:</b>\n\n"
         
         for num in fetched_nums:
             found = await check_facebook_account(num)
             if found: msg_text += f"✅ <b>Account Found:</b> <code>+{num}</code>\n"
             else: msg_text += f"❌ <b>No Account:</b> <code>+{num}</code>\n"
         
-        msg_text += "\n<i>Requesting OTP...</i>"
-        await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
+        msg_text += "\n<i>⏳ Deleting in 20s... Please wait for OTP!</i>"
+        
+        # Send new message and delete after 20 seconds
+        sent_msg = await query.message.reply_text(msg_text, parse_mode=ParseMode.HTML)
+        asyncio.create_task(delete_message_later(context.bot, sent_msg.chat_id, sent_msg.message_id, 20))
 
     elif data.startswith("delch_"):
         if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
@@ -1301,8 +1309,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(f"✅ Removed {ch}")
         if not CHANNELS_CACHE: await query.edit_message_text("📭 <i>All Channels deleted.</i>", parse_mode=ParseMode.HTML)
         else:
-            kb = [[InlineKeyboardButton(f"❌ {c}", callback_data=f"delch_{c}")] for c in CHANNELS_CACHE]
-            await query.edit_message_text("🗑️ <b>Click a channel to remove:</b>", reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            kb = {"inline_keyboard": [[{"text": f"❌ {c}", "callback_data": f"delch_{c}", "style": "danger"}]] for c in CHANNELS_CACHE}
+            await query.edit_message_text("🗑️ <b>Click a channel to remove:</b>", reply_markup=kb, parse_mode=ParseMode.HTML)
 
     elif data.startswith("admrep_"):
         if user_id not in ADMIN_IDS: return await query.answer("⚠️ Admin only.", show_alert=True)
@@ -1319,9 +1327,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         markup = {
             "inline_keyboard": [
-                [{"text": "Bᴋᴀsʜ ", "callback_data": "wdm_Bkash"}],
-                [{"text": "Nᴀɢᴀᴅ ", "callback_data": "wdm_Nagad"}],
-                [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge"}]
+                [{"text": "Bᴋᴀsʜ ", "callback_data": "wdm_Bkash", "style": "primary"}],
+                [{"text": "Nᴀɢᴀᴅ ", "callback_data": "wdm_Nagad", "style": "success"}],
+                [{"text": "Rᴇᴄʜᴀʀɢᴇ ", "callback_data": "wdm_Mobile_Recharge", "style": "danger"}]
             ]
         }
         
@@ -1477,14 +1485,14 @@ async def update_cache_job(context: ContextTypes.DEFAULT_TYPE):
                     
                     btn_text = f"{get_flag(c_name)} {display_name}"
                     safe_c_name = str(c_name)[:15].replace(" ", "")
-                    btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}"}
+                    btn = {"text": btn_text, "callback_data": f"r_{srv_id}_{stats['range']}_{safe_c_name}", "style": "primary"}
                     row.append(btn)
                     if len(row) == pattern[p_idx]:
                         kb.append(row)
                         row = []
                         p_idx = (p_idx + 1) % 2
                 if row: kb.append(row)
-                kb.append([{"text": "🔙 Back", "callback_data": "go_cat"}])
+                kb.append([{"text": "🔙 Back", "callback_data": "go_cat", "style": "danger"}])
                 PRECOMPUTED_MENUS[cat] = {"inline_keyboard": kb}
 
     except Exception: pass
